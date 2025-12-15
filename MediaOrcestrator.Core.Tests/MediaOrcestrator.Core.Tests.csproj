@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="TUnit" Version="1.5.6" />
+    <PackageReference Include="TUnit.Assertions" Version="1.5.60" />
+    <PackageReference Include="TUnit.Core" Version="1.5.60" />
   </ItemGroup>
 
   <ItemGroup>

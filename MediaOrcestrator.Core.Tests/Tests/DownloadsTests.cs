@@ -31,22 +31,21 @@ public class DownloadsTests : BaseTests
 
         await GetChannelService().DownloadVideosAsync(channel.Url, true);
 
-        using (Assert.EnterMultipleScope())
-        {
-            var channelDir = Path.Combine(_tempPath, channel.Name);
-            Assert.That(Directory.Exists(channelDir), Is.True);
+        using var _ = Assert.Multiple();
 
-            var dataFile = Path.Combine(channelDir, "data.json");
-            Assert.That(File.Exists(dataFile), Is.True);
+        var channelDir = Path.Combine(_tempPath, channel.Name);
+        await Assert.That(Directory.Exists(channelDir)).IsTrue();
 
-            var dataContent = await File.ReadAllTextAsync(dataFile);
+        var dataFile = Path.Combine(channelDir, "data.json");
+        await Assert.That(File.Exists(dataFile)).IsTrue();
 
-            Assert.That(dataContent, Does.Contain(video1.Id));
-            Assert.That(dataContent, Does.Contain(video1.Name));
+        var dataContent = await File.ReadAllTextAsync(dataFile);
 
-            Assert.That(dataContent, Does.Contain(video2.Id));
-            Assert.That(dataContent, Does.Contain(video2.Name));
-        }
+        await Assert.That(dataContent).Contains(video1.Id);
+        await Assert.That(dataContent).Contains(video1.Name);
+
+        await Assert.That(dataContent).Contains(video2.Id);
+        await Assert.That(dataContent).Contains(video2.Name);
     }
 
     [Test]
@@ -62,22 +61,21 @@ public class DownloadsTests : BaseTests
 
         await GetChannelService().DownloadVideosAsync(channel.Url, true);
 
-        using (Assert.EnterMultipleScope())
-        {
-            var channelDir = Path.Combine(_tempPath, channel.Name);
-            Assert.That(Directory.Exists(channelDir), Is.True);
+        using var _ = Assert.Multiple();
 
-            var dataFile = Path.Combine(channelDir, "data.json");
-            Assert.That(File.Exists(dataFile), Is.True);
+        var channelDir = Path.Combine(_tempPath, channel.Name);
+        await Assert.That(Directory.Exists(channelDir)).IsTrue();
 
-            var videoFile = Path.Combine(channelDir, "videos", $"{channel.Videos[0].Id}.mp4");
-            Assert.That(File.Exists(videoFile), Is.True);
+        var dataFile = Path.Combine(channelDir, "data.json");
+        await Assert.That(File.Exists(dataFile)).IsTrue();
 
-            var videoMetadataFile = Path.Combine(channelDir, "videos", $"{channel.Videos[0].Id}.json");
-            Assert.That(File.Exists(videoMetadataFile), Is.True);
+        var videoFile = Path.Combine(channelDir, "videos", $"{channel.Videos[0].Id}.mp4");
+        await Assert.That(File.Exists(videoFile)).IsTrue();
 
-            var thumbnailFile = Path.Combine(channelDir, "videos", $"{channel.Videos[0].Id}_thumbnail.jpg");
-            Assert.That(File.Exists(thumbnailFile), Is.True);
-        }
+        var videoMetadataFile = Path.Combine(channelDir, "videos", $"{channel.Videos[0].Id}.json");
+        await Assert.That(File.Exists(videoMetadataFile)).IsTrue();
+
+        var thumbnailFile = Path.Combine(channelDir, "videos", $"{channel.Videos[0].Id}_thumbnail.jpg");
+        await Assert.That(File.Exists(thumbnailFile)).IsTrue();
     }
 }

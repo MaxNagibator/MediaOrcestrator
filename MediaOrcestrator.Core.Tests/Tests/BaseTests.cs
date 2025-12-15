@@ -2,20 +2,18 @@
 using Microsoft.Extensions.DependencyInjection;
 using MediaOrcestrator.Core.Services;
 using MediaOrcestrator.Core.Tests.Helpers;
-using TUnit.Core; // Основное пространство имён
-using TUnit.Assertions; // Для Assert.That
 
 namespace MediaOrcestrator.Core.Tests;
 
 public class BaseTests
 {
     protected TestYoutubeDataClient _client = null!;
-    protected string _baseTempPath = Path.Combine(Path.GetTempPath(), "MediaOrcestrator.Core");
+    protected static string _baseTempPath = Path.Combine(Path.GetTempPath(), "MediaOrcestrator.Core");
     protected string _tempPath = null!;
     private static int _tempPathNumber = 0;
 
-    [OneTimeSetUp]
-    public void OneTimeSetUp()
+    [Before(Assembly)]
+    public static void BeforeAssembly()
     {
         try
         {
@@ -29,7 +27,7 @@ public class BaseTests
         }
     }
 
-    [BeforeEachTest]
+    [Before(Test)]
     public void Setup()
     {
         _client = new();
@@ -38,7 +36,7 @@ public class BaseTests
         Directory.CreateDirectory(_tempPath);
     }
 
-    [AfterEachTest]
+    [After(Test)]
     public void TearDown()
     {
         _client.Clear();

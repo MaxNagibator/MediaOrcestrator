@@ -22,12 +22,12 @@ public class TestYoutubeServiceTests : BaseTests
 
         var result = await service.GetChannel("https://www.youtube.com/@my_channel");
 
-        Assert.That(result, Is.Not.Null);
+        await Assert.That(result).IsNotNull();
 
-        using (Assert.EnterMultipleScope())
+        using var _ = Assert.Multiple();
         {
-            Assert.That(result.Id.Value, Is.EqualTo(channel.Id));
-            Assert.That(result.Title, Is.EqualTo(channel.Name));
+            await Assert.That(result.Id.Value).EqualTo(channel.Id);
+            await Assert.That(result.Title).EqualTo(channel.Name);
         }
     }
 
@@ -50,11 +50,11 @@ public class TestYoutubeServiceTests : BaseTests
             videoTitles.Add(video.Title);
         }
 
-        using (Assert.EnterMultipleScope())
+        using var _ = Assert.Multiple();
         {
-            Assert.That(videoTitles, Has.Count.EqualTo(2));
-            Assert.That(videoTitles, Does.Contain(topVideo1.Name));
-            Assert.That(videoTitles, Does.Contain(topVideo2.Name));
+            await Assert.That(videoTitles.Count).IsEqualTo(2);
+            await Assert.That(videoTitles).Contains(topVideo1.Name);
+            await Assert.That(videoTitles).Contains(topVideo2.Name);
         }
     }
 
@@ -80,16 +80,16 @@ public class TestYoutubeServiceTests : BaseTests
 
         var result = await service.GetVideoAsync(video.Url);
 
-        using (Assert.EnterMultipleScope())
+        using var _ = Assert.Multiple();
         {
-            Assert.That(result.Id.Value, Is.EqualTo(video.Id));
-            Assert.That(result.Title, Is.EqualTo(video.Name));
-            Assert.That(result.Description, Is.EqualTo(video.Description));
-            Assert.That(result.Duration, Is.EqualTo(video.Duration));
-            Assert.That(result.Engagement.ViewCount, Is.EqualTo(video.ViewCount));
-            Assert.That(result.Engagement.LikeCount, Is.EqualTo(video.LikeCount));
-            Assert.That(result.Keywords, Does.Contain(video.Keywords[0]));
-            Assert.That(result.Keywords, Does.Contain(video.Keywords[^1]));
+            await Assert.That(result.Id.Value).EqualTo(video.Id);
+            await Assert.That(result.Title).EqualTo(video.Name);
+            await Assert.That(result.Description).EqualTo(video.Description);
+            await Assert.That(result.Duration).EqualTo(video.Duration);
+            await Assert.That(result.Engagement.ViewCount).EqualTo(video.ViewCount);
+            await Assert.That(result.Engagement.LikeCount).EqualTo(video.LikeCount);
+            await Assert.That(result.Keywords).Contains(video.Keywords[0]);
+            await Assert.That(result.Keywords).Contains(video.Keywords[^1]);
         }
     }
 
@@ -102,10 +102,10 @@ public class TestYoutubeServiceTests : BaseTests
         var manifest = await service.GetStreamManifestAsync("any_url");
         await service.DownloadAsync(manifest.Streams[0], filePath, null, CancellationToken.None);
 
-        using (Assert.EnterMultipleScope())
+        using var _ = Assert.Multiple();
         {
-            Assert.That(service.DownloadCallCount, Is.EqualTo(1));
-            Assert.That(service.WasFileDownloaded(filePath), Is.True);
+            await Assert.That(service.DownloadCallCount).EqualTo(1);
+            await Assert.That(service.WasFileDownloaded(filePath)).IsTrue();
         }
     }
 }
