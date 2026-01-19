@@ -10,4 +10,14 @@
     <ProjectReference Include="..\MediaOrcestrator.Modules\MediaOrcestrator.Modules.csproj" />
   </ItemGroup>
 
+  <Target Name="CopyBuildResults" AfterTargets="Build">
+    <PropertyGroup>
+      <TargetFolder>..\ModuleBuilds\</TargetFolder>
+    </PropertyGroup>
+    <MakeDir Directories="$(TargetFolder)" Condition="!Exists('$(TargetFolder)')" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFiles="$(TargetFolder)$(AssemblyName).dll" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).pdb" DestinationFiles="$(TargetFolder)$(AssemblyName).pdb" SkipUnchangedFiles="true" />
+    <Message Text="✅ $(AssemblyName).dll и .pdb скопированы в $(TargetFolder)" Importance="high" />
+  </Target>
+
 </Project>

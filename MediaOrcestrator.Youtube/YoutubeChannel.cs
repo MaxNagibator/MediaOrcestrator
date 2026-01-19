@@ -6,6 +6,8 @@ namespace MediaOrcestrator.Youtube
     {
         public ChannelType ChannelType => ChannelType.OnlyUpload;
 
+        public string Name => "Youtube";
+
         public IMedia[] GetMedia()
         {
             throw new NotImplementedException();
@@ -18,12 +20,13 @@ namespace MediaOrcestrator.Youtube
 
         public IMedia Download()
         {
+            Console.WriteLine("ютубный я загрузил брат ");
             throw new NotImplementedException();
         }
 
         public void Upload(IMedia media)
         {
-            Console.WriteLine("я загрузил брат " + media.Title);
+            Console.WriteLine("ютубный я загрузил брат " + media.Title);
         }
     }
 

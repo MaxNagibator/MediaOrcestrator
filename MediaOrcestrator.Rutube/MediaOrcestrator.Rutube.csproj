@@ -10,10 +10,13 @@
     <ProjectReference Include="..\MediaOrcestrator.Modules\MediaOrcestrator.Modules.csproj" />
   </ItemGroup>
 
-  <Target Name="CopyDllAfterBuild" AfterTargets="Build">
+  <Target Name="CopyBuildResults" AfterTargets="Build">
     <PropertyGroup>
-      <SourceDll>$(OutputPath)\MediaOrcestrator.Rutube.dll</SourceDll>
-      <TargetFolder>..\ModuleBuilds</TargetFolder>
+      <TargetFolder>..\ModuleBuilds\</TargetFolder>
     </PropertyGroup>
+    <MakeDir Directories="$(TargetFolder)" Condition="!Exists('$(TargetFolder)')" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFiles="$(TargetFolder)$(AssemblyName).dll" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).pdb" DestinationFiles="$(TargetFolder)$(AssemblyName).pdb" SkipUnchangedFiles="true" />
+    <Message Text="✅ $(AssemblyName).dll и .pdb скопированы в $(TargetFolder)" Importance="high" />
   </Target>
 </Project>

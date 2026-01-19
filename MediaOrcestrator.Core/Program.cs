@@ -23,15 +23,24 @@ if (string.IsNullOrWhiteSpace(channelUrl))
     throw new InvalidOperationException("URL канала не настроен. Пожалуйста, укажите 'Channel:Url' в appsettings.");
 }
 
-var path1 = "E:\\bobgroup\\projects\\mediaOrcestrator\\repo\\MediaOrcestrator\\MediaOrcestrator.Rutube\\bin\\Debug\\net8.0";
+var path1 = "..\\..\\..\\..\\ModuleBuilds";
 
 
 var scanner = new InterfaceScanner();
 var myInterfaceType = typeof(IMediaSource); // Пример интерфейса
 var implementations = scanner.FindImplementations(path1, myInterfaceType);
-var x = implementations[0];
-var aaaa = (IMediaSource)Activator.CreateInstance(x.Type);
-aaaa.Download();
+foreach (var x in implementations)
+{
+    try
+    {
+        var aaaa = (IMediaSource)Activator.CreateInstance(x.Type);
+        aaaa.Download();
+    }
+    catch
+    {
+
+    }
+}
 
 
 await service.DownloadVideosAsync(channelUrl);
