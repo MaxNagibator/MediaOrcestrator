@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Other", "Other", "{BD721EFF
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YoutubeExplode", "Other\YoutubeExplode-master\YoutubeExplode\YoutubeExplode.csproj", "{587551F0-2DD0-491A-BA7E-5AF5F06797A7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RutubeTestBayda", "RutubeTestBayda\RutubeTestBayda.csproj", "{7F36A416-A635-4250-A32A-7BE7ED7A3ACA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,6 +31,10 @@ Global
 		{587551F0-2DD0-491A-BA7E-5AF5F06797A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{587551F0-2DD0-491A-BA7E-5AF5F06797A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{587551F0-2DD0-491A-BA7E-5AF5F06797A7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F36A416-A635-4250-A32A-7BE7ED7A3ACA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F36A416-A635-4250-A32A-7BE7ED7A3ACA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F36A416-A635-4250-A32A-7BE7ED7A3ACA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F36A416-A635-4250-A32A-7BE7ED7A3ACA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
