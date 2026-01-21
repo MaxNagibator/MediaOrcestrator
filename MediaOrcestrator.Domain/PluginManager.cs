@@ -4,7 +4,7 @@ namespace MediaOrcestrator.Domain
 {
     public class PluginManager
     {
-        public List<IMediaSource> MediaSources { get; set; }
+        public Dictionary<string, IMediaSource> MediaSources { get; set; }
 
         public void Init()
         {
@@ -12,13 +12,12 @@ namespace MediaOrcestrator.Domain
             var scanner = new InterfaceScanner();
             var myInterfaceType = typeof(IMediaSource); // Пример интерфейса
             var implementations = scanner.FindImplementations(path1, myInterfaceType);
-            MediaSources = new List<IMediaSource>();
+            MediaSources = new Dictionary<string, IMediaSource>();
             foreach (var x in implementations)
             {
-                var id = x.Assembly.FullName;
-                var aaaa = (IMediaSource)Activator.CreateInstance(x.Type);
-                var xyy = aaaa.Name;
-                MediaSources.Add(aaaa);
+                var id = x.Assembly.FullName.Split(",")[0];
+                var instance = (IMediaSource)Activator.CreateInstance(x.Type);
+                MediaSources.Add(id, instance);
             }
         }
     }

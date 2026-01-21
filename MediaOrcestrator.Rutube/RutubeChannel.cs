@@ -1,4 +1,4 @@
-﻿using MediaOrcestrator.Core.Services; // представляем что через нугет подключили
+﻿using MediaOrcestrator.Core.Services;
 
 namespace MediaOrcestrator.Rutube
 {
@@ -28,11 +28,18 @@ namespace MediaOrcestrator.Rutube
         {
             Console.WriteLine("я загрузил брат " + media.Title);
         }
+
+        IAsyncEnumerable<IMedia> IMediaSource.GetMedia()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public class RutubeMedia : IMedia
     {
         public string Title { get; set; }
         public string Description { get; set; }
+
+        public string Id => throw new NotImplementedException();
     }
 }

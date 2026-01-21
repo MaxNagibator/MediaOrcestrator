@@ -26,7 +26,8 @@ namespace MediaOrcestrator.Runner
             foreach (var source in _orcestrator.GetSources())
             {
                 var control = new MediaSourceControl();
-                control.SetMediaSource(source);
+                control.SetMediaSource(source.Value);
+                control.SetZalup(_orcestrator);
                 control.Width = uiMediaSourcePanel.Width - 20;
                 control.Height = 80;
                 control.Left = 10;

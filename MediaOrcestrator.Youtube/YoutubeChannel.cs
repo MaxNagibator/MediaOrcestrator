@@ -1,4 +1,5 @@
 ﻿using MediaOrcestrator.Core.Services;
+using YoutubeExplode;
 
 namespace MediaOrcestrator.Youtube
 {
@@ -8,9 +9,19 @@ namespace MediaOrcestrator.Youtube
 
         public string Name => "Youtube";
 
-        public IMedia[] GetMedia()
+        public async IAsyncEnumerable<IMedia> GetMedia()
         {
-            throw new NotImplementedException();
+            var youtubeClient = new YoutubeClient();
+            var channelUrl = "https://www.youtube.com/@bobito217";
+            var uploads = youtubeClient.Channels.GetUploadsAsync(channelUrl);
+            await foreach (var video in uploads)
+            {
+                yield return new YoutubeMedia()
+                {
+                    Id = video.Id.Value,
+                    Title = video.Title,
+                };
+            }
         }
 
         public IMedia GetMediaById()
@@ -30,8 +41,9 @@ namespace MediaOrcestrator.Youtube
         }
     }
 
-    public class RutubeMedia : IMedia
+    public class YoutubeMedia : IMedia
     {
+        public string Id { get; set; }
         public string Title { get; set; }
         public string Description { get; set; }
     }

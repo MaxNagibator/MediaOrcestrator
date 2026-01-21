@@ -8,7 +8,7 @@
 
   <Target Name="CopyBuildResults" AfterTargets="Build">
     <PropertyGroup>
-      <TargetFolder>..\ModuleBuilds\</TargetFolder>
+      <TargetFolder>..\ModuleBuilds\hdd\</TargetFolder>
     </PropertyGroup>
     <MakeDir Directories="$(TargetFolder)" Condition="!Exists('$(TargetFolder)')" />
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFiles="$(TargetFolder)$(AssemblyName).dll" SkipUnchangedFiles="true" />

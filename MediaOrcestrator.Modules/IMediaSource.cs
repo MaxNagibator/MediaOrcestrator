@@ -10,7 +10,8 @@ namespace MediaOrcestrator.Core.Services
     {
         string Name { get; }
 
-        IMedia[] GetMedia();
+        IAsyncEnumerable<IMedia> GetMedia();
+
         IMedia GetMediaById();
         void Upload(IMedia media);
         IMedia Download();
@@ -26,6 +27,7 @@ namespace MediaOrcestrator.Core.Services
 
     public interface IMedia
     {
+        public string Id { get; }
         public string Title { get; }
         public string Description { get; }
     }
