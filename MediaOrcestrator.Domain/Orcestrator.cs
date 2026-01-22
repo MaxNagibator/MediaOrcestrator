@@ -1,4 +1,5 @@
-﻿using MediaOrcestrator.Modules;
+﻿using LiteDB;
+using MediaOrcestrator.Modules;
 
 namespace MediaOrcestrator.Domain;
 
@@ -38,21 +39,46 @@ public class Orcestrator(PluginManager pluginManager)
         }
     }
 
+    public class MediaSourceCache
+    {
+        Dictionary<string, List<MyMediaSource>> _holder = new Dictionary<string, List<MyMediaSource>>();
+
+        public List<MyMediaSource> GetMedia(string sourceId)
+        {
+            if (!_holder.ContainsKey(sourceId))
+            {
+                _holder[sourceId] = [];
+            }
+            return _holder[sourceId];
+        }
+    }
+
     public async Task Sync()
     {
-        var mediaAll = new List<MyMedia>();
+        using var db = new LiteDatabase(@"MyData.db");
+        var mediaCol = db.GetCollection<MyMedia>("medias");
+        //var myMedia = new MyMedia();
+        //myMedia.Id = "test2";
+        //col.Insert(myMedia);
+      
 
-        var mediaBySourceId = new Dictionary<string, List<MyMediaSource>>();
+        //using (var db = new LiteDatabase(@"MyData.db"))
+        //{
+        //    var col = db.GetCollection<MyMedia>("companies");
+        //    var mediaa = col.FindAll();
+        //    var huys = mediaa.ToList();
+        //    var a2 = mediaa.FirstOrDefault();
+        //    var a = 1;
+        //}
+
+        var mediaAll = mediaCol.FindAll().ToList();
+        var cache = new MediaSourceCache();
+
         foreach (var media in mediaAll)
         {
             foreach (var source in media.Sources)
             {
-                if (mediaBySourceId.ContainsKey(source.Id))
-                {
-                    mediaBySourceId[source.Id] = [];
-                }
-
-                mediaBySourceId[source.Id].Add(source);
+                cache.GetMedia(source.Id).Add(source);
             }
         }
 
@@ -66,10 +92,16 @@ public class Orcestrator(PluginManager pluginManager)
             var source = mediaSource.Value;
             var sourceId = mediaSource.Key;
             var syncMedia = mediaSource.Value.GetMedia();
-
+            var i = 0;
             await foreach (var s in syncMedia)
             {
-                var foundMediaSource = mediaBySourceId[sourceId].FirstOrDefault(x => x.Id == s.Title);
+                i++;
+
+                if(i > 10)
+                {
+                    break;
+                }
+                var foundMediaSource = cache.GetMedia(sourceId).FirstOrDefault(x => x.Id == s.Title);
                 if (foundMediaSource != null)
                 {
                     if (foundMediaSource.Media.Title != s.Title)
@@ -97,11 +129,16 @@ public class Orcestrator(PluginManager pluginManager)
                     };
 
                     myMedia.Sources.Add(newMediaSource);
+                    // поправить циклический зависимость
+                    mediaCol.Insert(myMedia);
                     mediaAll.Add(myMedia);
-                    mediaBySourceId[sourceId].Add(newMediaSource);
+                    cache.GetMedia(sourceId).Add(newMediaSource);
                 }
             }
         });
+
+        var zalupa = 1;
+
     }
 
     public class MyMedia
@@ -118,6 +155,8 @@ public class Orcestrator(PluginManager pluginManager)
         public string SourceId { get; set; }
         public string Status { get; set; }
         public string Id { get; set; }
+
+        [BsonIgnore]
         public MyMedia Media { get; set; }
     }
 }
