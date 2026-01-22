@@ -1,7 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
-using System.Globalization;
+﻿using MediaOrcestrator.Core.Models;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using MediaOrcestrator.Core.Models;
 
 namespace MediaOrcestrator.Core.Services;
 
@@ -104,7 +103,6 @@ public class VideoDownloaderService(
         logger.LogDebug($"Метаданные для {videoInfo.Title} успешно сохранены {videoInfo.Id}.json");
 
         await DownloadThumbnailAsync(videoInfo.ThumbnailUrl, Path.Combine(path, $"{videoInfo.Id}_thumbnail.jpg"));
-
     }
 
     /// <summary>

@@ -1,5 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
-using MediaOrcestrator.Core.Models;
+﻿using MediaOrcestrator.Core.Models;
+using Microsoft.Extensions.Logging;
 using YoutubeExplode;
 using YoutubeExplode.Channels;
 using YoutubeExplode.Playlists;

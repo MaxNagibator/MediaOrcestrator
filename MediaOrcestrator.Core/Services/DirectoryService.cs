@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
-using MediaOrcestrator.Core.Extensions;
+﻿using MediaOrcestrator.Core.Extensions;
 using MediaOrcestrator.Core.Models;
+using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Core.Services;
 

@@ -1,12 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace MediaOrcestrator.Domain;
 
-namespace MediaOrcestrator.Domain
+internal class Processor
 {
-    internal class Processor
-    {
-    }
 }

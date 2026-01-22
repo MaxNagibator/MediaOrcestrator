@@ -1,5 +1,5 @@
-﻿using System.Text.Json.Serialization;
-using MediaOrcestrator.Core.Extensions;
+﻿using MediaOrcestrator.Core.Extensions;
+using System.Text.Json.Serialization;
 
 namespace MediaOrcestrator.Core.Models;
 

@@ -15,7 +15,7 @@ public static class DirectoryExtensions
     /// <returns>Статистика директории.</returns>
     public static DirectoryStats GetDirectoryInfo(this string path)
     {
-        return GetDirectoryInfo(new DirectoryInfo(path).GetFiles());
+        return new DirectoryInfo(path).GetFiles().GetDirectoryInfo();
     }
 
     /// <summary>

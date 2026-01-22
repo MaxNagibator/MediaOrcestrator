@@ -1,8 +1,8 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using MediaOrcestrator.Core.Configurations;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Extensions.Logging;
-using MediaOrcestrator.Core.Configurations;
 
 namespace MediaOrcestrator.Core;
 

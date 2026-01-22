@@ -1,11 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using MediaOrcestrator.Core.Configurations;
+using MediaOrcestrator.Core.Extensions;
+using MediaOrcestrator.Core.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using MediaOrcestrator.Core.Configurations;
-using MediaOrcestrator.Core.Extensions;
-using MediaOrcestrator.Core.Models;
 using YoutubeExplode.Channels;
 using YoutubeExplode.Videos;
 

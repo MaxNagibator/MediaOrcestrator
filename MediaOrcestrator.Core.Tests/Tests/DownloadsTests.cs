@@ -2,7 +2,6 @@
 
 public class DownloadsTests : BaseTests
 {
-
     /// <summary>
     /// Создаём тестовые данные билдером,
     /// TestYoutubeService возвращает их как будто от YouTube API,
@@ -20,16 +19,16 @@ public class DownloadsTests : BaseTests
             .SetUrl("https://www.youtube.com/@test_channel");
 
         var video1 = channel.WithVideo()
-              .SetId(Video1Id)
-              .SetName("Первое видео");
+            .SetId(Video1Id)
+            .SetName("Первое видео");
 
         var video2 = channel.WithVideo()
-             .SetId(Video2Id)
-             .SetName("Второе видео");
+            .SetId(Video2Id)
+            .SetName("Второе видео");
 
         _client.Save();
 
-        await GetChannelService().DownloadVideosAsync(channel.Url, true);
+        await GetChannelService().DownloadVideosAsync(channel.Url);
 
         using var _ = Assert.Multiple();
 
@@ -57,9 +56,10 @@ public class DownloadsTests : BaseTests
             .WithVideo()
             .SetName("Единственное видео")
             .Channel;
+
         _client.Save();
 
-        await GetChannelService().DownloadVideosAsync(channel.Url, true);
+        await GetChannelService().DownloadVideosAsync(channel.Url);
 
         using var _ = Assert.Multiple();
 

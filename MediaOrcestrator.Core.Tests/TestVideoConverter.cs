@@ -1,5 +1,4 @@
-﻿
-using MediaOrcestrator.Core.Services;
+﻿using MediaOrcestrator.Core.Services;
 
 namespace MediaOrcestrator.Core.Tests;
 

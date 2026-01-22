@@ -1,11 +1,11 @@
 ﻿using CliWrap;
 using CliWrap.Exceptions;
+using MediaOrcestrator.Core.Configurations;
+using MediaOrcestrator.Core.Extensions;
 using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using MediaOrcestrator.Core.Configurations;
-using MediaOrcestrator.Core.Extensions;
 
 namespace MediaOrcestrator.Core;
 

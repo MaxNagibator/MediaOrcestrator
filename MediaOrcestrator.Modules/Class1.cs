@@ -1,7 +1,5 @@
-﻿namespace MediaOrcestrator.Modules
-{
-    public class Class1
-    {
+﻿namespace MediaOrcestrator.Modules;
 
-    }
+public class Class1
+{
 }

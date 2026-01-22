@@ -1,5 +1,4 @@
-﻿using MediaOrcestrator.Core.Extensions;
-using YoutubeExplode.Videos;
+﻿using YoutubeExplode.Videos;
 using YoutubeExplode.Videos.Streams;
 
 namespace MediaOrcestrator.Core.Models;

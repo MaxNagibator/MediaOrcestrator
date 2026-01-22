@@ -1,8 +1,7 @@
-// Here you could define global logic that would affect all tests
+using System.Diagnostics.CodeAnalysis;
 
-// You can use attributes at the assembly level to apply to all tests in the assembly
 [assembly: Retry(3)]
-[assembly: System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+[assembly: ExcludeFromCodeCoverage]
 
 namespace MediaOrcestrator.Core.Tests;
 

@@ -1,7 +1,7 @@
 ﻿using CSharpFunctionalExtensions;
-using Microsoft.Extensions.Logging;
 using MediaOrcestrator.Core.Extensions;
 using MediaOrcestrator.Core.Models;
+using Microsoft.Extensions.Logging;
 using YoutubeExplode.Videos.Streams;
 
 namespace MediaOrcestrator.Core.Services;

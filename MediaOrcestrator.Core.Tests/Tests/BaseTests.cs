@@ -1,16 +1,16 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using MediaOrcestrator.Core.Services;
+﻿using MediaOrcestrator.Core.Services;
 using MediaOrcestrator.Core.Tests.Helpers;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MediaOrcestrator.Core.Tests;
 
 public class BaseTests
 {
-    protected TestYoutubeDataClient _client = null!;
     protected static string _baseTempPath = Path.Combine(Path.GetTempPath(), "MediaOrcestrator.Core");
+    private static int _tempPathNumber;
+    protected TestYoutubeDataClient _client = null!;
     protected string _tempPath = null!;
-    private static int _tempPathNumber = 0;
 
     [Before(Assembly)]
     public static void BeforeAssembly()
@@ -31,7 +31,7 @@ public class BaseTests
     public void Setup()
     {
         _client = new();
-        int currentNumber = Interlocked.Increment(ref _tempPathNumber);
+        var currentNumber = Interlocked.Increment(ref _tempPathNumber);
         _tempPath = Path.Combine(_baseTempPath, "YoutubeTests_" + currentNumber);
         Directory.CreateDirectory(_tempPath);
     }

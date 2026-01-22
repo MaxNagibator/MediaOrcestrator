@@ -1,8 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using MediaOrcestrator.Core.Services;
-
-namespace MediaOrcestrator.Core.Tests;
+﻿namespace MediaOrcestrator.Core.Tests;
 
 public class TestYoutubeServiceTests : BaseTests
 {

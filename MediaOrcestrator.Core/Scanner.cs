@@ -1,81 +1,75 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Reflection;
 
-namespace MediaOrcestrator.Core
+namespace MediaOrcestrator.Core;
+
+public class InterfaceScanner
 {
-    public class InterfaceScanner
+    public List<TypeInfo> FindImplementations(string directoryPath, Type interfaceType)
     {
-        public List<TypeInfo> FindImplementations(string directoryPath, Type interfaceType)
+        var implementations = new List<TypeInfo>();
+
+        var assemblies = LoadAllAssemblies(directoryPath);
+
+        foreach (var assembly in assemblies)
         {
-            var implementations = new List<TypeInfo>();
-
-            var assemblies = LoadAllAssemblies(directoryPath);
-
-            foreach (var assembly in assemblies)
+            try
             {
-                try
-                {
-                    var types = assembly.GetTypes()
-                        .Where(t => t.IsClass && !t.IsAbstract)
-                        .ToList();
+                var types = assembly.GetTypes()
+                    .Where(t => t.IsClass && !t.IsAbstract)
+                    .ToList();
 
-                    foreach (var type in types)
+                foreach (var type in types)
+                {
+                    if (interfaceType.IsAssignableFrom(type))
                     {
-                        if (interfaceType.IsAssignableFrom(type))
+                        implementations.Add(new()
                         {
-                            implementations.Add(new TypeInfo
-                            {
-                                Type = type,
-                                Assembly = assembly,
-                                AssemblyPath = assembly.Location
-                            });
-                        }
+                            Type = type,
+                            Assembly = assembly,
+                            AssemblyPath = assembly.Location,
+                        });
                     }
                 }
-                catch (ReflectionTypeLoadException ex)
-                {
-                    Console.WriteLine($"Ошибка загрузки типов из {assembly.FullName}: {ex.Message}");
-                }
             }
-
-            return implementations;
-        }
-
-        private List<Assembly> LoadAllAssemblies(string directoryPath)
-        {
-            var assemblies = new List<Assembly>();
-            var dllFiles = Directory.GetFiles(directoryPath, "*.dll", SearchOption.AllDirectories);
-
-            foreach (var dllFile in dllFiles)
+            catch (ReflectionTypeLoadException ex)
             {
-                try
-                {
-                    var assembly = Assembly.LoadFrom(dllFile);
-                    assemblies.Add(assembly);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Не удалось загрузить {dllFile}: {ex.Message}");
-                }
+                Console.WriteLine($"Ошибка загрузки типов из {assembly.FullName}: {ex.Message}");
             }
-
-            return assemblies;
         }
+
+        return implementations;
     }
 
-    public class TypeInfo
+    private List<Assembly> LoadAllAssemblies(string directoryPath)
     {
-        public Type Type { get; set; }
-        public Assembly Assembly { get; set; }
-        public string AssemblyPath { get; set; }
+        var assemblies = new List<Assembly>();
+        var dllFiles = Directory.GetFiles(directoryPath, "*.dll", SearchOption.AllDirectories);
 
-        public override string ToString()
+        foreach (var dllFile in dllFiles)
         {
-            return $"{Type.FullName} | {Path.GetFileName(AssemblyPath)}";
+            try
+            {
+                var assembly = Assembly.LoadFrom(dllFile);
+                assemblies.Add(assembly);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Не удалось загрузить {dllFile}: {ex.Message}");
+            }
         }
+
+        return assemblies;
+    }
+}
+
+public class TypeInfo
+{
+    public Type Type { get; set; }
+    public Assembly Assembly { get; set; }
+    public string AssemblyPath { get; set; }
+
+    public override string ToString()
+    {
+        return $"{Type.FullName} | {Path.GetFileName(AssemblyPath)}";
     }
 }

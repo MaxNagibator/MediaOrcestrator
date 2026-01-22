@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using MediaOrcestrator.Core.Configurations;
+using MediaOrcestrator.Core.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using MediaOrcestrator.Core.Configurations;
-using MediaOrcestrator.Core.Services;
 using YoutubeExplode;
 
 namespace MediaOrcestrator.Core;
