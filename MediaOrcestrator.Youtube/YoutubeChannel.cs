@@ -10,22 +10,15 @@ public class YoutubeChannel : IMediaSource
 
     public string Name => "Youtube";
 
-    public IEnumerable<SourceSettings> SettingsKeys
-    {
-        get
+    public IEnumerable<SourceSettings> SettingsKeys { get; } =
+    [
+        new()
         {
-            var a = new List<SourceSettings>
-            {
-                new SourceSettings
-                {
-                    Key = "channel_id",
-                    IsRequired = true,
-                    Title = "идентификатор канала",
-                }
-            };
-            return a;
-        }
-    }
+            Key = "channel_id",
+            IsRequired = true,
+            Title = "идентификатор канала",
+        },
+    ];
 
     public async IAsyncEnumerable<IMedia> GetMedia(Dictionary<string, string> settings)
     {

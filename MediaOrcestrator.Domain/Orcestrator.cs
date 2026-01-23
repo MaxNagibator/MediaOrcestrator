@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Domain;
 
-public class Orcestrator(PluginManager pluginManager, ILogger<Orcestrator> logger)
+public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<Orcestrator> logger)
 {
     private List<SourceRelation> _relations;
 
@@ -43,8 +43,7 @@ public class Orcestrator(PluginManager pluginManager, ILogger<Orcestrator> logge
     public async Task Sync()
     {
         logger.LogInformation("Запуск процесса синхронизации...");
-        
-        using var db = new LiteDatabase(@"MyData.db");
+
         var mediaCol = db.GetCollection<MyMedia>("medias");
         var mediaAll = mediaCol.FindAll().ToList();
 
@@ -60,24 +59,18 @@ public class Orcestrator(PluginManager pluginManager, ILogger<Orcestrator> logge
 
         logger.LogInformation("Обнаружено {Count} элементов медиа в локальном кэше.", mediaAll.Count);
 
-        db.Dispose(); // todo
-
         await Parallel.ForEachAsync(GetMediaSourceData(), async (mediaSource, cancellationToken) =>
         {
-            if (mediaSource.TypeId != "Youtube")
-            //if (mediaSource.TypeId != "MediaOrcestrator.Youtube") todo
-                {
+            var sources = GetSources();
+            var plugin = sources.Values.FirstOrDefault(x => x.Name == mediaSource.TypeId);
+
+            if (plugin == null)
+            {
+                logger.LogError("Плагин для типа {TypeId} не найден.", mediaSource.TypeId);
                 return;
             }
 
-            //var source = mediaSource.Value;
-            //var sourceId = mediaSource.Key;
-
-
-            var sources = GetSources();
-            var blabla = sources.First(x => x.Value.Name == mediaSource.TypeId).Value;
-
-            var syncMedia = blabla.GetMedia(mediaSource.Settings);
+            var syncMedia = plugin.GetMedia(mediaSource.Settings);
             var i = 0;
             await foreach (var s in syncMedia)
             {
@@ -132,14 +125,28 @@ public class Orcestrator(PluginManager pluginManager, ILogger<Orcestrator> logge
 
     public List<MyMedia> GetMediaData()
     {
-        using var db = new LiteDatabase(@"MyData.db");
         return db.GetCollection<MyMedia>("medias").FindAll().ToList();
     }
 
     public List<MySource> GetMediaSourceData()
     {
-        using var db = new LiteDatabase(@"MyData.db");
         return db.GetCollection<MySource>("sources").FindAll().ToList();
+    }
+
+    public void AddSource(string typeId, Dictionary<string, string> settings)
+    {
+        db.GetCollection<MySource>("sources")
+            .Insert(new MySource
+            {
+                Id = Guid.NewGuid().ToString(),
+                TypeId = typeId,
+                Settings = settings,
+            });
+    }
+
+    public void RemoveSource(string sourceId)
+    {
+        db.GetCollection<MySource>("sources").Delete(sourceId);
     }
 
     public class MediaSourceCache

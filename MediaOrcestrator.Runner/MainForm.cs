@@ -1,5 +1,4 @@
-﻿using LiteDB;
-using MediaOrcestrator.Domain;
+﻿using MediaOrcestrator.Domain;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -69,6 +68,7 @@ public partial class MainForm : Form
             // TODO: Сомнительно
             var control = _serviceProvider.GetRequiredService<MediaSourceControl>();
             control.SetMediaSource(source);
+            control.SourceDeleted += (_, _) => DrawSources();
             control.Width = uiMediaSourcePanel.Width - 20;
             control.Height = 80;
             control.Left = 10;
@@ -80,13 +80,18 @@ public partial class MainForm : Form
 
     private void uiAddSourceButton_Click(object sender, EventArgs e)
     {
-        // todo обобщить через одно место хранение
-        using var db = new LiteDatabase(@"MyData.db");
-        db.GetCollection<MySource>("sources").Insert(new MySource
+        if (uiSourcesComboBox.SelectedItem is not IMediaSource selectedPlugin)
         {
-            Id = Guid.NewGuid().ToString(),
-            TypeId = ((IMediaSource)uiSourcesComboBox.SelectedItem).Name,
-            Settings = new Dictionary<string, string> { { "channel_id", "https://www.youtube.com/@bobito217" } }
-        });
+            return;
+        }
+
+        using var settingsForm = new SourceSettingsForm(selectedPlugin.SettingsKeys);
+        if (settingsForm.ShowDialog() != DialogResult.OK || settingsForm.Settings == null)
+        {
+            return;
+        }
+
+        _orcestrator.AddSource(selectedPlugin.Name, settingsForm.Settings);
+        DrawSources();
     }
 }

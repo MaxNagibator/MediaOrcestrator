@@ -1,19 +1,17 @@
-﻿using System.Collections.Generic;
-
-namespace MediaOrcestrator.Modules;
+﻿namespace MediaOrcestrator.Modules;
 
 public interface IMediaSource
 {
     string Name { get; }
     ChannelType ChannelType { get; }
 
+    IEnumerable<SourceSettings> SettingsKeys { get; }
+
     IAsyncEnumerable<IMedia> GetMedia(Dictionary<string, string> settings);
 
     IMedia GetMediaById();
     void Upload(IMedia media);
     IMedia Download();
-
-    IEnumerable<SourceSettings> SettingsKeys { get; }
 }
 
 public class SourceSettings

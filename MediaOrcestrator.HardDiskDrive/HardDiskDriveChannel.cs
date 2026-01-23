@@ -8,7 +8,14 @@ public class HardDiskDriveChannel : IMediaSource
 
     public string Name => "HardDiskDrive";
 
+    public IEnumerable<SourceSettings> SettingsKeys { get; }
+
     public IMedia[] GetMedia()
+    {
+        throw new NotImplementedException();
+    }
+
+    public IAsyncEnumerable<IMedia> GetMedia(Dictionary<string, string> settings)
     {
         throw new NotImplementedException();
     }
@@ -27,11 +34,6 @@ public class HardDiskDriveChannel : IMediaSource
     public void Upload(IMedia media)
     {
         Console.WriteLine("я загрузил брат " + media.Title);
-    }
-
-    IAsyncEnumerable<IMedia> IMediaSource.GetMedia()
-    {
-        throw new NotImplementedException();
     }
 }
 

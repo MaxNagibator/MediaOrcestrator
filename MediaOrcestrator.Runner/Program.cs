@@ -1,8 +1,8 @@
+using LiteDB;
 using MediaOrcestrator.Domain;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using System.Text;
 
 namespace MediaOrcestrator.Runner;
 
@@ -52,17 +52,12 @@ internal static class Program
             builder.AddSerilog();
         });
 
+        // TODO: Вроде нормальная практика в десктопных приложениях
+        services.AddSingleton<LiteDatabase>(_ => new(@"MyData.db"));
         services.AddSingleton<PluginManager>();
         services.AddSingleton<Orcestrator>();
         services.AddTransient<MainForm>();
 
         services.AddTransient<MediaSourceControl>();
-    }
-}
-
-public static class Globals
-{
-    public static void Init()
-    {
     }
 }
