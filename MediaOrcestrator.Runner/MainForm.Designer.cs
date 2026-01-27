@@ -35,12 +35,12 @@
             uiAddSourceButton = new Button();
             uiSourcesComboBox = new ComboBox();
             splitContainer1 = new SplitContainer();
-            uiRelationFromComboBox = new ComboBox();
-            uiRelationToComboBox = new ComboBox();
-            label1 = new Label();
-            label2 = new Label();
-            button1 = new Button();
             panel1 = new Panel();
+            button1 = new Button();
+            label2 = new Label();
+            label1 = new Label();
+            uiRelationToComboBox = new ComboBox();
+            uiRelationFromComboBox = new ComboBox();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
             splitContainer1.Panel1.SuspendLayout();
             splitContainer1.Panel2.SuspendLayout();
@@ -73,7 +73,7 @@
             mediaMatrixGridControl1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             mediaMatrixGridControl1.Location = new Point(3, 3);
             mediaMatrixGridControl1.Name = "mediaMatrixGridControl1";
-            mediaMatrixGridControl1.Size = new Size(721, 761);
+            mediaMatrixGridControl1.Size = new Size(721, 764);
             mediaMatrixGridControl1.TabIndex = 2;
             // 
             // uiAddSourceButton
@@ -119,47 +119,20 @@
             // splitContainer1.Panel2
             // 
             splitContainer1.Panel2.Controls.Add(mediaMatrixGridControl1);
-            splitContainer1.Size = new Size(1133, 767);
+            splitContainer1.Size = new Size(1133, 770);
             splitContainer1.SplitterDistance = 402;
             splitContainer1.TabIndex = 5;
             // 
-            // comboBox1
+            // panel1
             // 
-            uiRelationFromComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiRelationFromComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            uiRelationFromComboBox.FormattingEnabled = true;
-            uiRelationFromComboBox.Location = new Point(3, 489);
-            uiRelationFromComboBox.Name = "comboBox1";
-            uiRelationFromComboBox.Size = new Size(396, 23);
-            uiRelationFromComboBox.TabIndex = 5;
-            // 
-            // comboBox2
-            // 
-            uiRelationToComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiRelationToComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            uiRelationToComboBox.FormattingEnabled = true;
-            uiRelationToComboBox.Location = new Point(3, 533);
-            uiRelationToComboBox.Name = "comboBox2";
-            uiRelationToComboBox.Size = new Size(396, 23);
-            uiRelationToComboBox.TabIndex = 6;
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Location = new Point(3, 471);
-            label1.Name = "label1";
-            label1.Size = new Size(45, 15);
-            label1.TabIndex = 7;
-            label1.Text = "Откуда";
-            // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Location = new Point(3, 515);
-            label2.Name = "label2";
-            label2.Size = new Size(32, 15);
-            label2.TabIndex = 8;
-            label2.Text = "Куда";
+            panel1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            panel1.AutoScroll = true;
+            panel1.BackColor = SystemColors.ControlDark;
+            panel1.Location = new Point(3, 600);
+            panel1.Name = "panel1";
+            panel1.Padding = new Padding(5);
+            panel1.Size = new Size(396, 163);
+            panel1.TabIndex = 1;
             // 
             // button1
             // 
@@ -172,20 +145,49 @@
             button1.UseVisualStyleBackColor = true;
             button1.Click += button1_Click;
             // 
-            // panel1
+            // label2
             // 
-            panel1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            panel1.BackColor = SystemColors.ControlDark;
-            panel1.Location = new Point(3, 600);
-            panel1.Name = "panel1";
-            panel1.Size = new Size(396, 116);
-            panel1.TabIndex = 1;
+            label2.AutoSize = true;
+            label2.Location = new Point(3, 515);
+            label2.Name = "label2";
+            label2.Size = new Size(32, 15);
+            label2.TabIndex = 8;
+            label2.Text = "Куда";
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(3, 471);
+            label1.Name = "label1";
+            label1.Size = new Size(45, 15);
+            label1.TabIndex = 7;
+            label1.Text = "Откуда";
+            // 
+            // uiRelationToComboBox
+            // 
+            uiRelationToComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiRelationToComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiRelationToComboBox.FormattingEnabled = true;
+            uiRelationToComboBox.Location = new Point(3, 533);
+            uiRelationToComboBox.Name = "uiRelationToComboBox";
+            uiRelationToComboBox.Size = new Size(396, 23);
+            uiRelationToComboBox.TabIndex = 6;
+            // 
+            // uiRelationFromComboBox
+            // 
+            uiRelationFromComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiRelationFromComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiRelationFromComboBox.FormattingEnabled = true;
+            uiRelationFromComboBox.Location = new Point(3, 489);
+            uiRelationFromComboBox.Name = "uiRelationFromComboBox";
+            uiRelationFromComboBox.Size = new Size(396, 23);
+            uiRelationFromComboBox.TabIndex = 5;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1157, 791);
+            ClientSize = new Size(1157, 794);
             Controls.Add(splitContainer1);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";

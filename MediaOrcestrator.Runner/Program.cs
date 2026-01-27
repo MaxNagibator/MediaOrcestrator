@@ -53,5 +53,6 @@ file static class Program
         services.AddTransient<MainForm>();
 
         services.AddTransient<MediaSourceControl>();
+        services.AddTransient<RelationControl>();
     }
 }

@@ -79,7 +79,7 @@ public partial class MainForm : Form
         var to = (MySource)uiRelationToComboBox.SelectedItem;
 
         _orcestrator.AddLink(from, to);
-        panel1.Controls.Add(new Label { Text = from.Title + " " + to.Title });
+        DrawRelations();
     }
 
     private void DrawSources()
@@ -98,7 +98,10 @@ public partial class MainForm : Form
             uiSourcesComboBox.Items.Add(source.Value);
         }
 
-        uiSourcesComboBox.SelectedIndex = 0;
+        if (uiSourcesComboBox.Items.Count > 0)
+        {
+            uiSourcesComboBox.SelectedIndex = 0;
+        }
 
         uiMediaSourcePanel.Controls.Clear();
         var shift = 10;
@@ -119,12 +122,22 @@ public partial class MainForm : Form
             uiRelationToComboBox.Items.Add(source);
         }
 
+        DrawRelations();
+    }
+
+    private void DrawRelations()
+    {
+        panel1.Controls.Clear();
         var relations = _orcestrator.GetRelations();
-        var i = -1;
+
         foreach (var rel in relations)
         {
-            i++;
-            panel1.Controls.Add(new Label { Text = rel.From.Title + " " + rel.To.Title, Width = panel1.Width, Top = i * 20 });
+            var control = _serviceProvider.GetRequiredService<RelationControl>();
+            control.SetRelation(rel);
+            control.RelationDeleted += (_, _) => DrawRelations();
+
+            panel1.Controls.Add(control);
+            control.SendToBack();
         }
     }
 }

@@ -138,6 +138,13 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         db.GetCollection<SourceRelation>("source_relations").Insert(new SourceRelation { From = from, To = to });
     }
 
+    public void RemoveLink(MySource from, MySource to)
+    {
+        // TODO: Подумать
+        db.GetCollection<SourceRelation>("source_relations")
+            .DeleteMany(x => x.From.Id == from.Id && x.To.Id == to.Id);
+    }
+
     public class MediaSourceCache
     {
         private readonly Dictionary<string, List<MyMediaLinkToSource>> _holder = new();
