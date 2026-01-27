@@ -28,60 +28,95 @@
         /// </summary>
         private void InitializeComponent()
         {
-            label1 = new Label();
-            checkBox1 = new CheckBox();
-            button1 = new Button();
+            uiMainLayout = new TableLayoutPanel();
+            uiSourceContainer = new Panel();
+            uiTitleLabel = new Label();
+            uiTypeLabel = new Label();
+            uiDeleteButton = new Button();
+            uiMainLayout.SuspendLayout();
+            uiSourceContainer.SuspendLayout();
             SuspendLayout();
             // 
-            // label1
+            // uiMainLayout
             // 
-            label1.AutoSize = true;
-            label1.Location = new Point(13, 13);
-            label1.Name = "label1";
-            label1.Size = new Size(38, 15);
-            label1.TabIndex = 0;
-            label1.Text = "label1";
+            uiMainLayout.ColumnCount = 2;
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 107F));
+            uiMainLayout.Controls.Add(uiSourceContainer, 0, 0);
+            uiMainLayout.Controls.Add(uiDeleteButton, 1, 0);
+            uiMainLayout.Dock = DockStyle.Fill;
+            uiMainLayout.Location = new Point(0, 0);
+            uiMainLayout.Name = "uiMainLayout";
+            uiMainLayout.RowCount = 1;
+            uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            uiMainLayout.Size = new Size(390, 62);
+            uiMainLayout.TabIndex = 0;
             // 
-            // checkBox1
+            // uiSourceContainer
             // 
-            checkBox1.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            checkBox1.AutoSize = true;
-            checkBox1.Location = new Point(510, 13);
-            checkBox1.Name = "checkBox1";
-            checkBox1.Size = new Size(83, 19);
-            checkBox1.TabIndex = 1;
-            checkBox1.Text = "checkBox1";
-            checkBox1.UseVisualStyleBackColor = true;
+            uiSourceContainer.Controls.Add(uiTitleLabel);
+            uiSourceContainer.Controls.Add(uiTypeLabel);
+            uiSourceContainer.Dock = DockStyle.Fill;
+            uiSourceContainer.Location = new Point(3, 3);
+            uiSourceContainer.Name = "uiSourceContainer";
+            uiSourceContainer.Size = new Size(277, 56);
+            uiSourceContainer.TabIndex = 0;
             // 
-            // button1
+            // uiTitleLabel
             // 
-            button1.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            button1.Location = new Point(498, 36);
-            button1.Name = "button1";
-            button1.Size = new Size(87, 23);
-            button1.TabIndex = 2;
-            button1.Text = "delete";
-            button1.UseVisualStyleBackColor = true;
-            button1.Click += button1_Click;
+            uiTitleLabel.AutoEllipsis = true;
+            uiTitleLabel.Dock = DockStyle.Top;
+            uiTitleLabel.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            uiTitleLabel.Location = new Point(0, 0);
+            uiTitleLabel.Name = "uiTitleLabel";
+            uiTitleLabel.Size = new Size(277, 23);
+            uiTitleLabel.TabIndex = 0;
+            uiTitleLabel.Text = "Title";
+            // 
+            // uiTypeLabel
+            // 
+            uiTypeLabel.AutoEllipsis = true;
+            uiTypeLabel.Dock = DockStyle.Bottom;
+            uiTypeLabel.ForeColor = Color.Gray;
+            uiTypeLabel.Location = new Point(0, 41);
+            uiTypeLabel.Name = "uiTypeLabel";
+            uiTypeLabel.Size = new Size(277, 15);
+            uiTypeLabel.TabIndex = 4;
+            uiTypeLabel.Text = "Type";
+            // 
+            // uiDeleteButton
+            // 
+            uiDeleteButton.Anchor = AnchorStyles.None;
+            uiDeleteButton.Location = new Point(293, 19);
+            uiDeleteButton.Name = "uiDeleteButton";
+            uiDeleteButton.Size = new Size(87, 23);
+            uiDeleteButton.TabIndex = 3;
+            uiDeleteButton.Text = "delete";
+            uiDeleteButton.UseVisualStyleBackColor = true;
+            uiDeleteButton.Click += uiDeleteButton_Click;
             // 
             // MediaSourceControl
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.LightSteelBlue;
-            Controls.Add(button1);
-            Controls.Add(checkBox1);
-            Controls.Add(label1);
+            BorderStyle = BorderStyle.FixedSingle;
+            Controls.Add(uiMainLayout);
+            Dock = DockStyle.Top;
+            Margin = new Padding(5);
             Name = "MediaSourceControl";
-            Size = new Size(596, 62);
+            Size = new Size(390, 62);
+            uiMainLayout.ResumeLayout(false);
+            uiSourceContainer.ResumeLayout(false);
             ResumeLayout(false);
-            PerformLayout();
         }
 
         #endregion
 
-        private Label label1;
-        private CheckBox checkBox1;
-        private Button button1;
+        private System.Windows.Forms.TableLayoutPanel uiMainLayout;
+        private System.Windows.Forms.Panel uiSourceContainer;
+        private System.Windows.Forms.Label uiTitleLabel;
+        private System.Windows.Forms.Label uiTypeLabel;
+        private System.Windows.Forms.Button uiDeleteButton;
     }
 }

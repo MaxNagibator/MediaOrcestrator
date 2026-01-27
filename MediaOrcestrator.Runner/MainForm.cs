@@ -104,19 +104,14 @@ public partial class MainForm : Form
         }
 
         uiMediaSourcePanel.Controls.Clear();
-        var shift = 10;
         foreach (var source in _orcestrator.GetMediaSourceData())
         {
-            // TODO: Сомнительно
             var control = _serviceProvider.GetRequiredService<MediaSourceControl>();
             control.SetMediaSource(source);
             control.SourceDeleted += (_, _) => DrawSources();
-            control.Width = uiMediaSourcePanel.Width - 20;
-            control.Height = 80;
-            control.Left = 10;
-            control.Top = shift;
-            shift += 100;
+
             uiMediaSourcePanel.Controls.Add(control);
+            control.SendToBack();
 
             uiRelationFromComboBox.Items.Add(source);
             uiRelationToComboBox.Items.Add(source);

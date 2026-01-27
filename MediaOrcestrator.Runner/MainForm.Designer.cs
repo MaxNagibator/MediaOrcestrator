@@ -50,9 +50,11 @@
             // uiMediaSourcePanel
             // 
             uiMediaSourcePanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiMediaSourcePanel.AutoScroll = true;
             uiMediaSourcePanel.BackColor = SystemColors.ControlDark;
             uiMediaSourcePanel.Location = new Point(3, 43);
             uiMediaSourcePanel.Name = "uiMediaSourcePanel";
+            uiMediaSourcePanel.Padding = new Padding(5);
             uiMediaSourcePanel.Size = new Size(396, 336);
             uiMediaSourcePanel.TabIndex = 0;
             uiMediaSourcePanel.SizeChanged += uiMediaSourcePanel_SizeChanged;
