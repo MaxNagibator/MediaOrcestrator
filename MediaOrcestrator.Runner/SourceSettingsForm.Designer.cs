@@ -28,67 +28,98 @@ partial class SourceSettingsForm
     /// </summary>
     private void InitializeComponent()
     {
-        panel1 = new Panel();
+        uiMainLayout = new TableLayoutPanel();
+        uiNameLabel = new Label();
         uiNameTextBox = new TextBox();
-        label1 = new Label();
-        button1 = new Button();
+        uiSettingsPanel = new Panel();
+        uiCreateButton = new Button();
+        uiMainLayout.SuspendLayout();
         SuspendLayout();
         // 
-        // panel1
+        // uiMainLayout
         // 
-        panel1.Location = new Point(94, 114);
-        panel1.Name = "panel1";
-        panel1.Size = new Size(649, 274);
-        panel1.TabIndex = 0;
+        uiMainLayout.ColumnCount = 1;
+        uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        uiMainLayout.Controls.Add(uiNameLabel, 0, 0);
+        uiMainLayout.Controls.Add(uiNameTextBox, 0, 1);
+        uiMainLayout.Controls.Add(uiSettingsPanel, 0, 2);
+        uiMainLayout.Controls.Add(uiCreateButton, 0, 3);
+        uiMainLayout.Dock = DockStyle.Fill;
+        uiMainLayout.Location = new Point(10, 10);
+        uiMainLayout.Name = "uiMainLayout";
+        uiMainLayout.Padding = new Padding(10);
+        uiMainLayout.RowCount = 4;
+        uiMainLayout.RowStyles.Add(new RowStyle());
+        uiMainLayout.RowStyles.Add(new RowStyle());
+        uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F));
+        uiMainLayout.Size = new Size(602, 518);
+        uiMainLayout.TabIndex = 0;
+        // 
+        // uiNameLabel
+        // 
+        uiNameLabel.AutoSize = true;
+        uiNameLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        uiNameLabel.Location = new Point(13, 10);
+        uiNameLabel.Name = "uiNameLabel";
+        uiNameLabel.Size = new Size(127, 15);
+        uiNameLabel.TabIndex = 2;
+        uiNameLabel.Text = "Название источника";
         // 
         // uiNameTextBox
         // 
-        uiNameTextBox.Location = new Point(151, 65);
+        uiNameTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        uiNameTextBox.Location = new Point(13, 28);
+        uiNameTextBox.Margin = new Padding(3, 3, 3, 15);
         uiNameTextBox.Name = "uiNameTextBox";
-        uiNameTextBox.Size = new Size(100, 23);
+        uiNameTextBox.Size = new Size(576, 23);
         uiNameTextBox.TabIndex = 1;
         // 
-        // label1
+        // uiSettingsPanel
         // 
-        label1.AutoSize = true;
-        label1.Location = new Point(89, 49);
-        label1.Name = "label1";
-        label1.Size = new Size(38, 15);
-        label1.TabIndex = 2;
-        label1.Text = "label1";
+        uiSettingsPanel.AutoScroll = true;
+        uiSettingsPanel.BackColor = Color.WhiteSmoke;
+        uiSettingsPanel.Dock = DockStyle.Fill;
+        uiSettingsPanel.Location = new Point(13, 69);
+        uiSettingsPanel.Name = "uiSettingsPanel";
+        uiSettingsPanel.Size = new Size(576, 391);
+        uiSettingsPanel.TabIndex = 0;
         // 
-        // button1
+        // uiCreateButton
         // 
-        button1.Location = new Point(570, 417);
-        button1.Name = "button1";
-        button1.Size = new Size(75, 23);
-        button1.TabIndex = 3;
-        button1.Text = "button1";
-        button1.UseVisualStyleBackColor = true;
-        button1.Click += button1_Click;
+        uiCreateButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+        uiCreateButton.FlatStyle = FlatStyle.System;
+        uiCreateButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        uiCreateButton.Location = new Point(416, 470);
+        uiCreateButton.Name = "uiCreateButton";
+        uiCreateButton.Size = new Size(173, 35);
+        uiCreateButton.TabIndex = 3;
+        uiCreateButton.Text = "Создать источник";
+        uiCreateButton.UseVisualStyleBackColor = true;
+        uiCreateButton.Click += uiCreateButton_Click;
         // 
         // SourceSettingsForm
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(762, 482);
-        Controls.Add(button1);
-        Controls.Add(label1);
-        Controls.Add(uiNameTextBox);
-        Controls.Add(panel1);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        BackColor = Color.White;
+        ClientSize = new Size(622, 538);
+        Controls.Add(uiMainLayout);
         Name = "SourceSettingsForm";
+        Padding = new Padding(10);
         StartPosition = FormStartPosition.CenterParent;
         Text = "Настройки источника";
         Load += SourceSettingsForm_Load;
+        uiMainLayout.ResumeLayout(false);
+        uiMainLayout.PerformLayout();
         ResumeLayout(false);
-        PerformLayout();
     }
 
     #endregion
 
-    private Panel panel1;
+    private TableLayoutPanel uiMainLayout;
+    private Panel uiSettingsPanel;
     private TextBox uiNameTextBox;
-    private Label label1;
-    private Button button1;
+    private Label uiNameLabel;
+    private Button uiCreateButton;
 }
