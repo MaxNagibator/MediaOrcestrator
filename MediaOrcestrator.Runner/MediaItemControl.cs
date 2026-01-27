@@ -1,4 +1,6 @@
-﻿namespace MediaOrcestrator.Runner;
+﻿using MediaOrcestrator.Domain;
+
+namespace MediaOrcestrator.Runner;
 
 public partial class MediaItemControl : UserControl
 {
@@ -8,7 +10,7 @@ public partial class MediaItemControl : UserControl
     }
 
     // TODO: Черновик
-    public void SetData(MediaGridRowDto data, List<string> platformIds)
+    public void SetData(MediaGridRowDto data, List<MySource> platformIds)
     {
         tableLayoutPanel1.Controls.Clear();
         tableLayoutPanel1.ColumnCount = platformIds.Count + 1;
@@ -29,7 +31,7 @@ public partial class MediaItemControl : UserControl
         {
             var platformId = platformIds[i];
 
-            var status = data.PlatformStatuses.GetValueOrDefault(platformId, "None");
+            var status = data.PlatformStatuses.GetValueOrDefault(platformId.Id, "None");
             var lblStatus = new Label
             {
                 Text = GetStatusSymbol(status),
@@ -38,7 +40,7 @@ public partial class MediaItemControl : UserControl
                 ForeColor = GetStatusColor(status),
             };
 
-            tableLayoutPanel1.ColumnStyles.Add(new(SizeType.Absolute, 40F));
+            tableLayoutPanel1.ColumnStyles.Add(new(SizeType.Absolute, 80F));
             tableLayoutPanel1.Controls.Add(lblStatus, i + 1, 0);
         }
     }

@@ -16,28 +16,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
     public void Init()
     {
         pluginManager.Init();
-        _relations =
-        [
-            new()
-            {
-                IdFrom = "MediaOrcestrator.Youtube",
-                IdTo = "MediaOrcestrator.HardDiskDrive",
-            },
-        ];
-
         var sources = GetSources();
-        foreach (var relation in _relations)
-        {
-            if (sources.TryGetValue(relation.IdFrom, out var from))
-            {
-                relation.From = from;
-            }
-
-            if (sources.TryGetValue(relation.IdTo, out var to))
-            {
-                relation.To = to;
-            }
-        }
     }
 
     public async Task Sync()
@@ -147,6 +126,16 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
     public void RemoveSource(string sourceId)
     {
         db.GetCollection<MySource>("sources").Delete(sourceId);
+    }
+
+    public List<SourceRelation> GetRelations()
+    {
+        return db.GetCollection<SourceRelation>("source_relations").FindAll().ToList();
+    }
+
+    public void AddLink(MySource from, MySource to)
+    {
+        db.GetCollection<SourceRelation>("source_relations").Insert(new SourceRelation { From = from, To = to });
     }
 
     public class MediaSourceCache

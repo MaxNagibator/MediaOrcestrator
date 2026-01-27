@@ -17,6 +17,12 @@ public class PluginManager
         {
             var id = x.Assembly.FullName.Split(",")[0];
             var instance = (IMediaSource)Activator.CreateInstance(x.Type);
+
+            if (instance.SettingsKeys != null && instance.SettingsKeys.Any(x => x.Key.StartsWith("_system")))
+            {
+                // todo логи
+                continue;
+            }
             MediaSources.Add(id, instance);
         }
     }

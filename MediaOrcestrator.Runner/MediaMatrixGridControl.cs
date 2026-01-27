@@ -23,12 +23,12 @@ public partial class MediaMatrixGridControl : UserControl
             return;
         }
 
-        var sources = _orcestrator.GetSources();
-        var platformIds = sources.Keys.ToList();
+        var sources = _orcestrator.GetMediaSourceData();
+        // var platformIds = sources.Keys.ToList();
 
         var toolTip = new ToolTip();
         uiMediaHeaderPanel.Controls.Clear();
-        uiMediaHeaderPanel.ColumnCount = platformIds.Count + 1;
+        uiMediaHeaderPanel.ColumnCount = sources.Count + 1;
         uiMediaHeaderPanel.ColumnStyles.Clear();
 
         uiMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Percent, 100F));
@@ -40,10 +40,12 @@ public partial class MediaMatrixGridControl : UserControl
             Font = new(Font, FontStyle.Bold),
         }, 0, 0);
 
-        for (var i = 0; i < platformIds.Count; i++)
+        for (var i = 0; i < sources.Count; i++)
         {
-            var source = sources[platformIds[i]];
-            var displayName = source.Name.Length > 2 ? source.Name[..1] : source.Name;
+            var source = sources[i];
+
+            var title = source.Title;
+            var displayName = title.Length > 5 ? title.Substring(0, 5) : title;
 
             var label = new Label
             {
@@ -53,9 +55,9 @@ public partial class MediaMatrixGridControl : UserControl
                 Font = new(Font, FontStyle.Bold),
             };
 
-            toolTip.SetToolTip(label, source.Name);
+            toolTip.SetToolTip(label, title);
 
-            uiMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Absolute, 40F));
+            uiMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Absolute, 80F));
             uiMediaHeaderPanel.Controls.Add(label, i + 1, 0);
         }
 
@@ -73,7 +75,7 @@ public partial class MediaMatrixGridControl : UserControl
             };
 
             var control = new MediaItemControl();
-            control.SetData(dto, platformIds);
+            control.SetData(dto, sources);
             control.Dock = DockStyle.Top;
             uiMediaGridPanel.RowCount++;
             uiMediaGridPanel.Controls.Add(control);

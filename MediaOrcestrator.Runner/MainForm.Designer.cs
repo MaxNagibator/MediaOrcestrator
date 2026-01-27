@@ -34,22 +34,35 @@
             mediaMatrixGridControl1 = new MediaMatrixGridControl();
             uiAddSourceButton = new Button();
             uiSourcesComboBox = new ComboBox();
+            splitContainer1 = new SplitContainer();
+            uiRelationFromComboBox = new ComboBox();
+            uiRelationToComboBox = new ComboBox();
+            label1 = new Label();
+            label2 = new Label();
+            button1 = new Button();
+            panel1 = new Panel();
+            ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
+            splitContainer1.Panel1.SuspendLayout();
+            splitContainer1.Panel2.SuspendLayout();
+            splitContainer1.SuspendLayout();
             SuspendLayout();
             // 
             // uiMediaSourcePanel
             // 
-            uiMediaSourcePanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
+            uiMediaSourcePanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             uiMediaSourcePanel.BackColor = SystemColors.ControlDark;
-            uiMediaSourcePanel.Location = new Point(12, 50);
+            uiMediaSourcePanel.Location = new Point(3, 43);
             uiMediaSourcePanel.Name = "uiMediaSourcePanel";
-            uiMediaSourcePanel.Size = new Size(231, 336);
+            uiMediaSourcePanel.Size = new Size(396, 336);
             uiMediaSourcePanel.TabIndex = 0;
+            uiMediaSourcePanel.SizeChanged += uiMediaSourcePanel_SizeChanged;
             // 
             // btnSync
             // 
-            btnSync.Location = new Point(12, 12);
+            btnSync.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            btnSync.Location = new Point(3, 5);
             btnSync.Name = "btnSync";
-            btnSync.Size = new Size(231, 32);
+            btnSync.Size = new Size(396, 32);
             btnSync.TabIndex = 1;
             btnSync.Text = "Синхронизировать";
             btnSync.UseVisualStyleBackColor = true;
@@ -58,17 +71,17 @@
             // mediaMatrixGridControl1
             // 
             mediaMatrixGridControl1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            mediaMatrixGridControl1.Location = new Point(249, 12);
+            mediaMatrixGridControl1.Location = new Point(3, 3);
             mediaMatrixGridControl1.Name = "mediaMatrixGridControl1";
-            mediaMatrixGridControl1.Size = new Size(539, 432);
+            mediaMatrixGridControl1.Size = new Size(721, 761);
             mediaMatrixGridControl1.TabIndex = 2;
             // 
             // uiAddSourceButton
             // 
-            uiAddSourceButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            uiAddSourceButton.Location = new Point(12, 421);
+            uiAddSourceButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiAddSourceButton.Location = new Point(3, 414);
             uiAddSourceButton.Name = "uiAddSourceButton";
-            uiAddSourceButton.Size = new Size(231, 23);
+            uiAddSourceButton.Size = new Size(396, 23);
             uiAddSourceButton.TabIndex = 3;
             uiAddSourceButton.Text = "Добавить источник";
             uiAddSourceButton.UseVisualStyleBackColor = true;
@@ -76,27 +89,113 @@
             // 
             // uiSourcesComboBox
             // 
-            uiSourcesComboBox.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            uiSourcesComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiSourcesComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             uiSourcesComboBox.FormattingEnabled = true;
-            uiSourcesComboBox.Location = new Point(12, 392);
+            uiSourcesComboBox.Location = new Point(3, 385);
             uiSourcesComboBox.Name = "uiSourcesComboBox";
-            uiSourcesComboBox.Size = new Size(231, 23);
+            uiSourcesComboBox.Size = new Size(396, 23);
             uiSourcesComboBox.TabIndex = 4;
+            // 
+            // splitContainer1
+            // 
+            splitContainer1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            splitContainer1.Location = new Point(12, 12);
+            splitContainer1.Name = "splitContainer1";
+            // 
+            // splitContainer1.Panel1
+            // 
+            splitContainer1.Panel1.Controls.Add(panel1);
+            splitContainer1.Panel1.Controls.Add(button1);
+            splitContainer1.Panel1.Controls.Add(label2);
+            splitContainer1.Panel1.Controls.Add(label1);
+            splitContainer1.Panel1.Controls.Add(uiRelationToComboBox);
+            splitContainer1.Panel1.Controls.Add(uiRelationFromComboBox);
+            splitContainer1.Panel1.Controls.Add(uiMediaSourcePanel);
+            splitContainer1.Panel1.Controls.Add(uiSourcesComboBox);
+            splitContainer1.Panel1.Controls.Add(btnSync);
+            splitContainer1.Panel1.Controls.Add(uiAddSourceButton);
+            // 
+            // splitContainer1.Panel2
+            // 
+            splitContainer1.Panel2.Controls.Add(mediaMatrixGridControl1);
+            splitContainer1.Size = new Size(1133, 767);
+            splitContainer1.SplitterDistance = 402;
+            splitContainer1.TabIndex = 5;
+            // 
+            // comboBox1
+            // 
+            uiRelationFromComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiRelationFromComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiRelationFromComboBox.FormattingEnabled = true;
+            uiRelationFromComboBox.Location = new Point(3, 489);
+            uiRelationFromComboBox.Name = "comboBox1";
+            uiRelationFromComboBox.Size = new Size(396, 23);
+            uiRelationFromComboBox.TabIndex = 5;
+            // 
+            // comboBox2
+            // 
+            uiRelationToComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiRelationToComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiRelationToComboBox.FormattingEnabled = true;
+            uiRelationToComboBox.Location = new Point(3, 533);
+            uiRelationToComboBox.Name = "comboBox2";
+            uiRelationToComboBox.Size = new Size(396, 23);
+            uiRelationToComboBox.TabIndex = 6;
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(3, 471);
+            label1.Name = "label1";
+            label1.Size = new Size(45, 15);
+            label1.TabIndex = 7;
+            label1.Text = "Откуда";
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Location = new Point(3, 515);
+            label2.Name = "label2";
+            label2.Size = new Size(32, 15);
+            label2.TabIndex = 8;
+            label2.Text = "Куда";
+            // 
+            // button1
+            // 
+            button1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            button1.Location = new Point(3, 562);
+            button1.Name = "button1";
+            button1.Size = new Size(396, 32);
+            button1.TabIndex = 9;
+            button1.Text = "add";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
+            // 
+            // panel1
+            // 
+            panel1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            panel1.BackColor = SystemColors.ControlDark;
+            panel1.Location = new Point(3, 600);
+            panel1.Name = "panel1";
+            panel1.Size = new Size(396, 116);
+            panel1.TabIndex = 1;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 456);
-            Controls.Add(uiSourcesComboBox);
-            Controls.Add(uiAddSourceButton);
-            Controls.Add(mediaMatrixGridControl1);
-            Controls.Add(btnSync);
-            Controls.Add(uiMediaSourcePanel);
+            ClientSize = new Size(1157, 791);
+            Controls.Add(splitContainer1);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
             Text = "Медиа оркестратор";
             Load += MainForm_Load;
+            splitContainer1.Panel1.ResumeLayout(false);
+            splitContainer1.Panel1.PerformLayout();
+            splitContainer1.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)splitContainer1).EndInit();
+            splitContainer1.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -107,5 +206,12 @@
         private MediaMatrixGridControl mediaMatrixGridControl1;
         private Button uiAddSourceButton;
         private ComboBox uiSourcesComboBox;
+        private SplitContainer splitContainer1;
+        private Panel panel1;
+        private Button button1;
+        private Label label2;
+        private Label label1;
+        private ComboBox uiRelationToComboBox;
+        private ComboBox uiRelationFromComboBox;
     }
 }

@@ -52,14 +52,21 @@ public partial class MainForm : Form
 
     private void DrawSources()
     {
+        uiRelationFromComboBox.Items.Clear();
+        uiRelationToComboBox.Items.Clear();
+        uiRelationFromComboBox.DisplayMember = "Title";
+        uiRelationToComboBox.DisplayMember = "Title";
+
         uiSourcesComboBox.Items.Clear();
 
         uiSourcesComboBox.DisplayMember = "Name";
 
+        uiSourcesComboBox.Items.Add("Выберите тип хранилища");
         foreach (var source in _orcestrator.GetSources())
         {
             uiSourcesComboBox.Items.Add(source.Value);
         }
+        uiSourcesComboBox.SelectedIndex = 0;
 
         uiMediaSourcePanel.Controls.Clear();
         var shift = 10;
@@ -75,6 +82,17 @@ public partial class MainForm : Form
             control.Top = shift;
             shift += 100;
             uiMediaSourcePanel.Controls.Add(control);
+
+            uiRelationFromComboBox.Items.Add(source);
+            uiRelationToComboBox.Items.Add(source);
+        }
+
+        var relations = _orcestrator.GetRelations();
+        var i = -1;
+        foreach (var rel in relations)
+        {
+            i++;
+            panel1.Controls.Add(new Label() { Text = rel.From.Title + " " + rel.To.Title, Width = panel1.Width, Top = i * 20 });
         }
     }
 
@@ -85,7 +103,8 @@ public partial class MainForm : Form
             return;
         }
 
-        using var settingsForm = new SourceSettingsForm(selectedPlugin.SettingsKeys);
+        using var settingsForm = new SourceSettingsForm();
+        settingsForm.SetSettings(selectedPlugin.SettingsKeys);
         if (settingsForm.ShowDialog() != DialogResult.OK || settingsForm.Settings == null)
         {
             return;
@@ -93,5 +112,19 @@ public partial class MainForm : Form
 
         _orcestrator.AddSource(selectedPlugin.Name, settingsForm.Settings);
         DrawSources();
+    }
+
+    private void uiMediaSourcePanel_SizeChanged(object sender, EventArgs e)
+    {
+        DrawSources();
+    }
+
+    private void button1_Click(object sender, EventArgs e)
+    {
+        var from = (MySource)uiRelationFromComboBox.SelectedItem;
+        var to = (MySource)uiRelationToComboBox.SelectedItem;
+
+        _orcestrator.AddLink(from, to);
+        panel1.Controls.Add(new Label() { Text = from.Title + " " + to.Title });
     }
 }

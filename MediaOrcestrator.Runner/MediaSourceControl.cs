@@ -21,7 +21,8 @@ public partial class MediaSourceControl : UserControl
 
         _source = source;
         // todo ключа пока нет
-        label1.Text = sources.First(x => x.Value.Name == source.TypeId).Value.Name;
+        var asdasd = sources.First(x => x.Value.Name == source.TypeId).Value;
+        label1.Text = asdasd.Name + " " + source.Title;
     }
 
     private void button1_Click(object sender, EventArgs e)
