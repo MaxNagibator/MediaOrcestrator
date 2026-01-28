@@ -29,7 +29,7 @@
         private void InitializeComponent()
         {
             var resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
-            uiMediaSourcePanel = new Panel();
+            uMediaSourcePanel = new Panel();
             btnSync = new Button();
             mediaMatrixGridControl1 = new MediaMatrixGridControl();
             uiAddSourceButton = new Button();
@@ -52,17 +52,17 @@
             tabPage4.SuspendLayout();
             SuspendLayout();
             // 
-            // uiMediaSourcePanel
+            // uMediaSourcePanel
             // 
-            uiMediaSourcePanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiMediaSourcePanel.AutoScroll = true;
-            uiMediaSourcePanel.BackColor = SystemColors.ControlDark;
-            uiMediaSourcePanel.Location = new Point(6, 35);
-            uiMediaSourcePanel.Name = "uiMediaSourcePanel";
-            uiMediaSourcePanel.Padding = new Padding(5);
-            uiMediaSourcePanel.Size = new Size(1113, 663);
-            uiMediaSourcePanel.TabIndex = 0;
-            uiMediaSourcePanel.SizeChanged += uiMediaSourcePanel_SizeChanged;
+            uMediaSourcePanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uMediaSourcePanel.AutoScroll = true;
+            uMediaSourcePanel.BackColor = SystemColors.ControlDark;
+            uMediaSourcePanel.Location = new Point(6, 35);
+            uMediaSourcePanel.Name = "uMediaSourcePanel";
+            uMediaSourcePanel.Padding = new Padding(5);
+            uMediaSourcePanel.Size = new Size(1113, 663);
+            uMediaSourcePanel.TabIndex = 0;
+            uMediaSourcePanel.SizeChanged += uMediaSourcePanel_SizeChanged;
             // 
             // btnSync
             // 
@@ -187,7 +187,7 @@
             // 
             tabPage2.Controls.Add(uiSourcesComboBox);
             tabPage2.Controls.Add(uiAddSourceButton);
-            tabPage2.Controls.Add(uiMediaSourcePanel);
+            tabPage2.Controls.Add(uMediaSourcePanel);
             tabPage2.Location = new Point(4, 24);
             tabPage2.Name = "tabPage2";
             tabPage2.Padding = new Padding(3);
@@ -242,7 +242,7 @@
 
         #endregion
 
-        private Panel uiMediaSourcePanel;
+        private Panel uMediaSourcePanel;
         private Button btnSync;
         private MediaMatrixGridControl mediaMatrixGridControl1;
         private Button uiAddSourceButton;

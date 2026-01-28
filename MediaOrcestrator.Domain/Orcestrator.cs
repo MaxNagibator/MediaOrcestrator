@@ -6,9 +6,9 @@ namespace MediaOrcestrator.Domain;
 
 public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<Orcestrator> logger)
 {
-    private List<SourceRelation> _relations;
+    private List<SourceSyncRelation> _relations;
 
-    public Dictionary<string, IMediaSource> GetSources()
+    public Dictionary<string, ISourceType> GetSourceTypes()
     {
         return pluginManager.MediaSources;
     }
@@ -16,14 +16,14 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
     public void Init()
     {
         pluginManager.Init();
-        var sources = GetSources();
+        var sources = GetSourceTypes();
     }
 
-    public async Task Sync()
+    public async Task GetStorageFullInfo()
     {
         logger.LogInformation("Запуск процесса синхронизации...");
 
-        var mediaCol = db.GetCollection<MyMedia>("medias");
+        var mediaCol = db.GetCollection<Media>("medias");
         var mediaAll = mediaCol.FindAll().ToList();
 
         var cache = new MediaSourceCache();
@@ -32,16 +32,17 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         {
             foreach (var source in media.Sources)
             {
-                cache.GetMedia(source.Id).Add(source);
+                cache.GetMedia(source.MediaId).Add(source);
             }
         }
 
         logger.LogInformation("Обнаружено {Count} элементов медиа в локальном кэше.", mediaAll.Count);
 
-        await Parallel.ForEachAsync(GetMediaSourceData(), async (mediaSource, cancellationToken) =>
+        var sourceTypes = GetSourceTypes();
+
+        await Parallel.ForEachAsync(GetSources(), async (mediaSource, cancellationToken) =>
         {
-            var sources = GetSources();
-            var plugin = sources.Values.FirstOrDefault(x => x.Name == mediaSource.TypeId);
+            var plugin = sourceTypes.Values.FirstOrDefault(x => x.Name == mediaSource.TypeId);
 
             if (plugin == null)
             {
@@ -61,7 +62,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                     break;
                 }
 
-                var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.Id == s.Title);
+                var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.MediaId == s.Title);
                 if (foundMediaSource != null)
                 {
                     if (foundMediaSource.Media.Title != s.Title)
@@ -72,7 +73,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                 }
                 else
                 {
-                    var myMedia = new MyMedia
+                    var myMedia = new Media
                     {
                         Title = s.Title,
                         Id = s.Id,
@@ -80,9 +81,9 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                         Sources = [],
                     };
 
-                    var newMediaSource = new MyMediaLinkToSource
+                    var newMediaSource = new MediaSourceLink
                     {
-                        Id = s.Id,
+                        MediaId = s.Id,
                         Media = myMedia,
                         Status = "OK",
                         SourceId = mediaSource.Id,
@@ -102,27 +103,21 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         var zalupa = 1;
     }
 
-    public List<MyMedia> GetMediaData()
+    public List<Media> GetMedias()
     {
-        return db.GetCollection<MyMedia>("medias").FindAll().ToList();
+        return db.GetCollection<Media>("medias").FindAll().ToList();
     }
 
-    public List<MySource> GetMediaSourceData()
+    public List<Source> GetSources()
     {
-        var sources = db.GetCollection<MySource>("sources").FindAll().ToList();
-
-        //var sources2 = GetSources();
-        //sources.ForEach(source =>
-        //{
-        //    source.Type = sources2.Values.First(x=>x.Name == source.TypeId);
-        //});
+        var sources = db.GetCollection<Source>("sources").FindAll().ToList();
         return sources;
     }
 
     public void AddSource(string typeId, Dictionary<string, string> settings)
     {
-        db.GetCollection<MySource>("sources")
-            .Insert(new MySource
+        db.GetCollection<Source>("sources")
+            .Insert(new Source
             {
                 Id = Guid.NewGuid().ToString(),
                 TypeId = typeId,
@@ -132,31 +127,31 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
     public void RemoveSource(string sourceId)
     {
-        db.GetCollection<MySource>("sources").Delete(sourceId);
+        db.GetCollection<Source>("sources").Delete(sourceId);
     }
 
-    public List<SourceRelation> GetRelations()
+    public List<SourceSyncRelation> GetRelations()
     {
-        return db.GetCollection<SourceRelation>("source_relations").FindAll().ToList();
+        return db.GetCollection<SourceSyncRelation>("source_relations").FindAll().ToList();
     }
 
-    public void AddLink(MySource from, MySource to)
+    public void AddLink(Source from, Source to)
     {
-        db.GetCollection<SourceRelation>("source_relations").Insert(new SourceRelation { From = from, To = to });
+        db.GetCollection<SourceSyncRelation>("source_relations").Insert(new SourceSyncRelation { From = from, To = to });
     }
 
-    public void RemoveLink(MySource from, MySource to)
+    public void RemoveLink(Source from, Source to)
     {
         // TODO: Подумать
-        db.GetCollection<SourceRelation>("source_relations")
+        db.GetCollection<SourceSyncRelation>("source_relations")
             .DeleteMany(x => x.From.Id == from.Id && x.To.Id == to.Id);
     }
 
     public class MediaSourceCache
     {
-        private readonly Dictionary<string, List<MyMediaLinkToSource>> _holder = new();
+        private readonly Dictionary<string, List<MediaSourceLink>> _holder = new();
 
-        public List<MyMediaLinkToSource> GetMedia(string sourceId)
+        public List<MediaSourceLink> GetMedia(string sourceId)
         {
             if (!_holder.ContainsKey(sourceId))
             {

@@ -27,13 +27,13 @@ if (string.IsNullOrWhiteSpace(channelUrl))
 var path1 = "..\\..\\..\\..\\ModuleBuilds";
 
 var scanner = new InterfaceScanner();
-var myInterfaceType = typeof(IMediaSource); // Пример интерфейса
+var myInterfaceType = typeof(ISourceType); // Пример интерфейса
 var implementations = scanner.FindImplementations(path1, myInterfaceType);
 foreach (var x in implementations)
 {
     try
     {
-        var aaaa = (IMediaSource)Activator.CreateInstance(x.Type);
+        var aaaa = (ISourceType)Activator.CreateInstance(x.Type);
         aaaa.Download();
     }
     catch

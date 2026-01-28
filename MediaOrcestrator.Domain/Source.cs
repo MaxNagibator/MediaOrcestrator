@@ -3,7 +3,7 @@ using MediaOrcestrator.Modules;
 
 namespace MediaOrcestrator.Domain;
 
-public class MySource
+public class Source
 {
     public string Id { get; set; }
     public string TypeId { get; set; }
@@ -14,5 +14,5 @@ public class MySource
     public string TitleFull => Title + " (" + TypeId + ")";
 
     [BsonIgnore]
-    public IMediaSource Type { get; set; }
+    public ISourceType Type { get; set; }
 }

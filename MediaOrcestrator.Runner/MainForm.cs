@@ -34,7 +34,7 @@ public partial class MainForm : Form
         btnSync.Enabled = false;
         try
         {
-            await _orcestrator.Sync();
+            await _orcestrator.GetStorageFullInfo();
             _logger.LogInformation("Синхронизация через UI завершена.");
             DrawSources();
             mediaMatrixGridControl1.RefreshData();
@@ -52,7 +52,7 @@ public partial class MainForm : Form
 
     private void uiAddSourceButton_Click(object sender, EventArgs e)
     {
-        if (uiSourcesComboBox.SelectedItem is not IMediaSource selectedPlugin)
+        if (uiSourcesComboBox.SelectedItem is not ISourceType selectedPlugin)
         {
             return;
         }
@@ -68,15 +68,15 @@ public partial class MainForm : Form
         DrawSources();
     }
 
-    private void uiMediaSourcePanel_SizeChanged(object sender, EventArgs e)
+    private void uMediaSourcePanel_SizeChanged(object sender, EventArgs e)
     {
         DrawSources();
     }
 
     private void button1_Click(object sender, EventArgs e)
     {
-        var from = (MySource)uiRelationFromComboBox.SelectedItem;
-        var to = (MySource)uiRelationToComboBox.SelectedItem;
+        var from = (Source)uiRelationFromComboBox.SelectedItem;
+        var to = (Source)uiRelationToComboBox.SelectedItem;
 
         _orcestrator.AddLink(from, to);
         DrawRelations();
@@ -93,7 +93,7 @@ public partial class MainForm : Form
         uiSourcesComboBox.DisplayMember = "Name";
         uiSourcesComboBox.Items.Add("Выберите тип хранилища");
 
-        var sources = _orcestrator.GetSources();
+        var sources = _orcestrator.GetSourceTypes();
         if (sources == null)
         {
             return;
@@ -108,18 +108,18 @@ public partial class MainForm : Form
             uiSourcesComboBox.SelectedIndex = 0;
         }
 
-        uiMediaSourcePanel.Controls.Clear();
+        uMediaSourcePanel.Controls.Clear();
         var offset = -1;
-        foreach (var source in _orcestrator.GetMediaSourceData())
+        foreach (var source in _orcestrator.GetSources())
         {
             offset++;
-            var control = _serviceProvider.GetRequiredService<MediaSourceControl>();
+            var control = _serviceProvider.GetRequiredService<SourceControl>();
             control.SetMediaSource(source);
-            control.Width = uiMediaSourcePanel.Width;
+            control.Width = uMediaSourcePanel.Width;
             control.Top = offset * control.Height;
             control.SourceDeleted += (_, _) => DrawSources();
 
-            uiMediaSourcePanel.Controls.Add(control);
+            uMediaSourcePanel.Controls.Add(control);
             control.SendToBack();
 
             uiRelationFromComboBox.Items.Add(source);

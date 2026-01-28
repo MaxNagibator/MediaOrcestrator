@@ -9,7 +9,7 @@ public partial class MediaItemControl : UserControl
         InitializeComponent();
     }
 
-    public void SetData(MediaGridRowDto data, List<MySource> platformIds)
+    public void SetData(MediaGridRowDto data, List<Source> platformIds)
     {
         tableLayoutPanel1.Controls.Clear();
         tableLayoutPanel1.ColumnCount = platformIds.Count + 1;

@@ -1,6 +1,6 @@
 ﻿namespace MediaOrcestrator.Runner
 {
-    partial class MediaSourceControl
+    partial class SourceControl
     {
         /// <summary> 
         /// Required designer variable.

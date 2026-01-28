@@ -2,42 +2,42 @@
 
 namespace MediaOrcestrator.HardDiskDrive;
 
-public class HardDiskDriveChannel : IMediaSource
+public class HardDiskDriveChannel : ISourceType
 {
-    public ChannelType ChannelType => ChannelType.OnlyUpload;
+    public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
     public string Name => "HardDiskDrive";
 
     public IEnumerable<SourceSettings> SettingsKeys { get; }
 
-    public IMedia[] GetMedia()
+    public MediaDto[] GetMedia()
     {
         throw new NotImplementedException();
     }
 
-    public IAsyncEnumerable<IMedia> GetMedia(Dictionary<string, string> settings)
+    public IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings)
     {
         throw new NotImplementedException();
     }
 
-    public IMedia GetMediaById()
+    public MediaDto GetMediaById()
     {
         throw new NotImplementedException();
     }
 
-    public IMedia Download()
+    public MediaDto Download()
     {
         Console.WriteLine("я загрузил брат");
         throw new NotImplementedException();
     }
 
-    public void Upload(IMedia media)
+    public void Upload(MediaDto media)
     {
         Console.WriteLine("я загрузил брат " + media.Title);
     }
 }
 
-public class HardDiskDriveMedia : IMedia
+public class HardDiskDriveMedia : MediaDto
 {
     public string Title { get; set; }
     public string Description { get; set; }

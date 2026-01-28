@@ -52,7 +52,7 @@ file static class Program
         services.AddSingleton<Orcestrator>();
         services.AddTransient<MainForm>();
 
-        services.AddTransient<MediaSourceControl>();
+        services.AddTransient<SourceControl>();
         services.AddTransient<RelationControl>();
     }
 }

@@ -23,15 +23,15 @@ public partial class MediaMatrixGridControl : UserControl
             return;
         }
 
-        var sources = _orcestrator.GetMediaSourceData();
+        var sources = _orcestrator.GetSources();
 
         var toolTip = new ToolTip();
-        uiMediaHeaderPanel.Controls.Clear();
-        uiMediaHeaderPanel.ColumnCount = sources.Count + 1;
-        uiMediaHeaderPanel.ColumnStyles.Clear();
+        uMediaHeaderPanel.Controls.Clear();
+        uMediaHeaderPanel.ColumnCount = sources.Count + 1;
+        uMediaHeaderPanel.ColumnStyles.Clear();
 
-        uiMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Percent, 100F));
-        uiMediaHeaderPanel.Controls.Add(new Label
+        uMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Percent, 100F));
+        uMediaHeaderPanel.Controls.Add(new Label
         {
             Text = "Название",
             Dock = DockStyle.Fill,
@@ -56,13 +56,13 @@ public partial class MediaMatrixGridControl : UserControl
 
             toolTip.SetToolTip(label, title);
 
-            uiMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Absolute, 80F));
-            uiMediaHeaderPanel.Controls.Add(label, i + 1, 0);
+            uMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Absolute, 80F));
+            uMediaHeaderPanel.Controls.Add(label, i + 1, 0);
         }
 
-        uiMediaGridPanel.Controls.Clear();
-        uiMediaGridPanel.RowCount = 0;
-        var mediaData = _orcestrator.GetMediaData();
+        uMediaGridPanel.Controls.Clear();
+        uMediaGridPanel.RowCount = 0;
+        var mediaData = _orcestrator.GetMedias();
 
         foreach (var media in mediaData)
         {
@@ -76,8 +76,8 @@ public partial class MediaMatrixGridControl : UserControl
             var control = new MediaItemControl();
             control.SetData(dto, sources);
             control.Dock = DockStyle.Top;
-            uiMediaGridPanel.RowCount++;
-            uiMediaGridPanel.Controls.Add(control);
+            uMediaGridPanel.RowCount++;
+            uMediaGridPanel.Controls.Add(control);
         }
     }
 }

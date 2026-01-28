@@ -2,45 +2,45 @@
 
 namespace MediaOrcestrator.Rutube;
 
-public class RutubeChannel : IMediaSource
+public class RutubeChannel : ISourceType
 {
-    public ChannelType ChannelType => ChannelType.OnlyUpload;
+    public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
     public string Name => "Rutube";
 
     public IEnumerable<SourceSettings> SettingsKeys { get; }
 
-    public IMedia[] GetMedia()
+    public MediaDto[] GetMedia()
     {
         throw new NotImplementedException();
     }
 
-    public IAsyncEnumerable<IMedia> GetMedia(Dictionary<string, string> settings)
+    public IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings)
     {
         throw new NotImplementedException();
     }
 
-    public IMedia GetMediaById()
+    public MediaDto GetMediaById()
     {
         throw new NotImplementedException();
     }
 
-    public IMedia Download()
+    public MediaDto Download()
     {
         Console.WriteLine("я загрузил брат");
         throw new NotImplementedException();
     }
 
-    public void Upload(IMedia media)
+    public void Upload(MediaDto media)
     {
         Console.WriteLine("я загрузил брат " + media.Title);
     }
 }
 
-public class RutubeMedia : IMedia
-{
-    public string Title { get; set; }
-    public string Description { get; set; }
+//public class RutubeMedia : Media
+//{
+//    public string Title { get; set; }
+//    public string Description { get; set; }
 
-    public string Id => throw new NotImplementedException();
-}
+//    public string Id => throw new NotImplementedException();
+//}

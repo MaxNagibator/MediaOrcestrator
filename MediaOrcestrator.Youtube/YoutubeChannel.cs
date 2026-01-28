@@ -4,9 +4,9 @@ using YoutubeExplode.Channels;
 
 namespace MediaOrcestrator.Youtube;
 
-public class YoutubeChannel : IMediaSource
+public class YoutubeChannel : ISourceType
 {
-    public ChannelType ChannelType => ChannelType.OnlyUpload;
+    public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
     public string Name => "Youtube";
 
@@ -20,7 +20,7 @@ public class YoutubeChannel : IMediaSource
         },
     ];
 
-    public async IAsyncEnumerable<IMedia> GetMedia(Dictionary<string, string> settings)
+    public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings)
     {
         var channelUrl = settings["channel_id"];
         var youtubeClient = new YoutubeClient();
@@ -29,7 +29,7 @@ public class YoutubeChannel : IMediaSource
         var uploads = youtubeClient.Channels.GetUploadsAsync(channel.Id);
         await foreach (var video in uploads)
         {
-            yield return new YoutubeMedia
+            yield return new MediaDto
             {
                 Id = video.Id.Value,
                 Title = video.Title,
@@ -60,26 +60,19 @@ public class YoutubeChannel : IMediaSource
         return null;
     }
 
-    public IMedia GetMediaById()
+    public MediaDto GetMediaById()
     {
         throw new NotImplementedException();
     }
 
-    public IMedia Download()
+    public MediaDto Download()
     {
         Console.WriteLine("ютубный я загрузил брат ");
         throw new NotImplementedException();
     }
 
-    public void Upload(IMedia media)
+    public void Upload(MediaDto media)
     {
         Console.WriteLine("ютубный я загрузил брат " + media.Title);
     }
-}
-
-public class YoutubeMedia : IMedia
-{
-    public string Id { get; set; }
-    public string Title { get; set; }
-    public string Description { get; set; }
 }

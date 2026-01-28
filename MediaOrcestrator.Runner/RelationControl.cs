@@ -5,7 +5,7 @@ namespace MediaOrcestrator.Runner;
 public partial class RelationControl : UserControl
 {
     private readonly Orcestrator _orcestrator;
-    private SourceRelation? _relation;
+    private SourceSyncRelation? _relation;
 
     public RelationControl(Orcestrator orcestrator)
     {
@@ -15,7 +15,7 @@ public partial class RelationControl : UserControl
 
     public event EventHandler? RelationDeleted;
 
-    public void SetRelation(SourceRelation relation)
+    public void SetRelation(SourceSyncRelation relation)
     {
         _relation = relation;
 

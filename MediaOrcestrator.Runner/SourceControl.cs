@@ -2,12 +2,12 @@
 
 namespace MediaOrcestrator.Runner;
 
-public partial class MediaSourceControl : UserControl
+public partial class SourceControl : UserControl
 {
     private readonly Orcestrator _orcestrator;
-    private MySource? _source;
+    private Source? _source;
 
-    public MediaSourceControl(Orcestrator orcestrator)
+    public SourceControl(Orcestrator orcestrator)
     {
         InitializeComponent();
         _orcestrator = orcestrator;
@@ -15,10 +15,10 @@ public partial class MediaSourceControl : UserControl
 
     public event EventHandler? SourceDeleted;
 
-    public void SetMediaSource(MySource source)
+    public void SetMediaSource(Source source)
     {
         _source = source;
-        var sources = _orcestrator.GetSources();
+        var sources = _orcestrator.GetSourceTypes();
 
         // todo ключа пока нет
         var pluginInfo = sources.Values.FirstOrDefault(x => x.Name == source.TypeId);
