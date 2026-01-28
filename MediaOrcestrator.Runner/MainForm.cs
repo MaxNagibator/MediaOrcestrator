@@ -86,14 +86,19 @@ public partial class MainForm : Form
     {
         uiRelationFromComboBox.Items.Clear();
         uiRelationToComboBox.Items.Clear();
-        uiRelationFromComboBox.DisplayMember = "Title";
-        uiRelationToComboBox.DisplayMember = "Title";
+        uiRelationFromComboBox.DisplayMember = "TitleFull";
+        uiRelationToComboBox.DisplayMember = "TitleFull";
 
         uiSourcesComboBox.Items.Clear();
         uiSourcesComboBox.DisplayMember = "Name";
         uiSourcesComboBox.Items.Add("Выберите тип хранилища");
 
-        foreach (var source in _orcestrator.GetSources())
+        var sources = _orcestrator.GetSources();
+        if (sources == null)
+        {
+            return;
+        }
+        foreach (var source in sources)
         {
             uiSourcesComboBox.Items.Add(source.Value);
         }
@@ -104,10 +109,14 @@ public partial class MainForm : Form
         }
 
         uiMediaSourcePanel.Controls.Clear();
+        var offset = -1;
         foreach (var source in _orcestrator.GetMediaSourceData())
         {
+            offset++;
             var control = _serviceProvider.GetRequiredService<MediaSourceControl>();
             control.SetMediaSource(source);
+            control.Width = uiMediaSourcePanel.Width;
+            control.Top = offset * control.Height;
             control.SourceDeleted += (_, _) => DrawSources();
 
             uiMediaSourcePanel.Controls.Add(control);

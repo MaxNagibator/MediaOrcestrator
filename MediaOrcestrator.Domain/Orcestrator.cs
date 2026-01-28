@@ -109,7 +109,14 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
     public List<MySource> GetMediaSourceData()
     {
-        return db.GetCollection<MySource>("sources").FindAll().ToList();
+        var sources = db.GetCollection<MySource>("sources").FindAll().ToList();
+
+        //var sources2 = GetSources();
+        //sources.ForEach(source =>
+        //{
+        //    source.Type = sources2.Values.First(x=>x.Name == source.TypeId);
+        //});
+        return sources;
     }
 
     public void AddSource(string typeId, Dictionary<string, string> settings)

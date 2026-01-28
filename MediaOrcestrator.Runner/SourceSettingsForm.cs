@@ -37,6 +37,10 @@ public partial class SourceSettingsForm : Form
         settingsTable.ColumnStyles.Add(new(SizeType.Percent, 100F));
         uiSettingsPanel.Controls.Add(settingsTable);
 
+        if(_settingsKeys == null)
+        {
+            return;
+        }
         foreach (var setting in _settingsKeys)
         {
             var card = new Panel

@@ -49,7 +49,7 @@
             uiMainLayout.Name = "uiMainLayout";
             uiMainLayout.RowCount = 1;
             uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            uiMainLayout.Size = new Size(390, 62);
+            uiMainLayout.Size = new Size(1193, 62);
             uiMainLayout.TabIndex = 0;
             // 
             // uiSourceContainer
@@ -59,7 +59,7 @@
             uiSourceContainer.Dock = DockStyle.Fill;
             uiSourceContainer.Location = new Point(3, 3);
             uiSourceContainer.Name = "uiSourceContainer";
-            uiSourceContainer.Size = new Size(277, 56);
+            uiSourceContainer.Size = new Size(1080, 56);
             uiSourceContainer.TabIndex = 0;
             // 
             // uiTitleLabel
@@ -69,7 +69,7 @@
             uiTitleLabel.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             uiTitleLabel.Location = new Point(0, 0);
             uiTitleLabel.Name = "uiTitleLabel";
-            uiTitleLabel.Size = new Size(277, 23);
+            uiTitleLabel.Size = new Size(1080, 23);
             uiTitleLabel.TabIndex = 0;
             uiTitleLabel.Text = "Title";
             // 
@@ -80,14 +80,14 @@
             uiTypeLabel.ForeColor = Color.Gray;
             uiTypeLabel.Location = new Point(0, 41);
             uiTypeLabel.Name = "uiTypeLabel";
-            uiTypeLabel.Size = new Size(277, 15);
+            uiTypeLabel.Size = new Size(1080, 15);
             uiTypeLabel.TabIndex = 4;
             uiTypeLabel.Text = "Type";
             // 
             // uiDeleteButton
             // 
             uiDeleteButton.Anchor = AnchorStyles.None;
-            uiDeleteButton.Location = new Point(293, 19);
+            uiDeleteButton.Location = new Point(1096, 19);
             uiDeleteButton.Name = "uiDeleteButton";
             uiDeleteButton.Size = new Size(87, 23);
             uiDeleteButton.TabIndex = 3;
@@ -102,10 +102,9 @@
             BackColor = Color.LightSteelBlue;
             BorderStyle = BorderStyle.FixedSingle;
             Controls.Add(uiMainLayout);
-            Dock = DockStyle.Top;
             Margin = new Padding(5);
             Name = "MediaSourceControl";
-            Size = new Size(390, 62);
+            Size = new Size(1193, 62);
             uiMainLayout.ResumeLayout(false);
             uiSourceContainer.ResumeLayout(false);
             ResumeLayout(false);
