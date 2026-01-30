@@ -13,10 +13,11 @@ public partial class MainForm : Form
 
     public MainForm(Orcestrator orcestrator, IServiceProvider serviceProvider, ILogger<MainForm> logger)
     {
-        InitializeComponent();
         _orcestrator = orcestrator;
         _serviceProvider = serviceProvider;
         _logger = logger;
+
+        InitializeComponent();
     }
 
     private void MainForm_Load(object sender, EventArgs e)
@@ -37,7 +38,7 @@ public partial class MainForm : Form
             await _orcestrator.GetStorageFullInfo();
             _logger.LogInformation("Синхронизация через UI завершена.");
             DrawSources();
-            mediaMatrixGridControl1.RefreshData();
+            mediaMatrixGridControl1.RefreshData(GetSelectedRelations());
         }
         catch (Exception ex)
         {
@@ -82,6 +83,25 @@ public partial class MainForm : Form
         DrawRelations();
     }
 
+    private void uiRelationViewModeCheckBox_CheckedChanged(object sender, EventArgs e)
+    {
+        mediaMatrixGridControl1.RefreshData(GetSelectedRelations());
+    }
+
+    private List<SourceSyncRelation> GetSelectedRelations()
+    {
+        if (!uiRelationViewModeCheckBox.Checked)
+        {
+            return [];
+        }
+
+        // TODO: Шляпа
+        return panel1.Controls.OfType<RelationControl>()
+            .Where(x => x is { Selected: true, Relation: not null })
+            .Select(x => x.Relation!)
+            .ToList();
+    }
+
     private void DrawSources()
     {
         uiRelationFromComboBox.Items.Clear();
@@ -98,6 +118,7 @@ public partial class MainForm : Form
         {
             return;
         }
+
         foreach (var source in sources)
         {
             uiSourcesComboBox.Items.Add(source.Value);
@@ -118,6 +139,7 @@ public partial class MainForm : Form
             control.Width = uMediaSourcePanel.Width;
             control.Top = offset * control.Height;
             control.SourceDeleted += (_, _) => DrawSources();
+            control.SourceUpdated += (_, _) => DrawSources();
 
             uMediaSourcePanel.Controls.Add(control);
             control.SendToBack();
@@ -139,6 +161,7 @@ public partial class MainForm : Form
             var control = _serviceProvider.GetRequiredService<RelationControl>();
             control.SetRelation(rel);
             control.RelationDeleted += (_, _) => DrawRelations();
+            control.RelationSelectionChanged += (_, _) => mediaMatrixGridControl1.RefreshData(GetSelectedRelations());
 
             panel1.Controls.Add(control);
             control.SendToBack();

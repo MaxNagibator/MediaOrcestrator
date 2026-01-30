@@ -26,6 +26,8 @@ public partial class MediaItemControl : UserControl
 
         tableLayoutPanel1.Controls.Add(lblTitle, 0, 0);
 
+        var toolTip = new ToolTip();
+
         for (var i = 0; i < platformIds.Count; i++)
         {
             var platformId = platformIds[i];
@@ -37,7 +39,10 @@ public partial class MediaItemControl : UserControl
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = GetStatusColor(status),
+                Font = new(Font.FontFamily, 12, FontStyle.Bold),
             };
+
+            toolTip.SetToolTip(lblStatus, $"Источник: {platformId.Title}\nСтатус: {status}");
 
             tableLayoutPanel1.ColumnStyles.Add(new(SizeType.Absolute, 80F));
             tableLayoutPanel1.Controls.Add(lblStatus, i + 1, 0);

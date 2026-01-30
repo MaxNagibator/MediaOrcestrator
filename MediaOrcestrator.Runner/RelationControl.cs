@@ -5,7 +5,6 @@ namespace MediaOrcestrator.Runner;
 public partial class RelationControl : UserControl
 {
     private readonly Orcestrator _orcestrator;
-    private SourceSyncRelation? _relation;
 
     public RelationControl(Orcestrator orcestrator)
     {
@@ -14,10 +13,15 @@ public partial class RelationControl : UserControl
     }
 
     public event EventHandler? RelationDeleted;
+    public event EventHandler? RelationSelectionChanged;
+
+    public bool Selected => uiSelectCheckBox.Checked;
+
+    public SourceSyncRelation? Relation { get; private set; }
 
     public void SetRelation(SourceSyncRelation relation)
     {
-        _relation = relation;
+        Relation = relation;
 
         uiFromTitleLabel.Text = relation.From.Title;
         uiToTitleLabel.Text = relation.To.Title;
@@ -28,7 +32,7 @@ public partial class RelationControl : UserControl
 
     private void uiDeleteButton_Click(object sender, EventArgs e)
     {
-        if (_relation == null)
+        if (Relation == null)
         {
             return;
         }
@@ -39,7 +43,13 @@ public partial class RelationControl : UserControl
             return;
         }
 
-        _orcestrator.RemoveLink(_relation.From, _relation.To);
+        _orcestrator.RemoveLink(Relation.From, Relation.To);
         RelationDeleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void uiSelectCheckBox_CheckedChanged(object sender, EventArgs e)
+    {
+        BackColor = uiSelectCheckBox.Checked ? Color.LightCyan : Color.WhiteSmoke;
+        RelationSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -1,4 +1,5 @@
-﻿using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Modules;
 
 namespace MediaOrcestrator.Runner;
 
@@ -6,6 +7,7 @@ public partial class SourceSettingsForm : Form
 {
     private readonly Dictionary<string, TextBox> _textBoxes = new();
     private IEnumerable<SourceSettings> _settingsKeys = [];
+    private Source? _editSource;
 
     public SourceSettingsForm()
     {
@@ -17,6 +19,13 @@ public partial class SourceSettingsForm : Form
     public void SetSettings(IEnumerable<SourceSettings> settingsKeys)
     {
         _settingsKeys = settingsKeys;
+    }
+
+    public void SetEditSource(Source source)
+    {
+        _editSource = source;
+        uiNameTextBox.Text = source.Title;
+        uiCreateButton.Text = "Сохранить изменения";
     }
 
     private void SourceSettingsForm_Load(object sender, EventArgs e)
@@ -37,10 +46,11 @@ public partial class SourceSettingsForm : Form
         settingsTable.ColumnStyles.Add(new(SizeType.Percent, 100F));
         uiSettingsPanel.Controls.Add(settingsTable);
 
-        if(_settingsKeys == null)
+        if (_settingsKeys == null)
         {
             return;
         }
+
         foreach (var setting in _settingsKeys)
         {
             var card = new Panel
@@ -68,6 +78,7 @@ public partial class SourceSettingsForm : Form
                 Dock = DockStyle.Top,
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new("Segoe UI", 10F),
+                Text = _editSource?.Settings.GetValueOrDefault(setting.Key) ?? "",
             };
 
             _textBoxes.Add(setting.Key, textBox);
@@ -81,17 +92,29 @@ public partial class SourceSettingsForm : Form
 
     private void uiCreateButton_Click(object sender, EventArgs e)
     {
-        Settings = new();
         if (string.IsNullOrEmpty(uiNameTextBox.Text))
         {
             MessageBox.Show("Имя обязательно", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
-        Settings.Add("_system_name", uiNameTextBox.Text);
-        foreach (var (key, value) in _textBoxes)
+        if (_editSource != null)
         {
-            Settings.Add(key, value.Text);
+            Settings = _editSource.Settings;
+            Settings["_system_name"] = uiNameTextBox.Text;
+            foreach (var (key, value) in _textBoxes)
+            {
+                Settings[key] = value.Text;
+            }
+        }
+        else
+        {
+            Settings = new();
+            Settings.Add("_system_name", uiNameTextBox.Text);
+            foreach (var (key, value) in _textBoxes)
+            {
+                Settings.Add(key, value.Text);
+            }
         }
 
         DialogResult = DialogResult.OK;

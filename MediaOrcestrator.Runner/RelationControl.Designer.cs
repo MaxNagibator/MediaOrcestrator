@@ -37,6 +37,7 @@
             uiToTitleLabel = new Label();
             uiToTypeLabel = new Label();
             uiDeleteButton = new Button();
+            uiSelectCheckBox = new CheckBox();
             uiMainLayout.SuspendLayout();
             uiFromContainer.SuspendLayout();
             uiToContainer.SuspendLayout();
@@ -44,15 +45,17 @@
             // 
             // uiMainLayout
             // 
-            uiMainLayout.ColumnCount = 4;
+            uiMainLayout.ColumnCount = 5;
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30F));
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
-            uiMainLayout.Controls.Add(uiFromContainer, 0, 0);
-            uiMainLayout.Controls.Add(uiArrowLabel, 1, 0);
-            uiMainLayout.Controls.Add(uiToContainer, 2, 0);
-            uiMainLayout.Controls.Add(uiDeleteButton, 3, 0);
+            uiMainLayout.Controls.Add(uiSelectCheckBox, 0, 0);
+            uiMainLayout.Controls.Add(uiFromContainer, 1, 0);
+            uiMainLayout.Controls.Add(uiArrowLabel, 2, 0);
+            uiMainLayout.Controls.Add(uiToContainer, 3, 0);
+            uiMainLayout.Controls.Add(uiDeleteButton, 4, 0);
             uiMainLayout.Dock = DockStyle.Fill;
             uiMainLayout.Location = new Point(0, 0);
             uiMainLayout.Name = "uiMainLayout";
@@ -149,6 +152,17 @@
             uiDeleteButton.UseVisualStyleBackColor = false;
             uiDeleteButton.Click += uiDeleteButton_Click;
             // 
+            // uiSelectCheckBox
+            // 
+            uiSelectCheckBox.Anchor = AnchorStyles.None;
+            uiSelectCheckBox.AutoSize = true;
+            uiSelectCheckBox.Location = new Point(8, 22);
+            uiSelectCheckBox.Name = "uiSelectCheckBox";
+            uiSelectCheckBox.Size = new Size(15, 14);
+            uiSelectCheckBox.TabIndex = 6;
+            uiSelectCheckBox.UseVisualStyleBackColor = true;
+            uiSelectCheckBox.CheckedChanged += uiSelectCheckBox_CheckedChanged;
+            // 
             // RelationControl
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -177,5 +191,6 @@
         private System.Windows.Forms.Label uiToTitleLabel;
         private System.Windows.Forms.Label uiToTypeLabel;
         private System.Windows.Forms.Button uiDeleteButton;
+        private System.Windows.Forms.CheckBox uiSelectCheckBox;
     }
 }

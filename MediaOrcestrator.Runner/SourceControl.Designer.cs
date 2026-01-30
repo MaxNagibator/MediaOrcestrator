@@ -32,6 +32,7 @@
             uiSourceContainer = new Panel();
             uiTitleLabel = new Label();
             uiTypeLabel = new Label();
+            uiEditButton = new Button();
             uiDeleteButton = new Button();
             uiMainLayout.SuspendLayout();
             uiSourceContainer.SuspendLayout();
@@ -39,11 +40,13 @@
             // 
             // uiMainLayout
             // 
-            uiMainLayout.ColumnCount = 2;
+            uiMainLayout.ColumnCount = 3;
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 107F));
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
             uiMainLayout.Controls.Add(uiSourceContainer, 0, 0);
-            uiMainLayout.Controls.Add(uiDeleteButton, 1, 0);
+            uiMainLayout.Controls.Add(uiEditButton, 1, 0);
+            uiMainLayout.Controls.Add(uiDeleteButton, 2, 0);
             uiMainLayout.Dock = DockStyle.Fill;
             uiMainLayout.Location = new Point(0, 0);
             uiMainLayout.Name = "uiMainLayout";
@@ -84,6 +87,17 @@
             uiTypeLabel.TabIndex = 4;
             uiTypeLabel.Text = "Type";
             // 
+            // uiEditButton
+            // 
+            uiEditButton.Anchor = AnchorStyles.None;
+            uiEditButton.Location = new Point(996, 19);
+            uiEditButton.Name = "uiEditButton";
+            uiEditButton.Size = new Size(87, 23);
+            uiEditButton.TabIndex = 2;
+            uiEditButton.Text = "edit";
+            uiEditButton.UseVisualStyleBackColor = true;
+            uiEditButton.Click += uiEditButton_Click;
+            // 
             // uiDeleteButton
             // 
             uiDeleteButton.Anchor = AnchorStyles.None;
@@ -116,6 +130,7 @@
         private System.Windows.Forms.Panel uiSourceContainer;
         private System.Windows.Forms.Label uiTitleLabel;
         private System.Windows.Forms.Label uiTypeLabel;
+        private System.Windows.Forms.Button uiEditButton;
         private System.Windows.Forms.Button uiDeleteButton;
     }
 }

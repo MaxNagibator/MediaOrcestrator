@@ -130,6 +130,11 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         db.GetCollection<Source>("sources").Delete(sourceId);
     }
 
+    public void UpdateSource(Source source)
+    {
+        db.GetCollection<Source>("sources").Update(source);
+    }
+
     public List<SourceSyncRelation> GetRelations()
     {
         return db.GetCollection<SourceSyncRelation>("source_relations").FindAll().ToList();

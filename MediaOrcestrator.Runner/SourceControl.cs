@@ -14,6 +14,7 @@ public partial class SourceControl : UserControl
     }
 
     public event EventHandler? SourceDeleted;
+    public event EventHandler? SourceUpdated;
 
     public void SetMediaSource(Source source)
     {
@@ -42,5 +43,36 @@ public partial class SourceControl : UserControl
 
         _orcestrator.RemoveSource(_source.Id);
         SourceDeleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    // TODO: Дублирование
+    private void uiEditButton_Click(object sender, EventArgs e)
+    {
+        if (_source == null)
+        {
+            return;
+        }
+
+        var sources = _orcestrator.GetSourceTypes();
+        var pluginInfo = sources.Values.FirstOrDefault(x => x.Name == _source.TypeId);
+
+        if (pluginInfo == null)
+        {
+            MessageBox.Show("Плагин для этого типа источника не найден.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        using var settingsForm = new SourceSettingsForm();
+        settingsForm.SetSettings(pluginInfo.SettingsKeys);
+        settingsForm.SetEditSource(_source);
+
+        if (settingsForm.ShowDialog() != DialogResult.OK)
+        {
+            return;
+        }
+
+        _orcestrator.UpdateSource(_source);
+        SetMediaSource(_source);
+        SourceUpdated?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -45,6 +45,7 @@
             tabPage2 = new TabPage();
             tabPage3 = new TabPage();
             tabPage4 = new TabPage();
+            uiRelationViewModeCheckBox = new CheckBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             tabPage2.SuspendLayout();
@@ -174,6 +175,7 @@
             // 
             // tabPage1
             // 
+            tabPage1.Controls.Add(uiRelationViewModeCheckBox);
             tabPage1.Controls.Add(mediaMatrixGridControl1);
             tabPage1.Location = new Point(4, 24);
             tabPage1.Name = "tabPage1";
@@ -182,6 +184,25 @@
             tabPage1.TabIndex = 0;
             tabPage1.Text = "Фаилы";
             tabPage1.UseVisualStyleBackColor = true;
+            // 
+            // uiRelationViewModeCheckBox
+            // 
+            uiRelationViewModeCheckBox.AutoSize = true;
+            uiRelationViewModeCheckBox.Location = new Point(6, 6);
+            uiRelationViewModeCheckBox.Name = "uiRelationViewModeCheckBox";
+            uiRelationViewModeCheckBox.Size = new Size(130, 19);
+            uiRelationViewModeCheckBox.TabIndex = 3;
+            uiRelationViewModeCheckBox.Text = "Режим по связям";
+            uiRelationViewModeCheckBox.UseVisualStyleBackColor = true;
+            uiRelationViewModeCheckBox.CheckedChanged += uiRelationViewModeCheckBox_CheckedChanged;
+            // 
+            // mediaMatrixGridControl1
+            // 
+            mediaMatrixGridControl1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            mediaMatrixGridControl1.Location = new Point(3, 31);
+            mediaMatrixGridControl1.Name = "mediaMatrixGridControl1";
+            mediaMatrixGridControl1.Size = new Size(1116, 667);
+            mediaMatrixGridControl1.TabIndex = 2;
             // 
             // tabPage2
             // 
@@ -258,5 +279,6 @@
         private TabPage tabPage2;
         private TabPage tabPage3;
         private TabPage tabPage4;
+        private CheckBox uiRelationViewModeCheckBox;
     }
 }
