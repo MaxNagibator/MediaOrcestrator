@@ -18,20 +18,20 @@ namespace MediaOrcestrator.Runner
 
         private void InitializeComponent()
         {
-            tableLayoutPanel1 = new TableLayoutPanel();
+            uiMainLayout = new TableLayoutPanel();
             SuspendLayout();
             // 
-            // tableLayoutPanel1
+            // uiMainLayout
             // 
-            tableLayoutPanel1.ColumnCount = 1;
-            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            tableLayoutPanel1.Dock = DockStyle.Fill;
-            tableLayoutPanel1.Location = new Point(0, 0);
-            tableLayoutPanel1.Name = "tableLayoutPanel1";
-            tableLayoutPanel1.RowCount = 1;
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            tableLayoutPanel1.Size = new Size(675, 40);
-            tableLayoutPanel1.TabIndex = 0;
+            uiMainLayout.ColumnCount = 1;
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            uiMainLayout.Dock = DockStyle.Fill;
+            uiMainLayout.Location = new Point(0, 0);
+            uiMainLayout.Name = "uiMainLayout";
+            uiMainLayout.RowCount = 1;
+            uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            uiMainLayout.Size = new Size(675, 40);
+            uiMainLayout.TabIndex = 0;
             // 
             // MediaItemControl
             // 
@@ -39,12 +39,12 @@ namespace MediaOrcestrator.Runner
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.White;
             BorderStyle = BorderStyle.FixedSingle;
-            Controls.Add(tableLayoutPanel1);
+            Controls.Add(uiMainLayout);
             Name = "MediaItemControl";
             Size = new Size(675, 40);
             ResumeLayout(false);
         }
 
-        private TableLayoutPanel tableLayoutPanel1;
+        private TableLayoutPanel uiMainLayout;
     }
 }

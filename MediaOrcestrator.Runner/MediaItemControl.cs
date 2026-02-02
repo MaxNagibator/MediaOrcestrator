@@ -11,11 +11,11 @@ public partial class MediaItemControl : UserControl
 
     public void SetData(MediaGridRowDto data, List<Source> platformIds)
     {
-        tableLayoutPanel1.Controls.Clear();
-        tableLayoutPanel1.ColumnCount = platformIds.Count + 1;
-        tableLayoutPanel1.ColumnStyles.Clear();
+        uiMainLayout.Controls.Clear();
+        uiMainLayout.ColumnCount = platformIds.Count + 1;
+        uiMainLayout.ColumnStyles.Clear();
 
-        tableLayoutPanel1.ColumnStyles.Add(new(SizeType.Percent, 100F));
+        uiMainLayout.ColumnStyles.Add(new(SizeType.Percent, 100F));
         var lblTitle = new Label
         {
             Text = data.Title,
@@ -24,7 +24,9 @@ public partial class MediaItemControl : UserControl
             Font = new(Font, FontStyle.Bold),
         };
 
-        tableLayoutPanel1.Controls.Add(lblTitle, 0, 0);
+        uiMainLayout.Controls.Add(lblTitle, 0, 0);
+
+        var toolTip = new ToolTip();
 
         for (var i = 0; i < platformIds.Count; i++)
         {
@@ -37,10 +39,13 @@ public partial class MediaItemControl : UserControl
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = GetStatusColor(status),
+                Font = new(Font.FontFamily, 12, FontStyle.Bold),
             };
 
-            tableLayoutPanel1.ColumnStyles.Add(new(SizeType.Absolute, 80F));
-            tableLayoutPanel1.Controls.Add(lblStatus, i + 1, 0);
+            toolTip.SetToolTip(lblStatus, $"Источник: {platformId.Title}\nСтатус: {status}");
+
+            uiMainLayout.ColumnStyles.Add(new(SizeType.Absolute, 80F));
+            uiMainLayout.Controls.Add(lblStatus, i + 1, 0);
         }
     }
 
