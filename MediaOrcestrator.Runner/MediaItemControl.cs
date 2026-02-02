@@ -11,11 +11,11 @@ public partial class MediaItemControl : UserControl
 
     public void SetData(MediaGridRowDto data, List<Source> platformIds)
     {
-        tableLayoutPanel1.Controls.Clear();
-        tableLayoutPanel1.ColumnCount = platformIds.Count + 1;
-        tableLayoutPanel1.ColumnStyles.Clear();
+        uiMainLayout.Controls.Clear();
+        uiMainLayout.ColumnCount = platformIds.Count + 1;
+        uiMainLayout.ColumnStyles.Clear();
 
-        tableLayoutPanel1.ColumnStyles.Add(new(SizeType.Percent, 100F));
+        uiMainLayout.ColumnStyles.Add(new(SizeType.Percent, 100F));
         var lblTitle = new Label
         {
             Text = data.Title,
@@ -24,7 +24,7 @@ public partial class MediaItemControl : UserControl
             Font = new(Font, FontStyle.Bold),
         };
 
-        tableLayoutPanel1.Controls.Add(lblTitle, 0, 0);
+        uiMainLayout.Controls.Add(lblTitle, 0, 0);
 
         var toolTip = new ToolTip();
 
@@ -44,8 +44,8 @@ public partial class MediaItemControl : UserControl
 
             toolTip.SetToolTip(lblStatus, $"Источник: {platformId.Title}\nСтатус: {status}");
 
-            tableLayoutPanel1.ColumnStyles.Add(new(SizeType.Absolute, 80F));
-            tableLayoutPanel1.Controls.Add(lblStatus, i + 1, 0);
+            uiMainLayout.ColumnStyles.Add(new(SizeType.Absolute, 80F));
+            uiMainLayout.Controls.Add(lblStatus, i + 1, 0);
         }
     }
 

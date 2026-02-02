@@ -41,6 +41,12 @@ public partial class SourceControl : UserControl
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(_source.Id))
+        {
+            MessageBox.Show("Идентификатор источника не может быть пустым.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
         _orcestrator.RemoveSource(_source.Id);
         SourceDeleted?.Invoke(this, EventArgs.Empty);
     }
@@ -68,6 +74,12 @@ public partial class SourceControl : UserControl
 
         if (settingsForm.ShowDialog() != DialogResult.OK)
         {
+            return;
+        }
+
+        if (_source == null)
+        {
+            MessageBox.Show("Источник не может быть пустым.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 

@@ -25,20 +25,20 @@ public partial class MainForm : Form
         _orcestrator.Init();
         DrawSources();
         // TODO: SetZalupaV2
-        mediaMatrixGridControl1.Initialize(_orcestrator);
-        mediaMatrixGridControl1.RefreshData();
+        uiMediaMatrixGridControl.Initialize(_orcestrator);
+        uiMediaMatrixGridControl.RefreshData();
     }
 
-    private async void btnSync_Click(object sender, EventArgs e)
+    private async void uiSyncButton_Click(object sender, EventArgs e)
     {
         _logger.LogInformation("Пользователь нажал кнопку синхронизации.");
-        btnSync.Enabled = false;
+        uiSyncButton.Enabled = false;
         try
         {
             await _orcestrator.GetStorageFullInfo();
             _logger.LogInformation("Синхронизация через UI завершена.");
             DrawSources();
-            mediaMatrixGridControl1.RefreshData(GetSelectedRelations());
+            uiMediaMatrixGridControl.RefreshData(GetSelectedRelations());
         }
         catch (Exception ex)
         {
@@ -47,7 +47,7 @@ public partial class MainForm : Form
         }
         finally
         {
-            btnSync.Enabled = true;
+            uiSyncButton.Enabled = true;
         }
     }
 
@@ -65,19 +65,34 @@ public partial class MainForm : Form
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(selectedPlugin.Name))
+        {
+            MessageBox.Show("Имя типа источника не может быть пустым.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
         _orcestrator.AddSource(selectedPlugin.Name, settingsForm.Settings);
         DrawSources();
     }
 
-    private void uMediaSourcePanel_SizeChanged(object sender, EventArgs e)
+    private void uiMediaSourcePanel_SizeChanged(object sender, EventArgs e)
     {
         DrawSources();
     }
 
-    private void button1_Click(object sender, EventArgs e)
+    private void UiAddRelationButton_Click(object sender, EventArgs e)
     {
-        var from = (Source)uiRelationFromComboBox.SelectedItem;
-        var to = (Source)uiRelationToComboBox.SelectedItem;
+        if (uiRelationFromComboBox.SelectedItem is not Source from)
+        {
+            MessageBox.Show("Пожалуйста, выберите источник для связи.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (uiRelationToComboBox.SelectedItem is not Source to)
+        {
+            MessageBox.Show("Пожалуйста, выберите целевой источник для связи.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
 
         _orcestrator.AddLink(from, to);
         DrawRelations();
@@ -85,7 +100,7 @@ public partial class MainForm : Form
 
     private void uiRelationViewModeCheckBox_CheckedChanged(object sender, EventArgs e)
     {
-        mediaMatrixGridControl1.RefreshData(GetSelectedRelations());
+        uiMediaMatrixGridControl.RefreshData(GetSelectedRelations());
     }
 
     private List<SourceSyncRelation> GetSelectedRelations()
@@ -96,7 +111,7 @@ public partial class MainForm : Form
         }
 
         // TODO: Шляпа
-        return panel1.Controls.OfType<RelationControl>()
+        return uiRelationsPanel.Controls.OfType<RelationControl>()
             .Where(x => x is { Selected: true, Relation: not null })
             .Select(x => x.Relation!)
             .ToList();
@@ -129,19 +144,19 @@ public partial class MainForm : Form
             uiSourcesComboBox.SelectedIndex = 0;
         }
 
-        uMediaSourcePanel.Controls.Clear();
+        uiMediaSourcePanel.Controls.Clear();
         var offset = -1;
         foreach (var source in _orcestrator.GetSources())
         {
             offset++;
             var control = _serviceProvider.GetRequiredService<SourceControl>();
             control.SetMediaSource(source);
-            control.Width = uMediaSourcePanel.Width;
+            control.Width = uiMediaSourcePanel.Width;
             control.Top = offset * control.Height;
             control.SourceDeleted += (_, _) => DrawSources();
             control.SourceUpdated += (_, _) => DrawSources();
 
-            uMediaSourcePanel.Controls.Add(control);
+            uiMediaSourcePanel.Controls.Add(control);
             control.SendToBack();
 
             uiRelationFromComboBox.Items.Add(source);
@@ -153,7 +168,7 @@ public partial class MainForm : Form
 
     private void DrawRelations()
     {
-        panel1.Controls.Clear();
+        uiRelationsPanel.Controls.Clear();
         var relations = _orcestrator.GetRelations();
 
         foreach (var rel in relations)
@@ -161,9 +176,9 @@ public partial class MainForm : Form
             var control = _serviceProvider.GetRequiredService<RelationControl>();
             control.SetRelation(rel);
             control.RelationDeleted += (_, _) => DrawRelations();
-            control.RelationSelectionChanged += (_, _) => mediaMatrixGridControl1.RefreshData(GetSelectedRelations());
+            control.RelationSelectionChanged += (_, _) => uiMediaMatrixGridControl.RefreshData(GetSelectedRelations());
 
-            panel1.Controls.Add(control);
+            uiRelationsPanel.Controls.Add(control);
             control.SendToBack();
         }
     }

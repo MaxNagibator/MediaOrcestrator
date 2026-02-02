@@ -43,6 +43,12 @@ public partial class RelationControl : UserControl
             return;
         }
 
+        if (Relation.From == null || Relation.To == null)
+        {
+            MessageBox.Show("Источники связи не могут быть пустыми.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
         _orcestrator.RemoveLink(Relation.From, Relation.To);
         RelationDeleted?.Invoke(this, EventArgs.Empty);
     }
