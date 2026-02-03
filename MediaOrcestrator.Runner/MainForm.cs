@@ -2,6 +2,7 @@
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog.Configuration;
 
 namespace MediaOrcestrator.Runner;
 
@@ -181,5 +182,17 @@ public partial class MainForm : Form
             uiRelationsPanel.Controls.Add(control);
             control.SendToBack();
         }
+    }
+
+    private void button1_Click(object sender, EventArgs e)
+    {
+        Task.Run(async () =>
+        {
+            var media = _orcestrator.GetMedias().Skip(1).First();
+            var source = media.Sources.First();
+
+            var sadasd = _orcestrator.GetRelations().First();
+            await sadasd.From.Type.Download(source.ExternalId, sadasd.From.Settings);
+        });
     }
 }

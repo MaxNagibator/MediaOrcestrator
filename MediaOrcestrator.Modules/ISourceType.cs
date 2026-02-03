@@ -10,8 +10,8 @@ public interface ISourceType
     IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings);
 
     MediaDto GetMediaById();
-    void Upload(MediaDto media, Dictionary<string, string> settings);
-    MediaDto Download(Dictionary<string, string> settings);
+    Task<string> Upload(MediaDto media, Dictionary<string, string> settings);
+    Task<MediaDto> Download(string videoId, Dictionary<string, string> settings);
 }
 
 public class SourceSettings

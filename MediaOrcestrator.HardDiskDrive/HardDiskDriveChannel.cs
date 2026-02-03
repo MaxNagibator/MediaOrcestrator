@@ -44,17 +44,30 @@ public class HardDiskDriveChannel : ISourceType
         throw new NotImplementedException();
     }
 
-    public MediaDto Download(Dictionary<string, string> settings)
+    public Task<MediaDto> Download(string videoId, Dictionary<string, string> settings)
     {
-        Console.WriteLine("я загрузил брат");
-        throw new NotImplementedException();
+        // todo дублирование
+        var basePath = settings["path"];
+        var dbPath = Path.Combine(basePath, "data.db");
+        using var db = new LiteDatabase(dbPath);
+
+        var file = db.GetCollection<DriveMedia>("files").FindById(videoId);
+        return Task.FromResult(new MediaDto
+        {
+            Id = file.Id,
+            Description = file.Description,
+            Title = file.Title,
+            TempDataPath = file.Path,
+        });
     }
 
-    public void Upload(MediaDto media, Dictionary<string, string> settings)
+    public Task<string> Upload(MediaDto media, Dictionary<string, string> settings)
     {
+        var hddId = media.Id;
+
         var basePath = settings["path"];
-        var path = Path.Combine(basePath, media.Id);
-        if (!Directory.Exists(media.Id))
+        var path = Path.Combine(basePath, hddId);
+        if (!Directory.Exists(hddId))
         {
             Directory.CreateDirectory(path);
         }
@@ -70,11 +83,12 @@ public class HardDiskDriveChannel : ISourceType
         using var db = new LiteDatabase(dbPath);
         db.GetCollection<DriveMedia>("files").Insert(new DriveMedia
         {
-            Id = media.Id,
+            Id = hddId,
             Description = media.Description,
             Title = media.Title,
             Path = mainName,
         });
+        return Task.FromResult(hddId);
     }
 }
 

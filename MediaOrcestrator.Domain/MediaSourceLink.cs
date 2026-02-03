@@ -7,10 +7,24 @@ namespace MediaOrcestrator.Domain;
 /// </summary>
 public class MediaSourceLink
 {
+    /// <summary>
+    /// Идентификатор источника.
+    /// </summary>
     public string SourceId { get; set; }
 
     public string Status { get; set; }
 
+    /// <summary>
+    /// Идентификатор медии в источнике.
+    /// </summary>
+    /// <remarks>
+    /// В каждом источники свой айди.
+    /// </remarks>
+    public string ExternalId { get; set; }
+
+    /// <summary>
+    /// Внутренний идентификатор медии.
+    /// </summary>
     public string MediaId { get; set; }
 
     [BsonIgnore]

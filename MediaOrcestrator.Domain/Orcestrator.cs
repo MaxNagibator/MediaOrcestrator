@@ -53,7 +53,6 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
             await foreach (var s in syncMedia)
             {
                 i++;
-
                 if (i > 10)
                 {
                     logger.LogWarning("Достигнут лимит в 10 элементов для источника {SourceId}, прерываем.", mediaSource.Id);
@@ -71,18 +70,20 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                 }
                 else
                 {
+                    var mediaId = Guid.NewGuid().ToString();
                     var myMedia = new Media
                     {
                         Title = s.Title,
-                        Id = s.Id,
+                        Id = mediaId,
                         Description = s.Description,
                         Sources = [],
                     };
 
                     var newMediaSource = new MediaSourceLink
                     {
-                        MediaId = s.Id,
+                        MediaId = mediaId,
                         Media = myMedia,
+                        ExternalId = s.Id,
                         Status = "OK",
                         SourceId = mediaSource.Id,
                     };
@@ -103,7 +104,16 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
     public List<Media> GetMedias()
     {
-        return db.GetCollection<Media>("medias").FindAll().ToList();
+        var medias = db.GetCollection<Media>("medias").FindAll().ToList();
+        //foreach (var media in medias) // времяночка для очистки
+        //{
+        //    if(media.Sources.Any(x=>x.ExternalId == null))
+        //    {
+        //        db.GetCollection<Media>("medias").Delete(media.Id);
+        //    }
+        //}
+        //medias = db.GetCollection<Media>("medias").FindAll().ToList();
+        return medias;
     }
 
     public List<Source> GetSources()
@@ -135,7 +145,15 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
     public List<SourceSyncRelation> GetRelations()
     {
-        return db.GetCollection<SourceSyncRelation>("source_relations").FindAll().ToList();
+        var relations = db.GetCollection<SourceSyncRelation>("source_relations").FindAll().ToList();
+        var sources = GetSourceTypes();
+        foreach (var item in relations)
+        {
+            item.From.Type = sources.Values.First(x => x.Name == item.From.TypeId);
+            item.To.Type = sources.Values.First(x => x.Name == item.To.TypeId);
+        }
+
+        return relations;
     }
 
     public void AddLink(Source from, Source to)

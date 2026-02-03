@@ -42,10 +42,11 @@
             uiRelationFromComboBox = new ComboBox();
             uiMainTabControl = new TabControl();
             uiFilesTabPage = new TabPage();
+            uiRelationViewModeCheckBox = new CheckBox();
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiAuditTabPage = new TabPage();
-            uiRelationViewModeCheckBox = new CheckBox();
+            button1 = new Button();
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
@@ -79,9 +80,9 @@
             // uiMediaMatrixGridControl
             // 
             uiMediaMatrixGridControl.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            uiMediaMatrixGridControl.Location = new Point(3, 6);
+            uiMediaMatrixGridControl.Location = new Point(3, 31);
             uiMediaMatrixGridControl.Name = "uiMediaMatrixGridControl";
-            uiMediaMatrixGridControl.Size = new Size(1116, 692);
+            uiMediaMatrixGridControl.Size = new Size(1116, 667);
             uiMediaMatrixGridControl.TabIndex = 2;
             // 
             // uiAddSourceButton
@@ -190,19 +191,11 @@
             uiRelationViewModeCheckBox.AutoSize = true;
             uiRelationViewModeCheckBox.Location = new Point(6, 6);
             uiRelationViewModeCheckBox.Name = "uiRelationViewModeCheckBox";
-            uiRelationViewModeCheckBox.Size = new Size(130, 19);
+            uiRelationViewModeCheckBox.Size = new Size(122, 19);
             uiRelationViewModeCheckBox.TabIndex = 3;
             uiRelationViewModeCheckBox.Text = "Режим по связям";
             uiRelationViewModeCheckBox.UseVisualStyleBackColor = true;
             uiRelationViewModeCheckBox.CheckedChanged += uiRelationViewModeCheckBox_CheckedChanged;
-            // 
-            // uiMediaMatrixGridControl
-            // 
-            uiMediaMatrixGridControl.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            uiMediaMatrixGridControl.Location = new Point(3, 31);
-            uiMediaMatrixGridControl.Name = "uiMediaMatrixGridControl";
-            uiMediaMatrixGridControl.Size = new Size(1116, 667);
-            uiMediaMatrixGridControl.TabIndex = 2;
             // 
             // uiStorageTabPage
             // 
@@ -234,6 +227,7 @@
             // 
             // uiAuditTabPage
             // 
+            uiAuditTabPage.Controls.Add(button1);
             uiAuditTabPage.Controls.Add(uiSyncButton);
             uiAuditTabPage.Location = new Point(4, 24);
             uiAuditTabPage.Name = "uiAuditTabPage";
@@ -241,6 +235,17 @@
             uiAuditTabPage.TabIndex = 3;
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
+            // 
+            // button1
+            // 
+            button1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            button1.Location = new Point(265, 473);
+            button1.Name = "button1";
+            button1.Size = new Size(348, 32);
+            button1.TabIndex = 2;
+            button1.Text = "Гости";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
             // 
             // MainForm
             // 
@@ -254,6 +259,7 @@
             Load += MainForm_Load;
             uiMainTabControl.ResumeLayout(false);
             uiFilesTabPage.ResumeLayout(false);
+            uiFilesTabPage.PerformLayout();
             uiStorageTabPage.ResumeLayout(false);
             uiRelationsTabPage.ResumeLayout(false);
             uiRelationsTabPage.PerformLayout();
@@ -280,5 +286,6 @@
         private TabPage uiRelationsTabPage;
         private TabPage uiAuditTabPage;
         private CheckBox uiRelationViewModeCheckBox;
+        private Button button1;
     }
 }

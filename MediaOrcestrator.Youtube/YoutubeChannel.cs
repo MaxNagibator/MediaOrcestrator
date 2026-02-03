@@ -70,53 +70,58 @@ public class YoutubeChannel : ISourceType
         throw new NotImplementedException();
     }
 
-    public async Task<MediaDto> Download(Dictionary<string, string> settings)
+    public async Task<MediaDto> Download(string videoId, Dictionary<string, string> settings)
     {
         // todo дублирование
-        var channelUrl = settings["channel_id"];
         var youtubeClient = new YoutubeClient();
 
-        var video = await youtubeClient.Videos.GetAsync(channelUrl);
-        var streamManifest = await youtubeClient.Videos.Streams.GetManifestAsync(channelUrl);
+        var video = await youtubeClient.Videos.GetAsync(videoId);
+        var streamManifest = await youtubeClient.Videos.Streams.GetManifestAsync(videoId);
 
         var highestAudioStream = (IAudioStreamInfo)streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
         var highestVideoStream = (IVideoStreamInfo)streamManifest.GetVideoOnlyStreams().GetWithHighestBitrate();
 
-        var stream = DownloadItemStream.Create(0,
-            Path.Combine(path, ".temp"),
-            path,
-            video,
+        //    var stream = DownloadItemStream.Create(0,
+        //        Path.Combine(path, ".temp"),
+        //        path,
+        //        video,
+        //        highestAudioStream,
+        //        highestVideoStream);
+
+        //    var item = DownloadItem.Create(url, [stream], video).GetValueOrDefault();
+
+        //    Console.WriteLine("ютубный я загрузил брат ");
+        //    throw new NotImplementedException();
+        //}
+
+        //private async Task DownloadCombinedStream(DownloadItemStream downloadStream, DownloadItem downloadItem, CancellationToken cancellationToken = default)
+        //{
+
+        var tempPath = "E:\\bobgroup\\projects\\mediaOrcestrator\\tempDir";
+        var guid = Guid.NewGuid().ToString();
+        var audioPath = Path.Combine(tempPath, guid, "audio.temp");
+        var videoPath = Path.Combine(tempPath, guid, "video.temp");
+        var finalPath = Path.Combine(tempPath, guid, ".mp4");
+
+        //if (downloadStream.AudioStreamInfo == null || downloadStream.VideoStreamInfo == null)
+        //{
+        ////    logger.LogError("Не удалось объединить ({MethodName}). Нет видео или аудио", nameof(DownloadCombinedStream));
+        //    return;
+        //}
+
+        var token = new CancellationTokenSource();
+
+        var audioTask = DownloadWithProgressAsync(
             highestAudioStream,
-            highestVideoStream);
-
-        var item = DownloadItem.Create(url, [stream], video).GetValueOrDefault();
-
-        Console.WriteLine("ютубный я загрузил брат ");
-        throw new NotImplementedException();
-    }
-
-    private async Task DownloadCombinedStream(DownloadItemStream downloadStream, DownloadItem downloadItem, CancellationToken cancellationToken = default)
-    {
-        var audioPath = downloadStream.TempPath.AddSuffixToFileName("audio");
-        var videoPath = downloadStream.TempPath.AddSuffixToFileName("video");
-
-        if (downloadStream.AudioStreamInfo == null || downloadStream.VideoStreamInfo == null)
-        {
-        //    logger.LogError("Не удалось объединить ({MethodName}). Нет видео или аудио", nameof(DownloadCombinedStream));
-            return;
-        }
-
-        var audioTask = DownloadWithProgressAsync(downloadStream.AudioStreamInfo,
+            youtubeClient,
             audioPath,
-            downloadStream.Title,
-            downloadItem.Video.Title,
-            cancellationToken);
+            token.Token);
 
-        var videoTask = DownloadWithProgressAsync(downloadStream.VideoStreamInfo,
+        var videoTask = DownloadWithProgressAsync(
+            highestVideoStream,
+            youtubeClient,
             videoPath,
-            downloadStream.Title,
-            downloadItem.Video.Title,
-            cancellationToken);
+            token.Token);
 
         await Task.WhenAll(audioTask.AsTask(), videoTask.AsTask());
 
@@ -131,18 +136,26 @@ public class YoutubeChannel : ISourceType
                 return;
             }
 
-        //    logger.LogDebug("Объединение: {Percent:P2}", percent);
+            //    logger.LogDebug("Объединение: {Percent:P2}", percent);
             oldPercent = percent;
         });
 
         // todo :)
-        var converter = new FFmpegConverter(new FFmpeg(null));
-        await converter.MergeMediaAsync(downloadStream.FilePath, [audioPath, videoPath], progress, cancellationToken);
+        var converter = new FFmpegConverter(new FFmpeg("c:\\Services\\utils\\ffmpeg\\ffmpeg.exe"));
+        await converter.MergeMediaAsync(finalPath, [audioPath, videoPath], progress, token.Token);
 
-      //  logger.LogDebug("Успешно объединено видео и аудио: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
+        return new MediaDto
+        {
+            Id = videoId,
+            Title = video.Title,
+            Description = video.Description,
+            TempDataPath = finalPath,
+        };
+        // bob217 -> 9I_JIereHga -> bob217
+        //  logger.LogDebug("Успешно объединено видео и аудио: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
     }
 
-    public ValueTask DownloadWithProgressAsync(IStreamInfo streamInfo, string path, string streamTitle, string videoTitle, CancellationToken cancellationToken)
+    public ValueTask DownloadWithProgressAsync(IStreamInfo streamInfo, YoutubeClient youtubeClient, string path, CancellationToken cancellationToken)
     {
         double oldPercent = -1;
 
@@ -161,20 +174,15 @@ public class YoutubeChannel : ISourceType
                 return;
             }
 
-           // logger.LogDebug("{StreamType}: {Percent:P2} {VideoTitle} {StreamTitle}", streamType, percent, videoTitle, streamTitle);
             oldPercent = percent;
         });
 
-        return DownloadAsync(streamInfo, path, progress, cancellationToken);
+        return youtubeClient.Videos.Streams.DownloadAsync(streamInfo, path, progress, cancellationToken);
     }
 
-    public ValueTask DownloadAsync(IStreamInfo stream, string path, IProgress<double>? progress, CancellationToken cancellationToken)
-    {
-        return youtubeClient.Videos.Streams.DownloadAsync(stream, path, progress, cancellationToken);
-    }
-
-    public void Upload(MediaDto media, Dictionary<string, string> settings)
+    public Task<string> Upload(MediaDto media, Dictionary<string, string> settings)
     {
         Console.WriteLine("ютубный я загрузил брат " + media.Title);
+        return Task.FromResult("ssshssussy!");
     }
 }

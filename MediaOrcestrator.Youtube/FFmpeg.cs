@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 
 namespace MediaOrcestrator.Core;
 
-public partial class FFmpeg(IOptions<FFmpegOptions> options)
+public partial class FFmpeg(string path)
 {
     public async ValueTask ExecuteAsync(string arguments, IProgress<double>? progress, CancellationToken cancellationToken = default)
     {
@@ -20,7 +20,7 @@ public partial class FFmpeg(IOptions<FFmpegOptions> options)
 
         try
         {
-            var command = Cli.Wrap(options.Value.Path)
+            var command = Cli.Wrap(path)
                 .WithArguments(arguments)
                 .WithStandardErrorPipe(stdErrPipe);
 
