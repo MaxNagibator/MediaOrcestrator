@@ -1,4 +1,4 @@
-using LiteDB;
+﻿using LiteDB;
 using MediaOrcestrator.Domain;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -38,6 +38,12 @@ file static class Program
 
             using var serviceProvider = services.BuildServiceProvider();
             var mainForm = serviceProvider.GetRequiredService<MainForm>();
+
+            var orcestrator = serviceProvider.GetRequiredService<Orcestrator>();
+            Task.Run(async () =>
+            {
+                await GoGo(orcestrator);
+            });
             Application.Run(mainForm);
         }
         catch (Exception ex)
@@ -47,6 +53,46 @@ file static class Program
         finally
         {
             Log.CloseAndFlush();
+        }
+    }
+
+    private static async Task GoGo(Orcestrator orcestrator)
+    {
+        var sources = orcestrator.GetSources();
+
+        while (true)
+        {
+            await orcestrator.GetStorageFullInfo();
+            // todo делаем бич вариант, потом распараллелим
+            var relations = orcestrator.GetRelations();
+            foreach (var rel in relations)
+            {
+                var medias = orcestrator.GetMedias();
+                foreach (var media in medias)
+                {
+                    var fromSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.From.Id);
+                    var toSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
+                    if(fromSource != null && toSource == null)
+                    {
+                        var tempMedia = await rel.From.Type.Download(fromSource.ExternalId, rel.From.Settings);
+                        tempMedia.Id = media.Id;
+                        var externalId = await rel.To.Type.Upload(tempMedia, rel.To.Settings);
+
+                        var toMediaSource = new MediaSourceLink
+                        {
+                            MediaId = media.Id,
+                            Media = media,
+                            ExternalId = externalId,
+                            Status = "OK",
+                            SourceId = rel.To.Id,
+                        };
+
+                        media.Sources.Add(toMediaSource);
+                        orcestrator.UpdateMedia(media);
+                    }
+                }
+            }
+            Thread.Sleep(3600_000);
         }
     }
 

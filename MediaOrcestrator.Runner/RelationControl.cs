@@ -49,7 +49,7 @@ public partial class RelationControl : UserControl
             return;
         }
 
-        _orcestrator.RemoveLink(Relation.From, Relation.To);
+        _orcestrator.RemoveRelation(Relation.From, Relation.To);
         RelationDeleted?.Invoke(this, EventArgs.Empty);
     }
 

@@ -116,6 +116,11 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         return medias;
     }
 
+    public void UpdateMedia(Media media)
+    {
+        db.GetCollection<Media>("medias").Update(media);
+    }
+
     public List<Source> GetSources()
     {
         var sources = db.GetCollection<Source>("sources").FindAll().ToList();
@@ -156,12 +161,12 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         return relations;
     }
 
-    public void AddLink(Source from, Source to)
+    public void AddRelation(Source from, Source to)
     {
         db.GetCollection<SourceSyncRelation>("source_relations").Insert(new SourceSyncRelation { From = from, To = to });
     }
 
-    public void RemoveLink(Source from, Source to)
+    public void RemoveRelation(Source from, Source to)
     {
         // TODO: Подумать
         db.GetCollection<SourceSyncRelation>("source_relations")

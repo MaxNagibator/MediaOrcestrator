@@ -95,7 +95,7 @@ public partial class MainForm : Form
             return;
         }
 
-        _orcestrator.AddLink(from, to);
+        _orcestrator.AddRelation(from, to);
         DrawRelations();
     }
 
