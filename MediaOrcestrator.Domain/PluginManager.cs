@@ -1,8 +1,9 @@
-﻿using MediaOrcestrator.Modules;
+using MediaOrcestrator.Modules;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MediaOrcestrator.Domain;
 
-public class PluginManager
+public class PluginManager(IServiceProvider serviceProvider)
 {
     public Dictionary<string, ISourceType> MediaSources { get; set; }
 
@@ -16,7 +17,7 @@ public class PluginManager
         foreach (var x in implementations)
         {
             var id = x.Assembly.FullName.Split(",")[0];
-            var instance = (ISourceType)Activator.CreateInstance(x.Type);
+            var instance = (ISourceType)ActivatorUtilities.CreateInstance(serviceProvider, x.Type);
 
             if (instance.SettingsKeys != null && instance.SettingsKeys.Any(x => x.Key.StartsWith("_system")))
             {

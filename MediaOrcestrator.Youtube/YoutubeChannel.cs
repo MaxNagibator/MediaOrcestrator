@@ -1,13 +1,22 @@
-﻿using MediaOrcestrator.Core;
+using MediaOrcestrator.Core;
 using MediaOrcestrator.Modules;
+using Microsoft.Extensions.Logging;
 using YoutubeExplode;
 using YoutubeExplode.Channels;
 using YoutubeExplode.Videos.Streams;
 
 namespace MediaOrcestrator.Youtube;
 
-public class YoutubeChannel : ISourceType
+public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
 {
+    private readonly Func<YoutubeClient, string, Task<Channel?>>[] _parsers =
+    [
+        async (youtubeClient, url) => ChannelId.TryParse(url) is { } id ? await youtubeClient.Channels.GetAsync(id) : null,
+        async (youtubeClient, url) => ChannelSlug.TryParse(url) is { } slug ? await youtubeClient.Channels.GetBySlugAsync(slug) : null,
+        async (youtubeClient, url) => ChannelHandle.TryParse(url) is { } handle ? await youtubeClient.Channels.GetByHandleAsync(handle) : null,
+        async (youtubeClient, url) => UserName.TryParse(url) is { } userName ? await youtubeClient.Channels.GetByUserAsync(userName) : null,
+    ];
+
     public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
     public string Name => "Youtube";
@@ -27,12 +36,22 @@ public class YoutubeChannel : ISourceType
         //var channelUrl = "https://www.youtube.com/@bobito217";
 
         var channelUrl = settings["channel_id"];
+        logger.LogInformation("Получение медиа для канала: {ChannelUrl}", channelUrl);
+
         var youtubeClient = new YoutubeClient();
         var channel = await GetChannel(youtubeClient, channelUrl);
+
+        if (channel == null)
+        {
+            logger.LogWarning("Не удалось найти канал: {ChannelUrl}", channelUrl);
+            yield break;
+        }
+
         var uploads = youtubeClient.Channels.GetUploadsAsync(channel.Id);
+
         await foreach (var video in uploads)
         {
-            yield return new MediaDto
+            yield return new()
             {
                 Id = video.Id.Value,
                 Title = video.Title,
@@ -41,14 +60,6 @@ public class YoutubeChannel : ISourceType
             };
         }
     }
-
-    private readonly Func<YoutubeClient, string, Task<Channel?>>[] _parsers =
-    [
-        async (youtubeClient, url ) => ChannelId.TryParse(url) is { } id ? await youtubeClient.Channels.GetAsync(id) : null,
-        async (youtubeClient, url ) => ChannelSlug.TryParse(url) is { } slug ? await youtubeClient.Channels.GetBySlugAsync(slug) : null,
-        async (youtubeClient, url ) => ChannelHandle.TryParse(url) is { } handle ? await youtubeClient.Channels.GetByHandleAsync(handle) : null,
-        async (youtubeClient, url ) => UserName.TryParse(url) is { } userName ? await youtubeClient.Channels.GetByUserAsync(userName) : null,
-    ];
 
     public async Task<Channel?> GetChannel(YoutubeClient client, string channelUrl)
     {
@@ -72,6 +83,8 @@ public class YoutubeChannel : ISourceType
 
     public async Task<MediaDto> Download(string videoId, Dictionary<string, string> settings)
     {
+        logger.LogInformation("Начало загрузки видео: {VideoId}", videoId);
+
         // todo дублирование
         var youtubeClient = new YoutubeClient();
 
@@ -111,40 +124,42 @@ public class YoutubeChannel : ISourceType
 
         var token = new CancellationTokenSource();
 
-        var audioTask = DownloadWithProgressAsync(
+        logger.LogDebug("Скачивание потоков для видео {VideoId}. Аудио: {AudioPath}, Видео: {VideoPath}", videoId, audioPath, videoPath);
+
+        var audioTask = DownloadWithProgressAsync(youtubeClient,
             highestAudioStream,
-            youtubeClient,
             audioPath,
             token.Token);
 
-        var videoTask = DownloadWithProgressAsync(
+        var videoTask = DownloadWithProgressAsync(youtubeClient,
             highestVideoStream,
-            youtubeClient,
             videoPath,
             token.Token);
 
         await Task.WhenAll(audioTask.AsTask(), videoTask.AsTask());
 
-        //logger.LogDebug("Попытка объединить видео и аудио: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
+        logger.LogDebug("Потоки скачаны. Попытка объединить видео и аудио: {VideoId}", videoId);
 
         double oldPercent = -1;
 
         Progress<double> progress = new(percent =>
         {
-            if (percent - oldPercent < 0.1)
+            if (percent - oldPercent < 10)
             {
                 return;
             }
 
-            //    logger.LogDebug("Объединение: {Percent:P2}", percent);
+            logger.LogDebug("Объединение: {Percent:P2}", percent);
             oldPercent = percent;
         });
 
-        // todo :)
-        var converter = new FFmpegConverter(new FFmpeg("c:\\Services\\utils\\ffmpeg\\ffmpeg.exe"));
+        // todo :) (\/)._.(\/)
+        var converter = new FFmpegConverter(new("c:\\Services\\utils\\ffmpeg\\ffmpeg.exe"));
         await converter.MergeMediaAsync(finalPath, [audioPath, videoPath], progress, token.Token);
 
-        return new MediaDto
+        logger.LogInformation("Успешно объединено видео и аудио: {VideoId}", videoId);
+
+        return new()
         {
             Id = videoId,
             Title = video.Title,
@@ -155,7 +170,7 @@ public class YoutubeChannel : ISourceType
         //  logger.LogDebug("Успешно объединено видео и аудио: {Id} {StreamId}", downloadItem.Id, downloadStream.Id);
     }
 
-    public ValueTask DownloadWithProgressAsync(IStreamInfo streamInfo, YoutubeClient youtubeClient, string path, CancellationToken cancellationToken)
+    public ValueTask DownloadWithProgressAsync(YoutubeClient youtubeClient, IStreamInfo streamInfo, string path, CancellationToken cancellationToken)
     {
         double oldPercent = -1;
 
@@ -169,11 +184,12 @@ public class YoutubeChannel : ISourceType
 
         Progress<double> progress = new(percent =>
         {
-            if (percent - oldPercent < 0.1)
+            if (percent - oldPercent < 10)
             {
                 return;
             }
 
+            logger.LogDebug("Скачивание {StreamType}: {Percent:P2}", streamType, percent);
             oldPercent = percent;
         });
 
@@ -182,7 +198,7 @@ public class YoutubeChannel : ISourceType
 
     public Task<string> Upload(MediaDto media, Dictionary<string, string> settings)
     {
-        Console.WriteLine("ютубный я загрузил брат " + media.Title);
+        logger.LogInformation("ютубный я загрузил брат: {Title}", media.Title);
         return Task.FromResult("ssshssussy!");
     }
 }
