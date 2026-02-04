@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using YoutubeExplode.Common;
 using YoutubeExplode.Utils.Extensions;
@@ -82,8 +83,14 @@ public partial struct VideoQuality
 
         var match = Regex.Match(label, @"^(\d+)\D(\d+)?");
 
-        var maxHeight = match.Groups[1].Value.ParseInt();
-        var framerate = match.Groups[2].Value.NullIfWhiteSpace()?.ParseIntOrNull();
+        var maxHeight = match.Groups[1].Value.Pipe(s => int.Parse(s, CultureInfo.InvariantCulture));
+
+        var framerate = match
+            .Groups[2]
+            .Value.NullIfWhiteSpace()
+            ?.Pipe(s =>
+                int.TryParse(s, CultureInfo.InvariantCulture, out var result) ? result : (int?)null
+            );
 
         return new VideoQuality(label, maxHeight, framerate ?? framerateFallback);
     }
@@ -208,13 +215,12 @@ public partial struct VideoQuality : IComparable<VideoQuality>, IEquatable<Video
         if (framerateComparison != 0)
             return framerateComparison;
 
-        var labelComparison = StringComparer.OrdinalIgnoreCase.Compare(Label, other.Label);
-        return labelComparison;
+        return string.Compare(Label, other.Label, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc />
     public bool Equals(VideoQuality other) =>
-        StringComparer.OrdinalIgnoreCase.Equals(Label, other.Label)
+        string.Equals(Label, other.Label, StringComparison.OrdinalIgnoreCase)
         && MaxHeight == other.MaxHeight
         && Framerate == other.Framerate;
 
@@ -223,7 +229,11 @@ public partial struct VideoQuality : IComparable<VideoQuality>, IEquatable<Video
 
     /// <inheritdoc />
     public override int GetHashCode() =>
-        HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(Label), MaxHeight, Framerate);
+        HashCode.Combine(
+            Label.GetHashCode(StringComparison.OrdinalIgnoreCase),
+            MaxHeight,
+            Framerate
+        );
 
     /// <summary>
     /// Equality check.

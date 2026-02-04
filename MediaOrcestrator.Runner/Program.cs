@@ -3,6 +3,7 @@ using MediaOrcestrator.Domain;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Sinks.RichTextBoxForms.Themes;
 
 namespace MediaOrcestrator.Runner;
 
@@ -13,16 +14,26 @@ file static class Program
     {
         ApplicationConfiguration.Initialize();
 
+        // TODO: Выглядит не очень
+        var logControl = new RichTextBox();
+        logControl.BackColor = SystemColors.Window;
+        logControl.Dock = DockStyle.Fill;
+        logControl.Font = new("Cascadia Mono", 10.8F, FontStyle.Regular, GraphicsUnit.Point);
+        logControl.Location = new(0, 0);
+        logControl.Name = "uiLogControl";
+
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.Debug()
+            .WriteTo.RichTextBox(logControl, ThemePresets.Literate)
             .CreateLogger();
 
         try
         {
             Log.Information("Приложение запускается...");
             var services = new ServiceCollection();
+            services.AddSingleton(logControl);
             ConfigureServices(services);
 
             using var serviceProvider = services.BuildServiceProvider();

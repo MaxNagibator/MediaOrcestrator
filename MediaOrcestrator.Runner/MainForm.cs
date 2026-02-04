@@ -2,7 +2,6 @@
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Serilog.Configuration;
 
 namespace MediaOrcestrator.Runner;
 
@@ -12,13 +11,14 @@ public partial class MainForm : Form
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MainForm> _logger;
 
-    public MainForm(Orcestrator orcestrator, IServiceProvider serviceProvider, ILogger<MainForm> logger)
+    public MainForm(Orcestrator orcestrator, IServiceProvider serviceProvider, ILogger<MainForm> logger, RichTextBox logControl)
     {
         _orcestrator = orcestrator;
         _serviceProvider = serviceProvider;
         _logger = logger;
 
         InitializeComponent();
+        uiLogsTabPage.Controls.Add(logControl);
     }
 
     private void MainForm_Load(object sender, EventArgs e)
@@ -104,6 +104,58 @@ public partial class MainForm : Form
         uiMediaMatrixGridControl.RefreshData(GetSelectedRelations());
     }
 
+    private void uiForceScanButton_Click(object sender, EventArgs e)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                var media = _orcestrator.GetMedias().Skip(0).First();
+                var source = media.Sources.First();
+
+                var sadasd = _orcestrator.GetRelations().First();
+                await sadasd.From.Type.Download(source.ExternalId, sadasd.From.Settings);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Ошибка при загрузке: {Message}", exception.Message);
+            }
+        });
+    }
+
+    private void uiClearDatabaseButton_Click(object sender, EventArgs e)
+    {
+        var result = MessageBox.Show("Вы уверены, что хотите очистить базу данных?\nЭта операция необратима и удалит все данные.",
+            "Подтверждение",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning);
+
+        if (result != DialogResult.Yes)
+        {
+            return;
+        }
+
+        _logger.LogInformation("Пользователь запустил очистку базы данных.");
+        uiClearDatabaseButton.Enabled = false;
+        try
+        {
+            _orcestrator.ClearDatabase();
+            _logger.LogInformation("Очистка базы данных завершена через UI.");
+            MessageBox.Show("База данных успешно очищена.", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DrawSources();
+            uiMediaMatrixGridControl.RefreshData();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при очистке базы данных через UI.");
+            MessageBox.Show($"Ошибка при очистке базы данных: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            uiClearDatabaseButton.Enabled = true;
+        }
+    }
+
     private List<SourceSyncRelation> GetSelectedRelations()
     {
         if (!uiRelationViewModeCheckBox.Checked)
@@ -182,17 +234,5 @@ public partial class MainForm : Form
             uiRelationsPanel.Controls.Add(control);
             control.SendToBack();
         }
-    }
-
-    private void button1_Click(object sender, EventArgs e)
-    {
-        Task.Run(async () =>
-        {
-            var media = _orcestrator.GetMedias().Skip(1).First();
-            var source = media.Sources.First();
-
-            var sadasd = _orcestrator.GetRelations().First();
-            await sadasd.From.Type.Download(source.ExternalId, sadasd.From.Settings);
-        });
     }
 }

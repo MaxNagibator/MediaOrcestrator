@@ -25,15 +25,16 @@ public class RutubeChannel : ISourceType
         throw new NotImplementedException();
     }
 
-    public MediaDto Download()
+    public Task<MediaDto> Download(string videoId, Dictionary<string, string> settings)
     {
         Console.WriteLine("я загрузил брат");
         throw new NotImplementedException();
     }
 
-    public void Upload(MediaDto media)
+    public Task<string> Upload(MediaDto media, Dictionary<string, string> settings)
     {
         Console.WriteLine("я загрузил брат " + media.Title);
+        return Task.FromResult("rutube_id_placeholder");
     }
 }
 
