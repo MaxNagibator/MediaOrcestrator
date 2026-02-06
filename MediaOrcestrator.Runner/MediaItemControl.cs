@@ -54,6 +54,19 @@ public partial class MediaItemControl : UserControl
                         var tempMedia = await rel.From.Type.Download(fromSource.ExternalId, rel.From.Settings);
                         tempMedia.Id = media.Id;
                         var externalId = await rel.To.Type.Upload(tempMedia, rel.To.Settings);
+
+                        var toMediaSource = new MediaSourceLink
+                        {
+                            MediaId = media.Id,
+                            Media = media,
+                            ExternalId = externalId,
+                            Status = "OK",
+                            SourceId = rel.To.Id,
+                        };
+
+                        media.Sources.Add(toMediaSource);
+                        orcestrator.UpdateMedia(media);
+                        //logger.Information("Успешно синхронизировано медиа {Media} в {ToSource}. ExternalId: {ExternalId}", media, rel.To, externalId);
                     });
                 });
             }

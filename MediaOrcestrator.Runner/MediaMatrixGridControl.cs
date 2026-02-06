@@ -23,8 +23,13 @@ public partial class MediaMatrixGridControl : UserControl
             return;
         }
 
+        var mediaData = _orcestrator.GetMedias().ToList();
+        if (!string.IsNullOrEmpty(textBox1.Text))
+        {
+            mediaData = mediaData.Where(x => x.Title.ToLower().Contains(textBox1.Text.ToLower())).ToList();
+        }
         var allSources = _orcestrator.GetSources();
-        var mediaData = _orcestrator.GetMedias().Take(20).ToList();
+        mediaData = mediaData.Take(20).ToList();
 
         List<Source> sources;
 
@@ -110,5 +115,10 @@ public partial class MediaMatrixGridControl : UserControl
             uMediaGridPanel.RowCount++;
             uMediaGridPanel.Controls.Add(control);
         }
+    }
+
+    private void button1_Click_1(object sender, EventArgs e)
+    {
+        RefreshData();
     }
 }

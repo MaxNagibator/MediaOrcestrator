@@ -22,6 +22,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         logger.LogInformation("Запуск процесса синхронизации...");
 
         var mediaCol = db.GetCollection<Media>("medias");
+        //mediaCol.DeleteAll();
         var mediaAll = mediaCol.FindAll().ToList();
 
         var cache = new MediaSourceCache();
@@ -30,7 +31,8 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         {
             foreach (var source in media.Sources)
             {
-                cache.GetMedia(source.MediaId).Add(source);
+                source.Media = media;
+                cache.GetMedia(source.SourceId).Add(source);
             }
         }
 
@@ -59,7 +61,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                     break;
                 }
 
-                var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.MediaId == s.Title);
+                var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.ExternalId == s.Id);
                 if (foundMediaSource != null)
                 {
                     if (foundMediaSource.Media.Title != s.Title)
@@ -164,6 +166,9 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
     public List<SourceSyncRelation> GetRelations()
     {
+        //db.GetCollection<SourceSyncRelation>("source_relations")
+        //    .DeleteMany(x => true);
+
         var relations = db.GetCollection<SourceSyncRelation>("source_relations").FindAll().ToList();
         var sourceTypes = GetSourceTypes();
         var sources = GetSources();
@@ -196,7 +201,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
     {
         // TODO: Подумать
         db.GetCollection<SourceSyncRelation>("source_relations")
-            .DeleteMany(x => x.From.Id == from.Id && x.To.Id == to.Id);
+            .DeleteMany(x => x.FromId == from.Id && x.ToId == to.Id);
     }
 
     public void ClearDatabase()

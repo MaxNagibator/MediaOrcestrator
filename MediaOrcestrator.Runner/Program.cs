@@ -42,6 +42,7 @@ file static class Program
             var mainForm = serviceProvider.GetRequiredService<MainForm>();
 
             var orcestrator = serviceProvider.GetRequiredService<Orcestrator>();
+            orcestrator.Init();
             Task.Run(async () =>
             {
                 await GoGo(orcestrator);

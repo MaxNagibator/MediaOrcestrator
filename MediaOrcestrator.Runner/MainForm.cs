@@ -23,7 +23,6 @@ public partial class MainForm : Form
 
     private void MainForm_Load(object sender, EventArgs e)
     {
-        _orcestrator.Init();
         DrawSources();
         // TODO: SetZalupaV2
         uiMediaMatrixGridControl.Initialize(_orcestrator);
