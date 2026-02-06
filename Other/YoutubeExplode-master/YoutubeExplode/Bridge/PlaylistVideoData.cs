@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using Lazy;
@@ -30,7 +29,7 @@ internal class PlaylistVideoData(JsonElement content)
             ?.EnumerateArrayOrNull()
             ?.Select(j => j.GetPropertyOrNull("text")?.GetStringOrNull())
             .WhereNotNull()
-            .Pipe(string.Concat);
+            .ConcatToString();
 
     [Lazy]
     private JsonElement? AuthorDetails =>
@@ -82,43 +81,21 @@ internal class PlaylistVideoData(JsonElement content)
         content
             .GetPropertyOrNull("lengthSeconds")
             ?.GetStringOrNull()
-            ?.Pipe(s =>
-                double.TryParse(s, CultureInfo.InvariantCulture, out var result)
-                    ? result
-                    : (double?)null
-            )
+            ?.ParseDoubleOrNull()
             ?.Pipe(TimeSpan.FromSeconds)
         ?? content
             .GetPropertyOrNull("lengthText")
             ?.GetPropertyOrNull("simpleText")
             ?.GetStringOrNull()
-            ?.Pipe(s =>
-                TimeSpan.TryParseExact(
-                    s,
-                    [@"m\:ss", @"mm\:ss", @"h\:mm\:ss", @"hh\:mm\:ss"],
-                    CultureInfo.InvariantCulture,
-                    out var result
-                )
-                    ? result
-                    : (TimeSpan?)null
-            )
+            ?.ParseTimeSpanOrNull([@"m\:ss", @"mm\:ss", @"h\:mm\:ss", @"hh\:mm\:ss"])
         ?? content
             .GetPropertyOrNull("lengthText")
             ?.GetPropertyOrNull("runs")
             ?.EnumerateArrayOrNull()
             ?.Select(j => j.GetPropertyOrNull("text")?.GetStringOrNull())
             .WhereNotNull()
-            .Pipe(string.Concat)
-            ?.Pipe(s =>
-                TimeSpan.TryParseExact(
-                    s,
-                    [@"m\:ss", @"mm\:ss", @"h\:mm\:ss", @"hh\:mm\:ss"],
-                    CultureInfo.InvariantCulture,
-                    out var result
-                )
-                    ? result
-                    : (TimeSpan?)null
-            );
+            .ConcatToString()
+            .ParseTimeSpanOrNull([@"m\:ss", @"mm\:ss", @"h\:mm\:ss", @"hh\:mm\:ss"]);
 
     [Lazy]
     public IReadOnlyList<ThumbnailData> Thumbnails =>

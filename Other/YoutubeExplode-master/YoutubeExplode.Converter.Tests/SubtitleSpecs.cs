@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Xunit;
 using YoutubeExplode.Converter.Tests.Utils;
-using YoutubeExplode.Converter.Tests.Utils.Extensions;
 using YoutubeExplode.Videos.Streams;
 
 namespace YoutubeExplode.Converter.Tests;
@@ -48,7 +47,8 @@ public class SubtitleSpecs : IAsyncLifetime
 
         foreach (var trackInfo in trackInfos)
         {
-            File.ContainsBytes(filePath, Encoding.ASCII.GetBytes(trackInfo.Language.Name))
+            FileEx
+                .ContainsBytes(filePath, Encoding.ASCII.GetBytes(trackInfo.Language.Name))
                 .Should()
                 .BeTrue();
         }
@@ -86,7 +86,8 @@ public class SubtitleSpecs : IAsyncLifetime
 
         foreach (var trackInfo in trackInfos)
         {
-            File.ContainsBytes(filePath, Encoding.ASCII.GetBytes(trackInfo.Language.Name))
+            FileEx
+                .ContainsBytes(filePath, Encoding.ASCII.GetBytes(trackInfo.Language.Name))
                 .Should()
                 .BeTrue();
         }

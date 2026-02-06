@@ -79,14 +79,13 @@ public partial struct ChannelId
 public partial struct ChannelId : IEquatable<ChannelId>
 {
     /// <inheritdoc />
-    public bool Equals(ChannelId other) =>
-        string.Equals(Value, other.Value, StringComparison.Ordinal);
+    public bool Equals(ChannelId other) => StringComparer.Ordinal.Equals(Value, other.Value);
 
     /// <inheritdoc />
     public override bool Equals(object? obj) => obj is ChannelId other && Equals(other);
 
     /// <inheritdoc />
-    public override int GetHashCode() => Value.GetHashCode(StringComparison.Ordinal);
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Value);
 
     /// <summary>
     /// Equality check.

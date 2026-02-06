@@ -5,47 +5,39 @@ namespace YoutubeExplode.Utils.Extensions;
 
 internal static class CollectionExtensions
 {
-    extension<T>(IEnumerable<T?> source)
+    public static IEnumerable<T> WhereNotNull<T>(this IEnumerable<T?> source)
         where T : class
     {
-        public IEnumerable<T> WhereNotNull()
+        foreach (var i in source)
         {
-            foreach (var i in source)
-            {
-                if (i is not null)
-                    yield return i;
-            }
+            if (i is not null)
+                yield return i;
         }
     }
 
-    extension<T>(IEnumerable<T?> source)
+    public static IEnumerable<T> WhereNotNull<T>(this IEnumerable<T?> source)
         where T : struct
     {
-        public IEnumerable<T> WhereNotNull()
+        foreach (var i in source)
         {
-            foreach (var i in source)
-            {
-                if (i is not null)
-                    yield return i.Value;
-            }
+            if (i is not null)
+                yield return i.Value;
         }
     }
 
-    extension<T>(IEnumerable<T> source)
+    public static T? ElementAtOrNull<T>(this IEnumerable<T> source, int index)
         where T : struct
     {
-        public T? ElementAtOrNull(int index)
-        {
-            var sourceAsList = source as IReadOnlyList<T> ?? source.ToArray();
-            return index < sourceAsList.Count ? sourceAsList[index] : null;
-        }
+        var sourceAsList = source as IReadOnlyList<T> ?? source.ToArray();
+        return index < sourceAsList.Count ? sourceAsList[index] : null;
+    }
 
-        public T? FirstOrNull()
-        {
-            foreach (var i in source)
-                return i;
+    public static T? FirstOrNull<T>(this IEnumerable<T> source)
+        where T : struct
+    {
+        foreach (var i in source)
+            return i;
 
-            return null;
-        }
+        return null;
     }
 }

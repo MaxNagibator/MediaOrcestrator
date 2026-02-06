@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Text.RegularExpressions;
 using Lazy;
 using YoutubeExplode.Bridge.Cipher;
@@ -109,7 +108,7 @@ internal partial class PlayerSource(string content)
                     var index = Regex
                         .Match(statement, @"\([$_\w]+,(\d+)\)")
                         .Groups[1]
-                        .Value.Pipe(s => int.Parse(s, CultureInfo.InvariantCulture));
+                        .Value.ParseInt();
 
                     operations.Add(new SwapCipherOperation(index));
                 }
@@ -118,7 +117,7 @@ internal partial class PlayerSource(string content)
                     var index = Regex
                         .Match(statement, @"\([$_\w]+,(\d+)\)")
                         .Groups[1]
-                        .Value.Pipe(s => int.Parse(s, CultureInfo.InvariantCulture));
+                        .Value.ParseInt();
 
                     operations.Add(new SpliceCipherOperation(index));
                 }

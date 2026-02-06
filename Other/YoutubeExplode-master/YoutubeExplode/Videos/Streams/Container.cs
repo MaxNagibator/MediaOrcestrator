@@ -64,13 +64,13 @@ public partial struct Container : IEquatable<Container>
 {
     /// <inheritdoc />
     public bool Equals(Container other) =>
-        string.Equals(Name, other.Name, StringComparison.OrdinalIgnoreCase);
+        StringComparer.OrdinalIgnoreCase.Equals(Name, other.Name);
 
     /// <inheritdoc />
     public override bool Equals(object? obj) => obj is Container other && Equals(other);
 
     /// <inheritdoc />
-    public override int GetHashCode() => Name.GetHashCode(StringComparison.OrdinalIgnoreCase);
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Name);
 
     /// <summary>
     /// Equality check.

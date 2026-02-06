@@ -117,14 +117,13 @@ public partial struct PlaylistId
 public partial struct PlaylistId : IEquatable<PlaylistId>
 {
     /// <inheritdoc />
-    public bool Equals(PlaylistId other) =>
-        string.Equals(Value, other.Value, StringComparison.Ordinal);
+    public bool Equals(PlaylistId other) => StringComparer.Ordinal.Equals(Value, other.Value);
 
     /// <inheritdoc />
     public override bool Equals(object? obj) => obj is PlaylistId other && Equals(other);
 
     /// <inheritdoc />
-    public override int GetHashCode() => Value.GetHashCode(StringComparison.Ordinal);
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Value);
 
     /// <summary>
     /// Equality check.

@@ -140,14 +140,13 @@ public partial struct VideoId
 public partial struct VideoId : IEquatable<VideoId>
 {
     /// <inheritdoc />
-    public bool Equals(VideoId other) =>
-        string.Equals(Value, other.Value, StringComparison.Ordinal);
+    public bool Equals(VideoId other) => StringComparer.Ordinal.Equals(Value, other.Value);
 
     /// <inheritdoc />
     public override bool Equals(object? obj) => obj is VideoId other && Equals(other);
 
     /// <inheritdoc />
-    public override int GetHashCode() => Value.GetHashCode(StringComparison.Ordinal);
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Value);
 
     /// <summary>
     /// Equality check.

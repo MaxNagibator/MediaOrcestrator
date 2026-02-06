@@ -23,9 +23,6 @@ internal static class Batch
 
 internal static class BatchExtensions
 {
-    extension<T>(IAsyncEnumerable<Batch<T>> source)
-        where T : IBatchItem
-    {
-        public IAsyncEnumerable<T> FlattenAsync() => source.SelectManyAsync(b => b.Items);
-    }
+    public static IAsyncEnumerable<T> FlattenAsync<T>(this IAsyncEnumerable<Batch<T>> source)
+        where T : IBatchItem => source.SelectManyAsync(b => b.Items);
 }

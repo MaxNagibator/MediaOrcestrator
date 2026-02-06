@@ -6,17 +6,14 @@ namespace YoutubeExplode.Converter.Tests.Utils.Extensions;
 
 internal static class HttpExtensions
 {
-    extension(HttpClient http)
+    public static async Task DownloadAsync(this HttpClient http, string url, string filePath)
     {
-        public async Task DownloadAsync(string url, string filePath)
-        {
-            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
+        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
 
-            await using var source = await response.Content.ReadAsStreamAsync();
-            await using var destination = File.Create(filePath);
+        await using var source = await response.Content.ReadAsStreamAsync();
+        await using var destination = File.Create(filePath);
 
-            await source.CopyToAsync(destination);
-        }
+        await source.CopyToAsync(destination);
     }
 }

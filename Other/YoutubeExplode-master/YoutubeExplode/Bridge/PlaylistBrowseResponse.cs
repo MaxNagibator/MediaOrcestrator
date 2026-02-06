@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using Lazy;
@@ -46,7 +45,7 @@ internal partial class PlaylistBrowseResponse(JsonElement content) : IPlaylistDa
             ?.EnumerateArrayOrNull()
             ?.Select(j => j.GetPropertyOrNull("text")?.GetStringOrNull())
             .WhereNotNull()
-            .Pipe(string.Concat)
+            .ConcatToString()
         ?? SidebarPrimary
             ?.GetPropertyOrNull("titleForm")
             ?.GetPropertyOrNull("inlineFormRenderer")
@@ -71,7 +70,7 @@ internal partial class PlaylistBrowseResponse(JsonElement content) : IPlaylistDa
             ?.EnumerateArrayOrNull()
             ?.Select(j => j.GetPropertyOrNull("text")?.GetStringOrNull())
             .WhereNotNull()
-            .Pipe(string.Concat);
+            .ConcatToString();
 
     [Lazy]
     public string? ChannelId =>
@@ -93,7 +92,7 @@ internal partial class PlaylistBrowseResponse(JsonElement content) : IPlaylistDa
             ?.EnumerateArrayOrNull()
             ?.Select(j => j.GetPropertyOrNull("text")?.GetStringOrNull())
             .WhereNotNull()
-            .Pipe(string.Concat)
+            .ConcatToString()
         ?? SidebarPrimary
             ?.GetPropertyOrNull("descriptionForm")
             ?.GetPropertyOrNull("inlineFormRenderer")
@@ -113,9 +112,7 @@ internal partial class PlaylistBrowseResponse(JsonElement content) : IPlaylistDa
             ?.FirstOrNull()
             ?.GetPropertyOrNull("text")
             ?.GetStringOrNull()
-            ?.Pipe(s =>
-                int.TryParse(s, CultureInfo.InvariantCulture, out var result) ? result : (int?)null
-            )
+            ?.ParseIntOrNull()
         ?? SidebarPrimary
             ?.GetPropertyOrNull("stats")
             ?.EnumerateArrayOrNull()
@@ -124,9 +121,7 @@ internal partial class PlaylistBrowseResponse(JsonElement content) : IPlaylistDa
             ?.GetStringOrNull()
             ?.Split(' ')
             ?.FirstOrDefault()
-            ?.Pipe(s =>
-                int.TryParse(s, CultureInfo.InvariantCulture, out var result) ? result : (int?)null
-            );
+            ?.ParseIntOrNull();
 
     [Lazy]
     public IReadOnlyList<ThumbnailData> Thumbnails =>

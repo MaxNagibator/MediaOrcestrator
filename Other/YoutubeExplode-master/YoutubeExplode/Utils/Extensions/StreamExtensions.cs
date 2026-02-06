@@ -8,28 +8,26 @@ namespace YoutubeExplode.Utils.Extensions;
 
 internal static class StreamExtensions
 {
-    extension(Stream source)
+    public static async ValueTask CopyToAsync(
+        this Stream source,
+        Stream destination,
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default
+    )
     {
-        public async ValueTask CopyToAsync(
-            Stream destination,
-            IProgress<double>? progress = null,
-            CancellationToken cancellationToken = default
-        )
+        using var buffer = MemoryPool<byte>.Shared.Rent(81920);
+
+        var totalBytesRead = 0L;
+        while (true)
         {
-            using var buffer = MemoryPool<byte>.Shared.Rent(81920);
+            var bytesRead = await source.ReadAsync(buffer.Memory, cancellationToken);
+            if (bytesRead <= 0)
+                break;
 
-            var totalBytesRead = 0L;
-            while (true)
-            {
-                var bytesRead = await source.ReadAsync(buffer.Memory, cancellationToken);
-                if (bytesRead <= 0)
-                    break;
+            await destination.WriteAsync(buffer.Memory[..bytesRead], cancellationToken);
 
-                await destination.WriteAsync(buffer.Memory[..bytesRead], cancellationToken);
-
-                totalBytesRead += bytesRead;
-                progress?.Report(1.0 * totalBytesRead / source.Length);
-            }
+            totalBytesRead += bytesRead;
+            progress?.Report(1.0 * totalBytesRead / source.Length);
         }
     }
 }
