@@ -2,6 +2,8 @@
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace MediaOrcestrator.Runner;
 
@@ -223,15 +225,114 @@ public partial class MainForm : Form
         uiRelationsPanel.Controls.Clear();
         var relations = _orcestrator.GetRelations();
 
+        var i = -1;
         foreach (var rel in relations)
         {
+            i++;
             var control = _serviceProvider.GetRequiredService<RelationControl>();
             control.SetRelation(rel);
             control.RelationDeleted += (_, _) => DrawRelations();
             control.RelationSelectionChanged += (_, _) => uiMediaMatrixGridControl.RefreshData(GetSelectedRelations());
+            control.Top += control.Height * i; // todo pribrat
 
             uiRelationsPanel.Controls.Add(control);
             control.SendToBack();
         }
+    }
+
+    private void uiRubuteAuthStateOpenBrowserButton_Click(object sender, EventArgs e)
+    {
+        Task.Run(async () =>
+        {
+
+            using var playwright = await Playwright.CreateAsync();
+            await using var browser = await playwright.Chromium.LaunchAsync(new()
+            {
+                Headless = false,
+            });
+
+            var contextOptions = new BrowserNewContextOptions();
+
+            if (File.Exists(uiRubuteAuthStatePathTextBox.Text))
+            {
+                contextOptions.StorageStatePath = uiRubuteAuthStatePathTextBox.Text;
+            }
+
+            await using var context = await browser.NewContextAsync(contextOptions);
+            var page = await context.NewPageAsync();
+
+            var captureLog = new List<object>();
+
+            page.Request += (_, request) =>
+            {
+                var reqData = new
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Type = "Request",
+                    request.Method,
+                    request.Url,
+                    request.Headers,
+                    request.PostData,
+                };
+
+                lock (captureLog)
+                {
+                    captureLog.Add(reqData);
+                    _logger.LogInformation($"[REQ] {request.Method} {request.Url}");
+                }
+            };
+
+            page.Response += async (_, response) =>
+            {
+                string? body = null;
+                try
+                {
+                    if (response.Headers.TryGetValue("content-type", out var contentType) && (contentType.Contains("application/json") || contentType.Contains("text/")))
+                    {
+                        body = await response.TextAsync();
+                    }
+                }
+                catch
+                {
+                }
+
+                var resData = new
+                {
+                    Timestamp = DateTime.UtcNow,
+                    Type = "Response",
+                    response.Status,
+                    response.Url,
+                    response.Headers,
+                    Body = body,
+                };
+
+                lock (captureLog)
+                {
+                    captureLog.Add(resData);
+                    _logger.LogInformation($"[RES] {response.Status} {response.Url}");
+                }
+            };
+
+            _logger.LogInformation("Navigating to Rutube...");
+            await page.GotoAsync("https://studio.rutube.ru/", new()
+            {
+                Timeout = 0,
+            });
+
+            var msg = "Зайдите в свой рутуб студия и нажмие OK, или отмена, если передумали";
+            if (MessageBox.Show(msg, "Rutube auth state", MessageBoxButtons.OKCancel) == DialogResult.OK)
+            {
+                _logger.LogInformation("Browser is open.");
+                _logger.LogInformation("Press any key to save log and exit...");
+
+                await context.StorageStateAsync(new()
+                {
+                    Path = uiRubuteAuthStatePathTextBox.Text,
+                });
+
+                _logger.LogInformation("Log saved to capture_log.json");
+                _logger.LogInformation("Auth state saved to auth_state.json");
+            }
+        });
     }
 }

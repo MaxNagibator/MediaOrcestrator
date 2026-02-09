@@ -57,7 +57,7 @@ public class HardDiskDriveChannel : ISourceType
             Id = file.Id,
             Description = file.Description,
             Title = file.Title,
-            TempDataPath = file.Path,
+            TempDataPath = Path.Combine(basePath, file.Id, file.Path),
         });
     }
 

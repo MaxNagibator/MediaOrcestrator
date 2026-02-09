@@ -46,16 +46,20 @@
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiAuditTabPage = new TabPage();
-            uiLogsTabPage = new TabPage();
-            uiMainTabControl.SuspendLayout();
-            uiForceScanButton = new Button();
             uiClearDatabaseButton = new Button();
+            uiForceScanButton = new Button();
+            uiLogsTabPage = new TabPage();
+            uiToolsTabPage = new TabPage();
+            groupBox1 = new GroupBox();
+            uiRubuteAuthStateOpenBrowserButton = new Button();
+            uiRubuteAuthStatePathTextBox = new TextBox();
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
             uiRelationsTabPage.SuspendLayout();
             uiAuditTabPage.SuspendLayout();
-            uiLogsTabPage.SuspendLayout();
+            uiToolsTabPage.SuspendLayout();
+            groupBox1.SuspendLayout();
             SuspendLayout();
             // 
             // uiMediaSourcePanel
@@ -173,6 +177,7 @@
             uiMainTabControl.Controls.Add(uiRelationsTabPage);
             uiMainTabControl.Controls.Add(uiAuditTabPage);
             uiMainTabControl.Controls.Add(uiLogsTabPage);
+            uiMainTabControl.Controls.Add(uiToolsTabPage);
             uiMainTabControl.Location = new Point(12, 12);
             uiMainTabControl.Name = "uiMainTabControl";
             uiMainTabControl.SelectedIndex = 0;
@@ -242,15 +247,16 @@
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
             // 
-            // uiLogsTabPage
+            // uiClearDatabaseButton
             // 
-            uiLogsTabPage.Location = new Point(4, 24);
-            uiLogsTabPage.Name = "uiLogsTabPage";
-            uiLogsTabPage.Padding = new Padding(3);
-            uiLogsTabPage.Size = new Size(1125, 742);
-            uiLogsTabPage.TabIndex = 4;
-            uiLogsTabPage.Text = "Логи";
-            uiLogsTabPage.UseVisualStyleBackColor = true;
+            uiClearDatabaseButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiClearDatabaseButton.Location = new Point(281, 305);
+            uiClearDatabaseButton.Name = "uiClearDatabaseButton";
+            uiClearDatabaseButton.Size = new Size(348, 32);
+            uiClearDatabaseButton.TabIndex = 3;
+            uiClearDatabaseButton.Text = "Очистить базу данных";
+            uiClearDatabaseButton.UseVisualStyleBackColor = true;
+            uiClearDatabaseButton.Click += uiClearDatabaseButton_Click;
             // 
             // uiForceScanButton
             // 
@@ -263,16 +269,54 @@
             uiForceScanButton.UseVisualStyleBackColor = true;
             uiForceScanButton.Click += uiForceScanButton_Click;
             // 
-            // uiClearDatabaseButton
+            // uiLogsTabPage
             // 
-            uiClearDatabaseButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiClearDatabaseButton.Location = new Point(281, 305);
-            uiClearDatabaseButton.Name = "uiClearDatabaseButton";
-            uiClearDatabaseButton.Size = new Size(348, 32);
-            uiClearDatabaseButton.TabIndex = 3;
-            uiClearDatabaseButton.Text = "Очистить базу данных";
-            uiClearDatabaseButton.UseVisualStyleBackColor = true;
-            uiClearDatabaseButton.Click += uiClearDatabaseButton_Click;
+            uiLogsTabPage.Location = new Point(4, 24);
+            uiLogsTabPage.Name = "uiLogsTabPage";
+            uiLogsTabPage.Padding = new Padding(3);
+            uiLogsTabPage.Size = new Size(1125, 742);
+            uiLogsTabPage.TabIndex = 4;
+            uiLogsTabPage.Text = "Логи";
+            uiLogsTabPage.UseVisualStyleBackColor = true;
+            // 
+            // uiToolsTabPage
+            // 
+            uiToolsTabPage.Controls.Add(groupBox1);
+            uiToolsTabPage.Location = new Point(4, 24);
+            uiToolsTabPage.Name = "uiToolsTabPage";
+            uiToolsTabPage.Size = new Size(1125, 742);
+            uiToolsTabPage.TabIndex = 5;
+            uiToolsTabPage.Text = "Вспомогательное";
+            uiToolsTabPage.UseVisualStyleBackColor = true;
+            // 
+            // groupBox1
+            // 
+            groupBox1.Controls.Add(uiRubuteAuthStatePathTextBox);
+            groupBox1.Controls.Add(uiRubuteAuthStateOpenBrowserButton);
+            groupBox1.Location = new Point(219, 203);
+            groupBox1.Name = "groupBox1";
+            groupBox1.Size = new Size(467, 100);
+            groupBox1.TabIndex = 0;
+            groupBox1.TabStop = false;
+            groupBox1.Text = "Rutube auth_state";
+            // 
+            // uiRubuteAuthStateOpenBrowserButton
+            // 
+            uiRubuteAuthStateOpenBrowserButton.Location = new Point(6, 22);
+            uiRubuteAuthStateOpenBrowserButton.Name = "uiRubuteAuthStateOpenBrowserButton";
+            uiRubuteAuthStateOpenBrowserButton.Size = new Size(101, 23);
+            uiRubuteAuthStateOpenBrowserButton.TabIndex = 0;
+            uiRubuteAuthStateOpenBrowserButton.Text = "открыть брузер";
+            uiRubuteAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
+            uiRubuteAuthStateOpenBrowserButton.Click += uiRubuteAuthStateOpenBrowserButton_Click;
+            // 
+            // uiRubuteAuthStatePathTextBox
+            // 
+            uiRubuteAuthStatePathTextBox.Location = new Point(7, 51);
+            uiRubuteAuthStatePathTextBox.Name = "uiRubuteAuthStatePathTextBox";
+            uiRubuteAuthStatePathTextBox.Size = new Size(454, 23);
+            uiRubuteAuthStatePathTextBox.TabIndex = 1;
+            uiRubuteAuthStatePathTextBox.Text = "E:\\bobgroup\\projects\\mediaOrcestrator\\rutubeAuthState\\auth_state";
             // 
             // MainForm
             // 
@@ -291,7 +335,9 @@
             uiRelationsTabPage.ResumeLayout(false);
             uiRelationsTabPage.PerformLayout();
             uiAuditTabPage.ResumeLayout(false);
-            uiLogsTabPage.ResumeLayout(false);
+            uiToolsTabPage.ResumeLayout(false);
+            groupBox1.ResumeLayout(false);
+            groupBox1.PerformLayout();
             ResumeLayout(false);
         }
 
@@ -317,5 +363,9 @@
         private Button uiForceScanButton;
         private Button uiClearDatabaseButton;
         private TabPage uiLogsTabPage;
+        private TabPage uiToolsTabPage;
+        private GroupBox groupBox1;
+        private Button uiRubuteAuthStateOpenBrowserButton;
+        private TextBox uiRubuteAuthStatePathTextBox;
     }
 }
