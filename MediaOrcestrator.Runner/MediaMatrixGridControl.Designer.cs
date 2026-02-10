@@ -22,6 +22,7 @@ namespace MediaOrcestrator.Runner
             uMediaGridPanel = new TableLayoutPanel();
             button1 = new Button();
             textBox1 = new TextBox();
+            uiMergerSelectedMediaButton = new Button();
             SuspendLayout();
             // 
             // uMediaHeaderPanel
@@ -63,10 +64,21 @@ namespace MediaOrcestrator.Runner
             textBox1.Size = new Size(100, 23);
             textBox1.TabIndex = 3;
             // 
+            // uiMergerSelectedMediaButton
+            // 
+            uiMergerSelectedMediaButton.Location = new Point(453, 3);
+            uiMergerSelectedMediaButton.Name = "uiMergerSelectedMediaButton";
+            uiMergerSelectedMediaButton.Size = new Size(139, 23);
+            uiMergerSelectedMediaButton.TabIndex = 4;
+            uiMergerSelectedMediaButton.Text = "MERGE SELECTED";
+            uiMergerSelectedMediaButton.UseVisualStyleBackColor = true;
+            uiMergerSelectedMediaButton.Click += uiMergerSelectedMediaButton_Click;
+            // 
             // MediaMatrixGridControl
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
+            Controls.Add(uiMergerSelectedMediaButton);
             Controls.Add(textBox1);
             Controls.Add(button1);
             Controls.Add(uMediaGridPanel);
@@ -81,5 +93,6 @@ namespace MediaOrcestrator.Runner
         private TableLayoutPanel uMediaGridPanel;
         private Button button1;
         private TextBox textBox1;
+        private Button uiMergerSelectedMediaButton;
     }
 }

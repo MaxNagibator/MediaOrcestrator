@@ -124,6 +124,11 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         db.GetCollection<Media>("medias").Update(media);
     }
 
+    public void RemoveMedia(Media media)
+    {
+        db.GetCollection<Media>("medias").Delete(media.Id);
+    }
+
     public List<Source> GetSources()
     {
         var sources = db.GetCollection<Source>("sources").FindAll().ToList();

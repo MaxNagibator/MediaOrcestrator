@@ -121,4 +121,50 @@ public partial class MediaMatrixGridControl : UserControl
     {
         RefreshData();
     }
+
+    private void uiMergerSelectedMediaButton_Click(object sender, EventArgs e)
+    {
+
+        var selectedMediaList = new List<Media>();
+        foreach (var m in uMediaGridPanel.Controls)
+        {
+            var mediaControl = m as MediaItemControl;
+            if (mediaControl != null && mediaControl.IsMediaSelected)
+            {
+                selectedMediaList.Add(mediaControl.Media);
+            }
+        }
+
+        if (selectedMediaList.Count < 2)
+        {
+            return;
+        }
+
+        var currentMediaSources = new List<MediaSourceLink>();
+        foreach (var selectedMedia in selectedMediaList)
+        {
+            foreach (var selectedMediaSourceLink in selectedMedia.Sources)
+            {
+                var current = currentMediaSources.FirstOrDefault(x => x.SourceId == selectedMediaSourceLink.SourceId);
+                if (current != null)
+                {
+                     var sources = _orcestrator.GetSources();
+                    var fullSource = sources.First(x => x.Id == selectedMediaSourceLink.SourceId);
+                    MessageBox.Show("Данное хранилище уже есть у медиа " + fullSource.TitleFull);
+                    return;
+                }
+                // todo вот бы заполнять ссылку на него сразу и не приседать
+                //var fullSource = sources.First(x => x.Id == selectedMediaSourceLink.SourceId);
+                currentMediaSources.Add(selectedMediaSourceLink);
+            }
+        }
+
+        selectedMediaList.First().Sources = currentMediaSources;
+        _orcestrator.UpdateMedia(selectedMediaList.First());
+
+        foreach (var media in selectedMediaList.Skip(1))
+        {
+            _orcestrator.RemoveMedia(media);
+        }
+    }
 }

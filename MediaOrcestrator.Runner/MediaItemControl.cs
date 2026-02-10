@@ -7,6 +7,9 @@ public partial class MediaItemControl : UserControl
     private Orcestrator? _orcestrator;
     private Media _media;
 
+    public bool IsMediaSelected { get; private set; }
+    public Media Media => _media;
+
     public MediaItemControl()
     {
         InitializeComponent();
@@ -35,6 +38,8 @@ public partial class MediaItemControl : UserControl
             TextAlign = ContentAlignment.MiddleLeft,
             Font = new(Font, FontStyle.Bold),
         };
+
+        lblTitle.Click += uiMainLayout_Click;
 
         uiMainLayout.Controls.Add(lblTitle, 0, 0);
 
@@ -109,5 +114,18 @@ public partial class MediaItemControl : UserControl
             null => Color.Gray,
             _ => Color.Blue,
         };
+    }
+
+    private void uiMainLayout_Click(object sender, EventArgs e)
+    {
+        IsMediaSelected = !IsMediaSelected;
+        if (IsMediaSelected)
+        {
+            BackColor = Color.LightGreen;
+        }
+        else
+        {
+            BackColor = Color.White;
+        }
     }
 }

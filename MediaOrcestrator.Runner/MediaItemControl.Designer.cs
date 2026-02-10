@@ -32,6 +32,7 @@ namespace MediaOrcestrator.Runner
             uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             uiMainLayout.Size = new Size(675, 40);
             uiMainLayout.TabIndex = 0;
+            uiMainLayout.Click += uiMainLayout_Click;
             // 
             // MediaItemControl
             // 
