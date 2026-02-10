@@ -1,4 +1,3 @@
-using MediaOrcestrator.Core;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using YoutubeExplode;
@@ -28,6 +27,31 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
             Key = "channel_id",
             IsRequired = true,
             Title = "идентификатор канала",
+            Description = "URL или ID канала YouTube (например: https://www.youtube.com/@channelname или UCxxxxxxxxx)",
+        },
+        new()
+        {
+            Key = "temp_path",
+            IsRequired = true,
+            Title = "путь к временной папке для загрузки",
+            DefaultValue = @"E:\bobgroup\projects\mediaOrcestrator\tempDir",
+            Description = "Папка для временного хранения загружаемых видео",
+        },
+        new()
+        {
+            Key = "yt_dlp_path",
+            IsRequired = true,
+            Title = "путь к исполняемому файлу yt-dlp",
+            DefaultValue = @"c:\Services\utils\yt-dlp.exe",
+            Description = "Скачать можно с https://github.com/yt-dlp/yt-dlp/releases",
+        },
+        new()
+        {
+            Key = "ffmpeg_path",
+            IsRequired = true,
+            Title = "путь к исполняемому файлу ffmpeg",
+            DefaultValue = @"c:\Services\utils\ffmpeg\ffmpeg.exe",
+            Description = "Скачать можно с https://ffmpeg.org/download.html",
         },
     ];
 
@@ -54,7 +78,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
         await foreach (var video in uploads)
         {
             logger.LogDebug("Обработка видео: '{VideoTitle}' (ID: {VideoId})", video.Title, video.Id);
-            
+
             yield return new()
             {
                 Id = video.Id.Value,
@@ -70,7 +94,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
     public async Task<Channel?> GetChannel(YoutubeClient client, string channelUrl)
     {
         logger.LogDebug("Попытка определить канал по URL: {ChannelUrl}", channelUrl);
-        
+
         foreach (var parser in _parsers)
         {
             var channel = await parser(client, channelUrl);
@@ -98,24 +122,25 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
         using var youtubeClient = new YoutubeClient();
 
         var video = await youtubeClient.Videos.GetAsync(videoId);
-        logger.LogDebug("Получена информация о видео. Название: '{Title}', Длительность: {Duration}", 
+        logger.LogDebug("Получена информация о видео. Название: '{Title}', Длительность: {Duration}",
             video.Title, video.Duration);
 
-        var tempPath = "E:\\bobgroup\\projects\\mediaOrcestrator\\tempDir";
-        // var tempPath = "S:\\bobgroup\\projects\\mediaOrcestrator\\tempDir";
+        var tempPath = settings["temp_path"];
         var guid = Guid.NewGuid().ToString();
         var finalPath = Path.Combine(tempPath, guid, "media.mp4");
 
         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
         logger.LogDebug("Создана временная директория: {TempPath}", Path.GetDirectoryName(finalPath));
 
-        var ytDlp = new YtDlp(@"c:\Services\utils\yt-dlp.exe", @"c:\Services\utils\ffmpeg\ffmpeg.exe");
+        var ytDlpPath = settings["yt_dlp_path"];
+        var ffmpegPath = settings["ffmpeg_path"];
+        var ytDlp = new YtDlp(ytDlpPath, ffmpegPath);
 
         object progressLock = new();
         double oldPercent = -1;
         var currentPart = 0;
 
-            // TODO: Подумать
+        // TODO: Подумать
         Progress<YtDlpProgress> progress = new(p =>
         {
             lock (progressLock)

@@ -18,12 +18,30 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
             Key = "path",
             IsRequired = true,
             Title = "путь к папке хранения",
+            Description = "Папка для хранения видеофайлов и базы данных",
+        },
+        new()
+        {
+            Key = "dbFileName",
+            IsRequired = false,
+            Title = "имя файла базы данных",
+            DefaultValue = "data.db",
+            Description = "Имя файла LiteDB для хранения метаданных",
+        },
+        new()
+        {
+            Key = "mainFileName",
+            IsRequired = false,
+            Title = "имя основного видеофайла",
+            DefaultValue = "main.mp4",
+            Description = "Имя файла для сохранения видео в папке каждого медиа",
         },
     ];
 
     public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings)
     {
         var basePath = settings["path"];
+        var dbFileName = settings.GetValueOrDefault("dbFileName", "data.db");
         logger.LogInformation("Получение списка медиа с жёсткого диска. Путь: {BasePath}", basePath);
 
         if (!Directory.Exists(basePath))
@@ -32,7 +50,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
             yield break;
         }
 
-        var dbPath = Path.Combine(basePath, "data.db");
+        var dbPath = Path.Combine(basePath, dbFileName);
 
         if (!File.Exists(dbPath))
         {
@@ -53,7 +71,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
         {
             logger.LogDebug("Обработка файла: ID={FileId}, Название='{Title}'", file.Id, file.Title);
 
-            yield return new MediaDto
+            yield return new()
             {
                 Id = file.Id,
                 Description = file.Description,
@@ -75,7 +93,8 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
         logger.LogInformation("Получение информации о файле с жёсткого диска. ID: {VideoId}", videoId);
 
         var basePath = settings["path"];
-        var dbPath = Path.Combine(basePath, "data.db");
+        var dbFileName = settings.GetValueOrDefault("dbFileName", "data.db");
+        var dbPath = Path.Combine(basePath, dbFileName);
 
         if (!File.Exists(dbPath))
         {
@@ -119,6 +138,8 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
 
         var hddId = media.Id;
         var basePath = settings["path"];
+        var dbFileName = settings.GetValueOrDefault("dbFileName", "data.db");
+        var mainFileName = settings.GetValueOrDefault("mainFileName", "main.mp4");
 
         if (!Directory.Exists(basePath))
         {
@@ -134,8 +155,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
             Directory.CreateDirectory(path);
         }
 
-        var mainName = "main.mp4";
-        var mainFilePath = Path.Combine(path, mainName);
+        var mainFilePath = Path.Combine(path, mainFileName);
 
         if (!File.Exists(media.TempDataPath))
         {
@@ -148,7 +168,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
         try
         {
             // todo идеалогически move не верный, но пока безразлично
-            File.Move(media.TempDataPath, mainFilePath, overwrite: true);
+            File.Move(media.TempDataPath, mainFilePath, true);
             logger.LogDebug("Файл успешно перемещён: {FilePath}", mainFilePath);
         }
         catch (Exception ex)
@@ -160,7 +180,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
         }
 
         // todo дублирование
-        var dbPath = Path.Combine(basePath, "data.db");
+        var dbPath = Path.Combine(basePath, dbFileName);
         logger.LogDebug("Сохранение информации в базу данных: {DbPath}", dbPath);
 
         try
@@ -177,7 +197,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
                     Id = hddId,
                     Description = media.Description,
                     Title = media.Title,
-                    Path = mainName,
+                    Path = mainFileName,
                 });
             }
             else
@@ -187,7 +207,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
                     Id = hddId,
                     Description = media.Description,
                     Title = media.Title,
-                    Path = mainName,
+                    Path = mainFileName,
                 });
             }
 

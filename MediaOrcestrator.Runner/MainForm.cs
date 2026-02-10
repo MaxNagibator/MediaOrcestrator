@@ -3,7 +3,6 @@ using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
-using System.Text.Json;
 
 namespace MediaOrcestrator.Runner;
 
@@ -61,7 +60,7 @@ public partial class MainForm : Form
         }
 
         using var settingsForm = new SourceSettingsForm();
-        settingsForm.SetSettings(selectedPlugin.SettingsKeys);
+        settingsForm.SetSettings(selectedPlugin.SettingsKeys, selectedPlugin);
         if (settingsForm.ShowDialog() != DialogResult.OK || settingsForm.Settings == null)
         {
             return;

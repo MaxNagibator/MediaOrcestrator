@@ -14,7 +14,7 @@ public sealed class RutubeService
     public RutubeService(string cookieString, string csrfToken, ILogger<RutubeService> logger)
     {
         _logger = logger;
-        
+
         var handler = new HttpClientHandler { UseCookies = false };
         _httpClient = new(handler);
 
@@ -64,7 +64,7 @@ public sealed class RutubeService
     {
         var url = "https://studio.rutube.ru/api/video/category/";
         _logger.LogDebug("Запрос списка категорий RuTube");
-        
+
         var response = await _httpClient.GetAsync(url);
 
         if (!response.IsSuccessStatusCode)
@@ -179,14 +179,15 @@ public sealed class RutubeService
             if (!response.IsSuccessStatusCode)
             {
                 var err = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Ошибка TUS загрузки на смещении {Offset}. Статус: {StatusCode}, Ответ: {Response}", 
+                _logger.LogError("Ошибка TUS загрузки на смещении {Offset}. Статус: {StatusCode}, Ответ: {Response}",
                     offset, response.StatusCode, err);
+
                 throw new HttpRequestException($"Ошибка TUS загрузки на смещении {offset}: {response.StatusCode}. Ответ: {err}");
             }
 
             offset += bytesRead;
             var progress = (double)offset / fileSize;
-            
+
             if (offset % (10 * 1024 * 1024) < bytesRead || offset == fileSize)
             {
                 _logger.LogInformation("Прогресс загрузки: {Offset}/{FileSize} байт ({Progress:P1})", offset, fileSize, progress);
@@ -228,7 +229,7 @@ public sealed class RutubeService
         var videoDetails = JsonSerializer.Deserialize<VideoDetailsResponse>(body);
         if (videoDetails != null)
         {
-            _logger.LogDebug("Метаданные подтверждены. Название: '{Title}', Категория: '{Category}'", 
+            _logger.LogDebug("Метаданные подтверждены. Название: '{Title}', Категория: '{Category}'",
                 videoDetails.Title, videoDetails.Category.Name);
         }
     }
@@ -258,7 +259,7 @@ public sealed class RutubeService
         var result = JsonSerializer.Deserialize<PublicationResponse>(body);
         if (result != null)
         {
-            _logger.LogDebug("Публикация подтверждена. Video ID: {VideoId}, Запланировано: {Timestamp}", 
+            _logger.LogDebug("Публикация подтверждена. Video ID: {VideoId}, Запланировано: {Timestamp}",
                 result.VideoId, result.Timestamp);
         }
     }

@@ -69,7 +69,8 @@ public partial class SourceControl : UserControl
         }
 
         using var settingsForm = new SourceSettingsForm();
-        settingsForm.SetSettings(pluginInfo.SettingsKeys);
+        // TODO: Подумать _source.Type
+        settingsForm.SetSettings(pluginInfo.SettingsKeys, _source.Type);
         settingsForm.SetEditSource(_source);
 
         if (settingsForm.ShowDialog() != DialogResult.OK)

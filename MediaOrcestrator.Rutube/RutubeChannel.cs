@@ -19,14 +19,48 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
             Key = "auth_state_path",
             IsRequired = true,
             Title = "путь до фаила куки",
+            Description = "JSON файл с cookies и CSRF токеном для авторизации на RuTube",
         },
         new()
         {
             Key = "category_id",
             IsRequired = true,
             Title = "идентификатор категории",
+            Description = "Категория RuTube для загружаемых видео. Нажмите 'Загрузить категории' для получения списка",
+            Type = SettingType.Dropdown,
         },
     ];
+
+    public async Task<List<SettingOption>> GetSettingOptionsAsync(string settingKey, Dictionary<string, string> currentSettings)
+    {
+        if (settingKey != "category_id")
+        {
+            return [];
+        }
+
+        try
+        {
+            var rutubeService = await CreateRutubeServiceAsync(currentSettings);
+            if (rutubeService == null)
+            {
+                return [];
+            }
+
+            var categories = await rutubeService.GetCategoriesAsync();
+
+            return categories.Select(x => new SettingOption
+                {
+                    Value = x.Id.ToString(),
+                    Label = x.Name,
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при получении категорий RuTube");
+            return [];
+        }
+    }
 
     public MediaDto[] GetMedia()
     {
@@ -64,13 +98,41 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         logger.LogDebug("Файл найден. Размер: {FileSize} байт", new FileInfo(filePath).Length);
 
-        var authStatePath = settings["auth_state_path"];
         var rutubeCategoryId = settings["category_id"];
+        var rutubeService = await CreateRutubeServiceAsync(settings);
+
+        if (rutubeService == null)
+        {
+            logger.LogError("Не удалось создать RutubeService");
+            throw new InvalidOperationException("Не удалось инициализировать сервис RuTube");
+        }
+
+        try
+        {
+            var sessionId = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId);
+            logger.LogInformation("Видео успешно загружено на RuTube. Session ID: {SessionId}, Название: '{Title}'", sessionId, media.Title);
+            return sessionId;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при загрузке видео на RuTube. Название: '{Title}'", media.Title);
+            throw;
+        }
+    }
+
+    private async Task<RutubeService?> CreateRutubeServiceAsync(Dictionary<string, string> settings)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+        if (string.IsNullOrEmpty(authStatePath))
+        {
+            logger.LogWarning("Путь к файлу аутентификации не указан");
+            return null;
+        }
 
         if (!File.Exists(authStatePath))
         {
-            logger.LogError("Файл аутентификации не найден: {AuthStatePath}", authStatePath);
-            throw new FileNotFoundException("Файл auth_state.json не найден. Необходимо выполнить авторизацию", authStatePath);
+            logger.LogWarning("Файл аутентификации не найден: {AuthStatePath}", authStatePath);
+            return null;
         }
 
         logger.LogDebug("Чтение данных аутентификации из: {AuthStatePath}", authStatePath);
@@ -101,25 +163,13 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         if (string.IsNullOrEmpty(csrfToken))
         {
-            logger.LogError("CSRF токен не найден в файле аутентификации");
-            throw new InvalidOperationException("CSRF токен не найден в auth_state.json");
+            logger.LogWarning("CSRF токен не найден в файле аутентификации");
+            return null;
         }
 
         logger.LogDebug("CSRF токен успешно получен");
 
-        var rutubeService = new RutubeService(cookieStringBuilder.ToString(), csrfToken, serviceLogger);
-
-        try
-        {
-            var sessionId = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId);
-            logger.LogInformation("Видео успешно загружено на RuTube. Session ID: {SessionId}, Название: '{Title}'", sessionId, media.Title);
-            return sessionId;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Ошибка при загрузке видео на RuTube. Название: '{Title}'", media.Title);
-            throw;
-        }
+        return new(cookieStringBuilder.ToString(), csrfToken, serviceLogger);
     }
 }
 
