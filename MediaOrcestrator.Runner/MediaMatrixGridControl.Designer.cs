@@ -18,34 +18,27 @@ namespace MediaOrcestrator.Runner
 
         private void InitializeComponent()
         {
-            uMediaHeaderPanel = new TableLayoutPanel();
-            uMediaGridPanel = new TableLayoutPanel();
+            uMediaGrid = new DataGridView();
             button1 = new Button();
             textBox1 = new TextBox();
             uiMergerSelectedMediaButton = new Button();
+            ((System.ComponentModel.ISupportInitialize)uMediaGrid).BeginInit();
             SuspendLayout();
             // 
-            // uMediaHeaderPanel
+            // uMediaGrid
             // 
-            uMediaHeaderPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uMediaHeaderPanel.ColumnCount = 1;
-            uMediaHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            uMediaHeaderPanel.Location = new Point(0, 40);
-            uMediaHeaderPanel.Name = "uMediaHeaderPanel";
-            uMediaHeaderPanel.RowCount = 1;
-            uMediaHeaderPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
-            uMediaHeaderPanel.Size = new Size(595, 30);
-            uMediaHeaderPanel.TabIndex = 0;
-            // 
-            // uMediaGridPanel
-            // 
-            uMediaGridPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            uMediaGridPanel.ColumnCount = 1;
-            uMediaGridPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            uMediaGridPanel.Location = new Point(0, 71);
-            uMediaGridPanel.Name = "uMediaGridPanel";
-            uMediaGridPanel.Size = new Size(595, 329);
-            uMediaGridPanel.TabIndex = 1;
+            uMediaGrid.AllowUserToAddRows = false;
+            uMediaGrid.AllowUserToDeleteRows = false;
+            uMediaGrid.AllowUserToResizeRows = false;
+            uMediaGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            uMediaGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            uMediaGrid.Location = new Point(0, 40);
+            uMediaGrid.Name = "uMediaGrid";
+            uMediaGrid.RowHeadersVisible = false;
+            uMediaGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            uMediaGrid.Size = new Size(595, 360);
+            uMediaGrid.TabIndex = 0;
+            uMediaGrid.MouseClick += uMediaGrid_MouseClick;
             // 
             // button1
             // 
@@ -81,16 +74,15 @@ namespace MediaOrcestrator.Runner
             Controls.Add(uiMergerSelectedMediaButton);
             Controls.Add(textBox1);
             Controls.Add(button1);
-            Controls.Add(uMediaGridPanel);
-            Controls.Add(uMediaHeaderPanel);
+            Controls.Add(uMediaGrid);
             Name = "MediaMatrixGridControl";
             Size = new Size(595, 400);
+            ((System.ComponentModel.ISupportInitialize)uMediaGrid).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
 
-        private TableLayoutPanel uMediaHeaderPanel;
-        private TableLayoutPanel uMediaGridPanel;
+        private DataGridView uMediaGrid;
         private Button button1;
         private TextBox textBox1;
         private Button uiMergerSelectedMediaButton;
