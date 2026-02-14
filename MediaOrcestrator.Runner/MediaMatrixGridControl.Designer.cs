@@ -57,9 +57,87 @@ namespace MediaOrcestrator.Runner
             uiStatusStrip = new StatusStrip();
             uiTotalCountLabel = new ToolStripStatusLabel();
             uiFilteredCountLabel = new ToolStripStatusLabel();
+            uiToolStrip = new ToolStrip();
+            uiSearchLabel = new ToolStripLabel();
+            uiSearchToolStripTextBox = new ToolStripTextBox();
+            uiClearSearchButton = new ToolStripButton();
+            uiStatusLabel = new ToolStripLabel();
+            uiStatusFilterComboBox = new ToolStripComboBox();
+            uiSourceLabel = new ToolStripLabel();
+            uiSelectAllButton = new ToolStripButton();
+            uiDeselectAllButton = new ToolStripButton();
             ((System.ComponentModel.ISupportInitialize)uiMediaGrid).BeginInit();
             uiStatusStrip.SuspendLayout();
+            uiToolStrip.SuspendLayout();
             SuspendLayout();
+            // 
+            // uiToolStrip
+            // 
+            uiToolStrip.Items.AddRange(new ToolStripItem[] { uiSearchLabel, uiSearchToolStripTextBox, uiClearSearchButton, uiStatusLabel, uiStatusFilterComboBox, uiSourceLabel, uiSelectAllButton, uiDeselectAllButton });
+            uiToolStrip.Location = new Point(0, 0);
+            uiToolStrip.Name = "uiToolStrip";
+            uiToolStrip.Size = new Size(595, 25);
+            uiToolStrip.TabIndex = 7;
+            // 
+            // uiSearchLabel
+            // 
+            uiSearchLabel.Name = "uiSearchLabel";
+            uiSearchLabel.Size = new Size(45, 22);
+            uiSearchLabel.Text = "Поиск:";
+            // 
+            // uiSearchToolStripTextBox
+            // 
+            uiSearchToolStripTextBox.Name = "uiSearchToolStripTextBox";
+            uiSearchToolStripTextBox.Size = new Size(200, 25);
+            uiSearchToolStripTextBox.TextChanged += uiSearchToolStripTextBox_TextChanged;
+            // 
+            // uiClearSearchButton
+            // 
+            uiClearSearchButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            uiClearSearchButton.Name = "uiClearSearchButton";
+            uiClearSearchButton.Size = new Size(65, 22);
+            uiClearSearchButton.Text = "Очистить";
+            uiClearSearchButton.Click += uiClearSearchButton_Click;
+            // 
+            // uiStatusLabel
+            // 
+            uiStatusLabel.Name = "uiStatusLabel";
+            uiStatusLabel.Size = new Size(48, 22);
+            uiStatusLabel.Text = "Статус:";
+            uiStatusLabel.Margin = new Padding(10, 1, 0, 2);
+            // 
+            // uiStatusFilterComboBox
+            // 
+            uiStatusFilterComboBox.Name = "uiStatusFilterComboBox";
+            uiStatusFilterComboBox.Size = new Size(100, 25);
+            uiStatusFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiStatusFilterComboBox.Items.AddRange(new object[] { "Все", "OK", "Ошибка", "Нет" });
+            uiStatusFilterComboBox.SelectedIndex = 0;
+            uiStatusFilterComboBox.SelectedIndexChanged += uiStatusFilterComboBox_SelectedIndexChanged;
+            // 
+            // uiSourceLabel
+            // 
+            uiSourceLabel.Name = "uiSourceLabel";
+            uiSourceLabel.Size = new Size(65, 22);
+            uiSourceLabel.Text = "Источник:";
+            uiSourceLabel.Margin = new Padding(10, 1, 0, 2);
+            // 
+            // uiSelectAllButton
+            // 
+            uiSelectAllButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            uiSelectAllButton.Name = "uiSelectAllButton";
+            uiSelectAllButton.Size = new Size(90, 22);
+            uiSelectAllButton.Text = "Выбрать все";
+            uiSelectAllButton.Margin = new Padding(10, 1, 0, 2);
+            uiSelectAllButton.Click += uiSelectAllButton_Click;
+            // 
+            // uiDeselectAllButton
+            // 
+            uiDeselectAllButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            uiDeselectAllButton.Name = "uiDeselectAllButton";
+            uiDeselectAllButton.Size = new Size(110, 22);
+            uiDeselectAllButton.Text = "Снять выделение";
+            uiDeselectAllButton.Click += uiDeselectAllButton_Click;
             // 
             // uMediaGrid
             // 
@@ -68,17 +146,18 @@ namespace MediaOrcestrator.Runner
             uiMediaGrid.AllowUserToResizeRows = false;
             uiMediaGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             uiMediaGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            uiMediaGrid.Location = new Point(0, 40);
+            uiMediaGrid.Location = new Point(0, 65);
             uiMediaGrid.Name = "uMediaGrid";
+            uiMediaGrid.ReadOnly = false;
             uiMediaGrid.RowHeadersVisible = false;
             uiMediaGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            uiMediaGrid.Size = new Size(595, 338);
+            uiMediaGrid.Size = new Size(595, 313);
             uiMediaGrid.TabIndex = 0;
             uiMediaGrid.MouseClick += uiMediaGrid_MouseClick;
             // 
             // button1
             // 
-            uiRefreshButton.Location = new Point(109, 3);
+            uiRefreshButton.Location = new Point(3, 28);
             uiRefreshButton.Name = "button1";
             uiRefreshButton.Size = new Size(75, 23);
             uiRefreshButton.TabIndex = 2;
@@ -88,15 +167,15 @@ namespace MediaOrcestrator.Runner
             // 
             // textBox1
             // 
-            uiSearchTextBox.Location = new Point(3, 3);
+            uiSearchTextBox.Location = new Point(84, 28);
             uiSearchTextBox.Name = "textBox1";
             uiSearchTextBox.Size = new Size(100, 23);
             uiSearchTextBox.TabIndex = 3;
-            uiSearchTextBox.TextChanged += uiSearchTextBox_TextChanged;
+            uiSearchTextBox.Visible = false;
             // 
             // uiMergerSelectedMediaButton
             // 
-            uiMergerSelectedMediaButton.Location = new Point(453, 3);
+            uiMergerSelectedMediaButton.Location = new Point(453, 28);
             uiMergerSelectedMediaButton.Name = "uiMergerSelectedMediaButton";
             uiMergerSelectedMediaButton.Size = new Size(139, 23);
             uiMergerSelectedMediaButton.TabIndex = 4;
@@ -110,7 +189,7 @@ namespace MediaOrcestrator.Runner
             uiLoadingLabel.AutoSize = true;
             uiLoadingLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             uiLoadingLabel.ForeColor = Color.Blue;
-            uiLoadingLabel.Location = new Point(190, 7);
+            uiLoadingLabel.Location = new Point(190, 32);
             uiLoadingLabel.Name = "uiLoadingLabel";
             uiLoadingLabel.Size = new Size(85, 15);
             uiLoadingLabel.TabIndex = 5;
@@ -146,12 +225,15 @@ namespace MediaOrcestrator.Runner
             Controls.Add(uiSearchTextBox);
             Controls.Add(uiRefreshButton);
             Controls.Add(uiMediaGrid);
+            Controls.Add(uiToolStrip);
             Controls.Add(uiStatusStrip);
             Name = "MediaMatrixGridControl";
             Size = new Size(595, 400);
             ((System.ComponentModel.ISupportInitialize)uiMediaGrid).EndInit();
             uiStatusStrip.ResumeLayout(false);
             uiStatusStrip.PerformLayout();
+            uiToolStrip.ResumeLayout(false);
+            uiToolStrip.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -164,5 +246,14 @@ namespace MediaOrcestrator.Runner
         private StatusStrip uiStatusStrip;
         private ToolStripStatusLabel uiTotalCountLabel;
         private ToolStripStatusLabel uiFilteredCountLabel;
+        private ToolStrip uiToolStrip;
+        private ToolStripLabel uiSearchLabel;
+        private ToolStripTextBox uiSearchToolStripTextBox;
+        private ToolStripButton uiClearSearchButton;
+        private ToolStripLabel uiStatusLabel;
+        private ToolStripComboBox uiStatusFilterComboBox;
+        private ToolStripLabel uiSourceLabel;
+        private ToolStripButton uiSelectAllButton;
+        private ToolStripButton uiDeselectAllButton;
     }
 }

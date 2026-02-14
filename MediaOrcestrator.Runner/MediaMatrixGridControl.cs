@@ -35,9 +35,28 @@ public partial class MediaMatrixGridControl : UserControl
             var allMediaData = _orcestrator.GetMedias().ToList();
             var mediaData = allMediaData;
 
-            if (!string.IsNullOrEmpty(uiSearchTextBox.Text))
+            if (!string.IsNullOrEmpty(uiSearchToolStripTextBox.Text))
             {
-                mediaData = mediaData.Where(x => x.Title.Contains(uiSearchTextBox.Text, StringComparison.OrdinalIgnoreCase)).ToList();
+                mediaData = mediaData.Where(x => x.Title.Contains(uiSearchToolStripTextBox.Text, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            if (uiStatusFilterComboBox.SelectedIndex > 0)
+            {
+                var statusFilter = uiStatusFilterComboBox.SelectedItem?.ToString();
+                mediaData = mediaData.Where(m =>
+                    {
+                        // TODO: Прибрать
+                        var hasStatus = statusFilter switch
+                        {
+                            "OK" => m.Sources.Any(s => s.Status == "OK"),
+                            "Ошибка" => m.Sources.Any(s => s.Status == "Error"),
+                            "Нет" => m.Sources.Any(s => s.Status == "None"),
+                            _ => true,
+                        };
+
+                        return hasStatus;
+                    })
+                    .ToList();
             }
 
             var allSources = _orcestrator.GetSources();
@@ -76,20 +95,6 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
-    private void UpdateLoadingIndicator(bool isLoading)
-    {
-        _isLoading = isLoading;
-
-        if (uiLoadingLabel.InvokeRequired)
-        {
-            uiLoadingLabel.Invoke(() => uiLoadingLabel.Visible = isLoading);
-        }
-        else
-        {
-            uiLoadingLabel.Visible = isLoading;
-        }
-    }
-
     private void uiMediaGrid_MouseClick(object sender, MouseEventArgs e)
     {
         if (e.Button != MouseButtons.Right)
@@ -121,9 +126,30 @@ public partial class MediaMatrixGridControl : UserControl
         RefreshData();
     }
 
-    private void uiSearchTextBox_TextChanged(object sender, EventArgs e)
+    private void uiSearchToolStripTextBox_TextChanged(object? sender, EventArgs e)
     {
         DebouncedSearch();
+    }
+
+    private void uiClearSearchButton_Click(object? sender, EventArgs e)
+    {
+        uiSearchToolStripTextBox.Text = string.Empty;
+        RefreshData();
+    }
+
+    private void uiStatusFilterComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        RefreshData();
+    }
+
+    private void uiSelectAllButton_Click(object? sender, EventArgs e)
+    {
+        SelectAll();
+    }
+
+    private void uiDeselectAllButton_Click(object? sender, EventArgs e)
+    {
+        DeselectAll();
     }
 
     private void uiMergerSelectedMediaButton_Click(object sender, EventArgs e)
@@ -181,6 +207,36 @@ public partial class MediaMatrixGridControl : UserControl
         typeof(Control).InvokeMember("DoubleBuffered",
             BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic,
             null, control, [true]);
+    }
+
+    private void UpdateLoadingIndicator(bool isLoading)
+    {
+        _isLoading = isLoading;
+
+        if (uiLoadingLabel.InvokeRequired)
+        {
+            uiLoadingLabel.Invoke(() => uiLoadingLabel.Visible = isLoading);
+        }
+        else
+        {
+            uiLoadingLabel.Visible = isLoading;
+        }
+    }
+
+    private void SelectAll()
+    {
+        foreach (DataGridViewRow row in uiMediaGrid.Rows)
+        {
+            row.Cells[0].Value = true;
+        }
+    }
+
+    private void DeselectAll()
+    {
+        foreach (DataGridViewRow row in uiMediaGrid.Rows)
+        {
+            row.Cells[0].Value = false;
+        }
     }
 
     private void UpdateStatusBar(int total, int filtered)
