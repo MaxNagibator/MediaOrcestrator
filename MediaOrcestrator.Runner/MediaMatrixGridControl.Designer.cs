@@ -7,6 +7,7 @@ namespace MediaOrcestrator.Runner
     {
         private System.ComponentModel.IContainer components = null;
         private Font _statusFont;
+        private Font _headerFont;
         private System.Threading.Timer _searchDebounceTimer;
         private ContextMenuStrip _contextMenu;
 
@@ -23,6 +24,12 @@ namespace MediaOrcestrator.Runner
                 {
                     _statusFont.Dispose();
                     _statusFont = null;
+                }
+                
+                if (_headerFont != null)
+                {
+                    _headerFont.Dispose();
+                    _headerFont = null;
                 }
                 
                 if (_searchDebounceTimer != null)
@@ -47,7 +54,11 @@ namespace MediaOrcestrator.Runner
             uiSearchTextBox = new TextBox();
             uiMergerSelectedMediaButton = new Button();
             uiLoadingLabel = new Label();
+            uiStatusStrip = new StatusStrip();
+            uiTotalCountLabel = new ToolStripStatusLabel();
+            uiFilteredCountLabel = new ToolStripStatusLabel();
             ((System.ComponentModel.ISupportInitialize)uiMediaGrid).BeginInit();
+            uiStatusStrip.SuspendLayout();
             SuspendLayout();
             // 
             // uMediaGrid
@@ -61,7 +72,7 @@ namespace MediaOrcestrator.Runner
             uiMediaGrid.Name = "uMediaGrid";
             uiMediaGrid.RowHeadersVisible = false;
             uiMediaGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            uiMediaGrid.Size = new Size(595, 360);
+            uiMediaGrid.Size = new Size(595, 338);
             uiMediaGrid.TabIndex = 0;
             uiMediaGrid.MouseClick += uiMediaGrid_MouseClick;
             // 
@@ -81,6 +92,7 @@ namespace MediaOrcestrator.Runner
             uiSearchTextBox.Name = "textBox1";
             uiSearchTextBox.Size = new Size(100, 23);
             uiSearchTextBox.TabIndex = 3;
+            uiSearchTextBox.TextChanged += uiSearchTextBox_TextChanged;
             // 
             // uiMergerSelectedMediaButton
             // 
@@ -105,6 +117,26 @@ namespace MediaOrcestrator.Runner
             uiLoadingLabel.Text = "Загрузка...";
             uiLoadingLabel.Visible = false;
             // 
+            // uiStatusStrip
+            // 
+            uiStatusStrip.Items.AddRange(new ToolStripItem[] { uiTotalCountLabel, uiFilteredCountLabel });
+            uiStatusStrip.Location = new Point(0, 378);
+            uiStatusStrip.Name = "uiStatusStrip";
+            uiStatusStrip.Size = new Size(595, 22);
+            uiStatusStrip.TabIndex = 6;
+            // 
+            // uiTotalCountLabel
+            // 
+            uiTotalCountLabel.Name = "uiTotalCountLabel";
+            uiTotalCountLabel.Size = new Size(90, 17);
+            uiTotalCountLabel.Text = "Всего: 0";
+            // 
+            // uiFilteredCountLabel
+            // 
+            uiFilteredCountLabel.Name = "uiFilteredCountLabel";
+            uiFilteredCountLabel.Size = new Size(90, 17);
+            uiFilteredCountLabel.Text = "Отфильтровано: 0";
+            // 
             // MediaMatrixGridControl
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -114,9 +146,12 @@ namespace MediaOrcestrator.Runner
             Controls.Add(uiSearchTextBox);
             Controls.Add(uiRefreshButton);
             Controls.Add(uiMediaGrid);
+            Controls.Add(uiStatusStrip);
             Name = "MediaMatrixGridControl";
             Size = new Size(595, 400);
             ((System.ComponentModel.ISupportInitialize)uiMediaGrid).EndInit();
+            uiStatusStrip.ResumeLayout(false);
+            uiStatusStrip.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -126,5 +161,8 @@ namespace MediaOrcestrator.Runner
         private TextBox uiSearchTextBox;
         private Button uiMergerSelectedMediaButton;
         private Label uiLoadingLabel;
+        private StatusStrip uiStatusStrip;
+        private ToolStripStatusLabel uiTotalCountLabel;
+        private ToolStripStatusLabel uiFilteredCountLabel;
     }
 }

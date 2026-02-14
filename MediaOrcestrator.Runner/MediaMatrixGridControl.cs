@@ -5,6 +5,8 @@ namespace MediaOrcestrator.Runner;
 
 public partial class MediaMatrixGridControl : UserControl
 {
+    private const int SearchDebounceMs = 300;
+
     private Orcestrator? _orcestrator;
     private bool _isLoading;
 
@@ -30,10 +32,12 @@ public partial class MediaMatrixGridControl : UserControl
 
         try
         {
-            var mediaData = _orcestrator.GetMedias().ToList();
+            var allMediaData = _orcestrator.GetMedias().ToList();
+            var mediaData = allMediaData;
+
             if (!string.IsNullOrEmpty(uiSearchTextBox.Text))
             {
-                mediaData = mediaData.Where(x => x.Title.ToLower().Contains(uiSearchTextBox.Text.ToLower())).ToList();
+                mediaData = mediaData.Where(x => x.Title.Contains(uiSearchTextBox.Text, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
             var allSources = _orcestrator.GetSources();
@@ -64,6 +68,7 @@ public partial class MediaMatrixGridControl : UserControl
 
             SetupColumns(sources);
             PopulateGrid(sources, mediaData);
+            UpdateStatusBar(allMediaData.Count, mediaData.Count);
         }
         finally
         {
@@ -114,6 +119,11 @@ public partial class MediaMatrixGridControl : UserControl
     private void uiRefreshButton_Click(object sender, EventArgs e)
     {
         RefreshData();
+    }
+
+    private void uiSearchTextBox_TextChanged(object sender, EventArgs e)
+    {
+        DebouncedSearch();
     }
 
     private void uiMergerSelectedMediaButton_Click(object sender, EventArgs e)
@@ -173,9 +183,47 @@ public partial class MediaMatrixGridControl : UserControl
             null, control, [true]);
     }
 
+    private void UpdateStatusBar(int total, int filtered)
+    {
+        if (uiStatusStrip.InvokeRequired)
+        {
+            uiStatusStrip.Invoke(() =>
+            {
+                uiTotalCountLabel.Text = $"Всего: {total}";
+                uiFilteredCountLabel.Text = $"Отфильтровано: {filtered}";
+            });
+        }
+        else
+        {
+            uiTotalCountLabel.Text = $"Всего: {total}";
+            uiFilteredCountLabel.Text = $"Отфильтровано: {filtered}";
+        }
+    }
+
+    private void DebouncedSearch()
+    {
+        _searchDebounceTimer?.Dispose();
+        _searchDebounceTimer = new(_ =>
+            {
+                if (InvokeRequired)
+                {
+                    Invoke(() => RefreshData());
+                }
+                else
+                {
+                    RefreshData();
+                }
+            },
+            null,
+            SearchDebounceMs,
+            Timeout.Infinite);
+    }
+
     private void SetupColumns(List<Source> sources)
     {
         uiMediaGrid.Columns.Clear();
+
+        _headerFont ??= new(Font, FontStyle.Bold);
 
         var checkColumn = new DataGridViewCheckBoxColumn
         {
@@ -189,7 +237,7 @@ public partial class MediaMatrixGridControl : UserControl
         uiMediaGrid.Columns.Add("Title", "Название");
         uiMediaGrid.Columns[1].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
         uiMediaGrid.Columns[1].ReadOnly = true;
-        uiMediaGrid.Columns[1].HeaderCell.Style.Font = new(Font, FontStyle.Bold);
+        uiMediaGrid.Columns[1].HeaderCell.Style.Font = _headerFont;
 
         foreach (var source in sources)
         {
@@ -197,7 +245,7 @@ public partial class MediaMatrixGridControl : UserControl
             uiMediaGrid.Columns[colIndex].Width = 80;
             uiMediaGrid.Columns[colIndex].ReadOnly = true;
             uiMediaGrid.Columns[colIndex].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            uiMediaGrid.Columns[colIndex].HeaderCell.Style.Font = new(Font, FontStyle.Bold);
+            uiMediaGrid.Columns[colIndex].HeaderCell.Style.Font = _headerFont;
             uiMediaGrid.Columns[colIndex].HeaderCell.ToolTipText = source.Title;
         }
     }
