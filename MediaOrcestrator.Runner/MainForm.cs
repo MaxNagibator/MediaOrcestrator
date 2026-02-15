@@ -28,6 +28,11 @@ public partial class MainForm : Form
         // TODO: SetZalupaV2
         uiMediaMatrixGridControl.Initialize(_orcestrator);
         uiMediaMatrixGridControl.RefreshData();
+
+        if (uiClearTypeComboBox.Items.Count > 0)
+        {
+            uiClearTypeComboBox.SelectedIndex = 0;
+        }
     }
 
     private async void uiSyncButton_Click(object sender, EventArgs e)
@@ -156,6 +161,45 @@ public partial class MainForm : Form
         }
     }
 
+    private void uiClearSpecificTypeButton_Click(object sender, EventArgs e)
+    {
+        if (uiClearTypeComboBox.SelectedItem is not string selectedType)
+        {
+            MessageBox.Show("Пожалуйста, выберите тип для очистки.", "Предупреждение", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var result = MessageBox.Show($"Вы уверены, что хотите очистить коллекцию '{selectedType}'?\nЭта операция необратима.",
+            "Подтверждение",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning);
+
+        if (result != DialogResult.Yes)
+        {
+            return;
+        }
+
+        _logger.LogInformation("Пользователь запустил очистку коллекции: {Type}", selectedType);
+        uiClearSpecificTypeButton.Enabled = false;
+        try
+        {
+            _orcestrator.ClearCollection(selectedType);
+            _logger.LogInformation("Очистка коллекции {Type} завершена через UI.", selectedType);
+            MessageBox.Show($"Коллекция '{selectedType}' успешно очищена.", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DrawSources();
+            uiMediaMatrixGridControl.RefreshData();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при очистке коллекции {Type} через UI.", selectedType);
+            MessageBox.Show($"Ошибка при очистке коллекции: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            uiClearSpecificTypeButton.Enabled = true;
+        }
+    }
+
     private List<SourceSyncRelation> GetSelectedRelations()
     {
         if (!uiRelationViewModeCheckBox.Checked)
@@ -243,7 +287,6 @@ public partial class MainForm : Form
     {
         Task.Run(async () =>
         {
-
             using var playwright = await Playwright.CreateAsync();
             await using var browser = await playwright.Chromium.LaunchAsync(new()
             {

@@ -187,6 +187,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                 item.IsDisable = true;
                 continue;
             }
+
             item.From = fromSource;
             item.To = toSource;
         }
@@ -196,11 +197,12 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
     public void AddRelation(Source from, Source to)
     {
-        db.GetCollection<SourceSyncRelation>("source_relations").Insert(new SourceSyncRelation
-        {
-            FromId = from.Id,
-            ToId = to.Id
-        });
+        db.GetCollection<SourceSyncRelation>("source_relations")
+            .Insert(new SourceSyncRelation
+            {
+                FromId = from.Id,
+                ToId = to.Id,
+            });
     }
 
     public void RemoveRelation(Source from, Source to)
@@ -208,6 +210,15 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         // TODO: Подумать
         db.GetCollection<SourceSyncRelation>("source_relations")
             .DeleteMany(x => x.FromId == from.Id && x.ToId == to.Id);
+    }
+
+    public void ClearCollection(string collectionName)
+    {
+        logger.LogInformation("Очистка коллекции: {CollectionName}", collectionName);
+        var collection = db.GetCollection(collectionName);
+        var count = collection.Count();
+        collection.DeleteAll();
+        logger.LogInformation("[✓] Коллекция {CollectionName} очищена. Удалено записей: {Count}", collectionName, count);
     }
 
     public void ClearDatabase()
