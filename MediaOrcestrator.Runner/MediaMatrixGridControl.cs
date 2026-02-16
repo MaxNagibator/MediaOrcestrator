@@ -120,38 +120,81 @@ public partial class MediaMatrixGridControl : UserControl
 
         if (selectedMediaList.Count < 2)
         {
+            MessageBox.Show("Выберите как минимум 2 медиа для объединения",
+                "Недостаточно выбранных элементов",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
             return;
         }
 
-        var currentMediaSources = new List<MediaSourceLink>();
-        foreach (var selectedMedia in selectedMediaList)
+        try
         {
-            foreach (var selectedMediaSourceLink in selectedMedia.Sources)
+            var mergePreview = ValidateMergeOperation(selectedMediaList);
+
+            var mediaList = string.Join("\n", mergePreview.SourceMedias.Select(x => $"- {x.Title}"));
+            var conflictsList = mergePreview.HasConflicts
+                ? $"""
+                   ⚠ ВНИМАНИЕ! Обнаружены конфликты:
+                   {string.Join("\n", mergePreview.Conflicts.Select(x => $"- {x}"))}
+
+                   Дублирующиеся источники будут пропущены.
+                   """
+                : string.Empty;
+
+            var confirmationMessage = $"""
+                                       Вы собираетесь объединить следующие медиа:
+
+                                       Целевое медиа (сохранится):
+                                       - {mergePreview.TargetMedia.Title}
+
+                                       Медиа, которые будут присоединены и удалены:
+                                       {mediaList}
+
+                                       {conflictsList}
+                                       Это действие нельзя отменить. Продолжить?
+                                       """;
+
+            var result = MessageBox.Show(confirmationMessage,
+                "Подтверждение объединения",
+                MessageBoxButtons.YesNo,
+                mergePreview.HasConflicts ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
+
+            if (result != DialogResult.Yes)
             {
-                var current = currentMediaSources.FirstOrDefault(x => x.SourceId == selectedMediaSourceLink.SourceId);
-                if (current != null)
-                {
-                    var sources = uiMediaGrid.CurrentSources ?? _orcestrator.GetSources();
-                    var fullSource = sources.First(x => x.Id == selectedMediaSourceLink.SourceId);
-                    MessageBox.Show("Данное хранилище уже есть у медиа " + fullSource.TitleFull);
-                    return;
-                }
-
-                // todo вот бы заполнять ссылку на него сразу и не приседать
-                //var fullSource = sources.First(x => x.Id == selectedMediaSourceLink.SourceId);
-                currentMediaSources.Add(selectedMediaSourceLink);
+                return;
             }
+
+            mergePreview.TargetMedia.Sources = mergePreview.ResultingSources;
+            _orcestrator.UpdateMedia(mergePreview.TargetMedia);
+
+            foreach (var media in mergePreview.SourceMedias)
+            {
+                _orcestrator.RemoveMedia(media);
+            }
+
+            RefreshData();
+
+            MessageBox.Show($"""
+                             Медиа успешно объединены.
+
+                             Итоговое количество источников: {mergePreview.TotalSourcesCount}
+                             """,
+                "Объединение завершено",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
-
-        selectedMediaList.First().Sources = currentMediaSources;
-        _orcestrator.UpdateMedia(selectedMediaList.First());
-
-        foreach (var media in selectedMediaList.Skip(1))
+        catch (Exception ex)
         {
-            _orcestrator.RemoveMedia(media);
-        }
+            MessageBox.Show($"""
+                             Произошла ошибка при объединении медиа:
 
-        RefreshData();
+                             {ex.Message}
+                             """,
+                "Ошибка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 
     private static (List<Media> mediaData, List<Source> sources) ApplyFilters(
@@ -421,6 +464,53 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
+    private MergePreviewData ValidateMergeOperation(List<Media> selectedMedia)
+    {
+        if (selectedMedia.Count < 2)
+        {
+            throw new InvalidOperationException("Для объединения необходимо выбрать как минимум 2 медиа");
+        }
+
+        var targetMedia = selectedMedia.First();
+        var sourceMedias = selectedMedia.Skip(1).ToList();
+        var conflicts = new List<string>();
+        var resultingSources = new List<MediaSourceLink>();
+
+        var sourceDict = new Dictionary<string, MediaSourceLink>();
+
+        foreach (var sourceLink in targetMedia.Sources)
+        {
+            sourceDict[sourceLink.SourceId] = sourceLink;
+        }
+
+        var allSources = _orcestrator?.GetSources() ?? [];
+
+        foreach (var media in sourceMedias)
+        {
+            foreach (var sourceLink in media.Sources)
+            {
+                if (sourceDict.TryAdd(sourceLink.SourceId, sourceLink))
+                {
+                    continue;
+                }
+
+                var source = allSources.FirstOrDefault(s => s.Id == sourceLink.SourceId);
+                var sourceName = source?.TitleFull ?? sourceLink.SourceId;
+                conflicts.Add($"Источник '{sourceName}' присутствует в нескольких медиа");
+            }
+        }
+
+        resultingSources.AddRange(sourceDict.Values);
+
+        return new()
+        {
+            TargetMedia = targetMedia,
+            SourceMedias = sourceMedias,
+            ResultingSources = resultingSources,
+            Conflicts = conflicts,
+        };
+    }
+
     private sealed class StatusFilterItem
     {
         public required string Text { get; init; }
@@ -439,5 +529,20 @@ public partial class MediaMatrixGridControl : UserControl
         public string? StatusFilter { get; set; }
 
         public HashSet<string>? SourceFilter { get; set; }
+    }
+
+    private sealed class MergePreviewData
+    {
+        public required Media TargetMedia { get; init; }
+
+        public required List<Media> SourceMedias { get; init; }
+
+        public required List<MediaSourceLink> ResultingSources { get; init; }
+
+        public required List<string> Conflicts { get; init; }
+
+        public int TotalSourcesCount => ResultingSources.Count;
+
+        public bool HasConflicts => Conflicts.Count > 0;
     }
 }
