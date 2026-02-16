@@ -42,7 +42,6 @@
             uiRelationFromComboBox = new ComboBox();
             uiMainTabControl = new TabControl();
             uiFilesTabPage = new TabPage();
-            uiRelationViewModeCheckBox = new CheckBox();
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiAuditTabPage = new TabPage();
@@ -89,10 +88,10 @@
             // 
             // uiMediaMatrixGridControl
             // 
-            uiMediaMatrixGridControl.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            uiMediaMatrixGridControl.Location = new Point(3, 31);
+            uiMediaMatrixGridControl.Dock = DockStyle.Fill;
+            uiMediaMatrixGridControl.Location = new Point(3, 3);
             uiMediaMatrixGridControl.Name = "uiMediaMatrixGridControl";
-            uiMediaMatrixGridControl.Size = new Size(1116, 667);
+            uiMediaMatrixGridControl.Size = new Size(1119, 736);
             uiMediaMatrixGridControl.TabIndex = 2;
             // 
             // uiAddSourceButton
@@ -188,7 +187,6 @@
             // 
             // uiFilesTabPage
             // 
-            uiFilesTabPage.Controls.Add(uiRelationViewModeCheckBox);
             uiFilesTabPage.Controls.Add(uiMediaMatrixGridControl);
             uiFilesTabPage.Location = new Point(4, 24);
             uiFilesTabPage.Name = "uiFilesTabPage";
@@ -198,18 +196,7 @@
             uiFilesTabPage.Text = "Фаилы";
             uiFilesTabPage.UseVisualStyleBackColor = true;
             // 
-            // uiRelationViewModeCheckBox
-            // 
-            uiRelationViewModeCheckBox.AutoSize = true;
-            uiRelationViewModeCheckBox.Location = new Point(6, 6);
-            uiRelationViewModeCheckBox.Name = "uiRelationViewModeCheckBox";
-            uiRelationViewModeCheckBox.Size = new Size(122, 19);
-            uiRelationViewModeCheckBox.TabIndex = 3;
-            uiRelationViewModeCheckBox.Text = "Режим по связям";
-            uiRelationViewModeCheckBox.UseVisualStyleBackColor = true;
-            uiRelationViewModeCheckBox.CheckedChanged += uiRelationViewModeCheckBox_CheckedChanged;
-            // 
-            // uiStorageTabPage
+            // uiStorageTabPage прив
             // 
             uiStorageTabPage.Controls.Add(uiSourcesComboBox);
             uiStorageTabPage.Controls.Add(uiAddSourceButton);
@@ -354,7 +341,6 @@
             Load += MainForm_Load;
             uiMainTabControl.ResumeLayout(false);
             uiFilesTabPage.ResumeLayout(false);
-            uiFilesTabPage.PerformLayout();
             uiStorageTabPage.ResumeLayout(false);
             uiRelationsTabPage.ResumeLayout(false);
             uiRelationsTabPage.PerformLayout();
@@ -383,7 +369,6 @@
         private TabPage uiStorageTabPage;
         private TabPage uiRelationsTabPage;
         private TabPage uiAuditTabPage;
-        private CheckBox uiRelationViewModeCheckBox;
         private Button uiForceScanButton;
         private Button uiClearDatabaseButton;
         private ComboBox uiClearTypeComboBox;

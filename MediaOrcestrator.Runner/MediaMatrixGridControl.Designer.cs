@@ -49,7 +49,7 @@ namespace MediaOrcestrator.Runner
             uiClearSearchButton = new ToolStripButton();
             uiStatusLabel = new ToolStripLabel();
             uiStatusFilterComboBox = new ToolStripComboBox();
-            uiSourceLabel = new ToolStripLabel();
+            uiRelationsDropDownButton = new ToolStripDropDownButton();
             uiSelectAllButton = new ToolStripButton();
             uiDeselectAllButton = new ToolStripButton();
             ((System.ComponentModel.ISupportInitialize)uiMediaGrid).BeginInit();
@@ -59,7 +59,7 @@ namespace MediaOrcestrator.Runner
             // 
             // uiToolStrip
             // 
-            uiToolStrip.Items.AddRange(new ToolStripItem[] { uiSearchLabel, uiSearchToolStripTextBox, uiClearSearchButton, uiStatusLabel, uiStatusFilterComboBox, uiSourceLabel, uiSelectAllButton, uiDeselectAllButton });
+            uiToolStrip.Items.AddRange(new ToolStripItem[] { uiSearchLabel, uiSearchToolStripTextBox, uiClearSearchButton, uiStatusLabel, uiStatusFilterComboBox, uiRelationsDropDownButton, uiSelectAllButton, uiDeselectAllButton });
             uiToolStrip.Location = new Point(0, 0);
             uiToolStrip.Name = "uiToolStrip";
             uiToolStrip.Size = new Size(595, 25);
@@ -101,12 +101,12 @@ namespace MediaOrcestrator.Runner
             uiStatusFilterComboBox.SelectedIndex = 0;
             uiStatusFilterComboBox.SelectedIndexChanged += uiStatusFilterComboBox_SelectedIndexChanged;
             // 
-            // uiSourceLabel
+            // uiRelationsDropDownButton
             // 
-            uiSourceLabel.Name = "uiSourceLabel";
-            uiSourceLabel.Size = new Size(65, 22);
-            uiSourceLabel.Text = "Источник:";
-            uiSourceLabel.Margin = new Padding(10, 1, 0, 2);
+            uiRelationsDropDownButton.Name = "uiRelationsDropDownButton";
+            uiRelationsDropDownButton.Size = new Size(130, 22);
+            uiRelationsDropDownButton.Text = "Фильтр по связям";
+            uiRelationsDropDownButton.Margin = new Padding(10, 1, 0, 2);
             // 
             // uiSelectAllButton
             // 
@@ -231,7 +231,7 @@ namespace MediaOrcestrator.Runner
         private ToolStripButton uiClearSearchButton;
         private ToolStripLabel uiStatusLabel;
         private ToolStripComboBox uiStatusFilterComboBox;
-        private ToolStripLabel uiSourceLabel;
+        private ToolStripDropDownButton uiRelationsDropDownButton;
         private ToolStripButton uiSelectAllButton;
         private ToolStripButton uiDeselectAllButton;
     }

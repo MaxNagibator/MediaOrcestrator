@@ -6,6 +6,7 @@ namespace MediaOrcestrator.Runner;
 public partial class MediaMatrixGridControl : UserControl
 {
     private const int SearchDebounceMs = 300;
+    private readonly HashSet<SourceSyncRelation> _selectedRelations = [];
 
     private Orcestrator? _orcestrator;
 
@@ -24,6 +25,7 @@ public partial class MediaMatrixGridControl : UserControl
     public void Initialize(Orcestrator orcestrator)
     {
         _orcestrator = orcestrator;
+        PopulateRelationsFilter();
     }
 
     public async void RefreshData(List<SourceSyncRelation>? selectedRelations = null)
@@ -267,6 +269,46 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
+    private void PopulateRelationsFilter()
+    {
+        if (_orcestrator == null)
+        {
+            return;
+        }
+
+        uiRelationsDropDownButton.DropDownItems.Clear();
+        _selectedRelations.Clear();
+        var relations = _orcestrator.GetRelations();
+
+        foreach (var syncRelation in relations)
+        {
+            var item = new ToolStripMenuItem($"{syncRelation.From.TitleFull} -> {syncRelation.To.TitleFull}")
+            {
+                CheckOnClick = true,
+                Tag = syncRelation,
+            };
+
+            item.CheckedChanged += (s, _) =>
+            {
+                if (s is ToolStripMenuItem { Tag: SourceSyncRelation relation } menuItem)
+                {
+                    if (menuItem.Checked)
+                    {
+                        _selectedRelations.Add(relation);
+                    }
+                    else
+                    {
+                        _selectedRelations.Remove(relation);
+                    }
+                }
+
+                RefreshData();
+            };
+
+            uiRelationsDropDownButton.DropDownItems.Add(item);
+        }
+    }
+
     private void UpdateLoadingIndicator(bool isLoading)
     {
         if (uiLoadingLabel.InvokeRequired)
@@ -327,9 +369,11 @@ public partial class MediaMatrixGridControl : UserControl
             filterState.StatusFilter = (uiStatusFilterComboBox.SelectedItem as StatusFilterItem)?.Tag;
         }
 
-        if (selectedRelations is { Count: > 0 })
+        var activeRelations = selectedRelations ?? _selectedRelations.ToList();
+
+        if (activeRelations.Count > 0)
         {
-            filterState.SourceFilter = selectedRelations
+            filterState.SourceFilter = activeRelations
                 .SelectMany(x => new[] { x.From.Id, x.To.Id })
                 .Distinct()
                 .ToHashSet();
