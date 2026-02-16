@@ -7,6 +7,11 @@ namespace MediaOrcestrator.Domain;
 /// </summary>
 public class MediaSourceLink
 {
+    // TODO: Прибрать
+    public const string StatusOk = "OK";
+    public const string StatusError = "Error";
+    public const string StatusNone = "None";
+
     /// <summary>
     /// Идентификатор источника.
     /// </summary>

@@ -1,14 +1,24 @@
-﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Domain;
+using System.Text;
 
 namespace MediaOrcestrator.Runner;
 
 public partial class MediaMatrixGridControl : UserControl
 {
+    private const int SearchDebounceMs = 300;
+
     private Orcestrator? _orcestrator;
 
     public MediaMatrixGridControl()
     {
         InitializeComponent();
+
+        uiStatusFilterComboBox.Items.Clear();
+        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Все", Tag = null });
+        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "OK", Tag = MediaSourceLink.StatusOk });
+        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Ошибка", Tag = MediaSourceLink.StatusError });
+        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Нет", Tag = MediaSourceLink.StatusNone });
+        uiStatusFilterComboBox.SelectedIndex = 0;
     }
 
     public void Initialize(Orcestrator orcestrator)
@@ -16,155 +26,523 @@ public partial class MediaMatrixGridControl : UserControl
         _orcestrator = orcestrator;
     }
 
-    public void RefreshData(List<SourceSyncRelation>? selectedRelations = null)
+    public async void RefreshData(List<SourceSyncRelation>? selectedRelations = null)
     {
         if (_orcestrator == null)
         {
             return;
         }
 
-        var mediaData = _orcestrator.GetMedias().ToList();
-        if (!string.IsNullOrEmpty(textBox1.Text))
+        UpdateLoadingIndicator(true);
+
+        try
         {
-            mediaData = mediaData.Where(x => x.Title.ToLower().Contains(textBox1.Text.ToLower())).ToList();
-        }
-        var allSources = _orcestrator.GetSources();
-        mediaData = mediaData.Take(20).ToList();
+            var filterState = BuildFilterState(selectedRelations);
 
-        List<Source> sources;
-
-        if (selectedRelations is { Count: > 0 })
-        {
-            var selectedSourceIds = selectedRelations
-                .SelectMany(x => new[] { x.From.Id, x.To.Id })
-                .Distinct()
-                .ToHashSet();
-
-            sources = allSources
-                .Where(x => selectedSourceIds.Contains(x.Id))
-                .ToList();
-
-            // TODO: При таком варианте не учитывается направление связи, а только наличие источника в связи. Альтернатива использовать только From для media
-            mediaData = mediaData
-                .Where(m => m.Sources.Any(l => selectedSourceIds.Contains(l.SourceId)))
-                .ToList();
-        }
-        else
-        {
-            sources = allSources;
-        }
-
-        SetHeaderColumns(sources);
-        SetGridContent(sources, mediaData);
-    }
-
-    private void SetHeaderColumns(List<Source> sources)
-    {
-        var toolTip = new ToolTip();
-        uMediaHeaderPanel.Controls.Clear();
-        uMediaHeaderPanel.ColumnCount = sources.Count + 1;
-        uMediaHeaderPanel.ColumnStyles.Clear();
-
-        uMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Percent, 100F));
-        uMediaHeaderPanel.Controls.Add(new Label
-        {
-            Text = "Название",
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = new(Font, FontStyle.Bold),
-        }, 0, 0);
-
-        for (var i = 0; i < sources.Count; i++)
-        {
-            var source = sources[i];
-            var title = source.Title;
-            var displayName = title.Length > 5 ? title.Substring(0, 5) : title;
-
-            var label = new Label
+            var (mediaData, sources, allMediaCount) = await Task.Run(() =>
             {
-                Text = displayName,
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new(Font, FontStyle.Bold),
-            };
+                var allMedia = _orcestrator.GetMedias();
+                var allSources = _orcestrator.GetSources();
+                var (filteredMedia, filteredSources) = ApplyFilters(allMedia, allSources, filterState);
+                return (filteredMedia, filteredSources, allMedia.Count);
+            });
 
-            toolTip.SetToolTip(label, title);
-
-            uMediaHeaderPanel.ColumnStyles.Add(new(SizeType.Absolute, 80F));
-            uMediaHeaderPanel.Controls.Add(label, i + 1, 0);
+            uiMediaGrid.SetupColumns(sources);
+            uiMediaGrid.PopulateGrid(sources, mediaData);
+            UpdateStatusBar(allMediaCount, mediaData.Count);
         }
-    }
-
-    private void SetGridContent(List<Source> sources, List<Media> mediaData)
-    {
-        uMediaGridPanel.Controls.Clear();
-        uMediaGridPanel.RowCount = 0;
-
-        foreach (var media in mediaData)
+        finally
         {
-            //var dto = new MediaGridRowDto
-            //{
-            //    Id = media.Id,
-            //    Title = media.Title,
-            //    PlatformStatuses = media.Sources.ToDictionary(x => x.SourceId, x => x.Status),
-            //};
-
-            var control = new MediaItemControl();
-            control.SetData(media, sources, _orcestrator!);
-            control.Dock = DockStyle.Top;
-            uMediaGridPanel.RowCount++;
-            uMediaGridPanel.Controls.Add(control);
+            UpdateLoadingIndicator(false);
         }
     }
 
-    private void button1_Click_1(object sender, EventArgs e)
+    private void uiMediaGrid_MouseClick(object sender, MouseEventArgs e)
     {
-        RefreshData();
-    }
-
-    private void uiMergerSelectedMediaButton_Click(object sender, EventArgs e)
-    {
-
-        var selectedMediaList = new List<Media>();
-        foreach (var m in uMediaGridPanel.Controls)
-        {
-            var mediaControl = m as MediaItemControl;
-            if (mediaControl != null && mediaControl.IsMediaSelected)
-            {
-                selectedMediaList.Add(mediaControl.Media);
-            }
-        }
-
-        if (selectedMediaList.Count < 2)
+        if (e.Button != MouseButtons.Right)
         {
             return;
         }
 
-        var currentMediaSources = new List<MediaSourceLink>();
-        foreach (var selectedMedia in selectedMediaList)
+        var ht = uiMediaGrid.HitTest(e.X, e.Y);
+        if (ht.Type != DataGridViewHitTestType.Cell || ht.RowIndex < 0)
         {
-            foreach (var selectedMediaSourceLink in selectedMedia.Sources)
+            return;
+        }
+
+        var row = uiMediaGrid.Rows[ht.RowIndex];
+        if (!row.Selected)
+        {
+            uiMediaGrid.ClearSelection();
+            row.Selected = true;
+        }
+
+        if (uiMediaGrid.GetMediaAtRow(ht.RowIndex) is { } media)
+        {
+            ShowContextMenu(media, uiMediaGrid.PointToScreen(e.Location));
+        }
+    }
+
+    private void uiRefreshButton_Click(object sender, EventArgs e)
+    {
+        RefreshData();
+    }
+
+    private void uiSearchToolStripTextBox_TextChanged(object? sender, EventArgs e)
+    {
+        DebouncedSearch();
+    }
+
+    private void uiClearSearchButton_Click(object? sender, EventArgs e)
+    {
+        uiSearchToolStripTextBox.Text = string.Empty;
+        RefreshData();
+    }
+
+    private void uiStatusFilterComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        RefreshData();
+    }
+
+    private void uiSelectAllButton_Click(object? sender, EventArgs e)
+    {
+        uiMediaGrid.SelectAllRows();
+    }
+
+    private void uiDeselectAllButton_Click(object? sender, EventArgs e)
+    {
+        uiMediaGrid.DeselectAllRows();
+    }
+
+    private void uiMergerSelectedMediaButton_Click(object sender, EventArgs e)
+    {
+        var selectedMediaList = uiMediaGrid.GetCheckedMedia();
+
+        if (selectedMediaList.Count < 2)
+        {
+            MessageBox.Show("Выберите как минимум 2 медиа для объединения",
+                "Недостаточно выбранных элементов",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            return;
+        }
+
+        try
+        {
+            var mergePreview = ValidateMergeOperation(selectedMediaList);
+
+            var mediaList = string.Join("\n", mergePreview.SourceMedias.Select(x => $"- {x.Title}"));
+            var conflictsList = mergePreview.HasConflicts
+                ? $"""
+                   ⚠ ВНИМАНИЕ! Обнаружены конфликты:
+                   {string.Join("\n", mergePreview.Conflicts.Select(x => $"- {x}"))}
+
+                   Дублирующиеся источники будут пропущены.
+                   """
+                : string.Empty;
+
+            var confirmationMessage = $"""
+                                       Вы собираетесь объединить следующие медиа:
+
+                                       Целевое медиа (сохранится):
+                                       - {mergePreview.TargetMedia.Title}
+
+                                       Медиа, которые будут присоединены и удалены:
+                                       {mediaList}
+
+                                       {conflictsList}
+                                       Это действие нельзя отменить. Продолжить?
+                                       """;
+
+            var result = MessageBox.Show(confirmationMessage,
+                "Подтверждение объединения",
+                MessageBoxButtons.YesNo,
+                mergePreview.HasConflicts ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
+
+            if (result != DialogResult.Yes)
             {
-                var current = currentMediaSources.FirstOrDefault(x => x.SourceId == selectedMediaSourceLink.SourceId);
-                if (current != null)
+                return;
+            }
+
+            mergePreview.TargetMedia.Sources = mergePreview.ResultingSources;
+            _orcestrator.UpdateMedia(mergePreview.TargetMedia);
+
+            foreach (var media in mergePreview.SourceMedias)
+            {
+                _orcestrator.RemoveMedia(media);
+            }
+
+            RefreshData();
+
+            MessageBox.Show($"""
+                             Медиа успешно объединены.
+
+                             Итоговое количество источников: {mergePreview.TotalSourcesCount}
+                             """,
+                "Объединение завершено",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"""
+                             Произошла ошибка при объединении медиа:
+
+                             {ex.Message}
+                             """,
+                "Ошибка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private static (List<Media> mediaData, List<Source> sources) ApplyFilters(
+        List<Media> allMedia,
+        List<Source> allSources,
+        FilterState filterState)
+    {
+        IEnumerable<Media> mediaQuery = allMedia;
+        var sources = allSources;
+
+        if (!string.IsNullOrEmpty(filterState.SearchText))
+        {
+            mediaQuery = mediaQuery.Where(x => x.Title.Contains(filterState.SearchText, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (filterState.StatusFilter != null)
+        {
+            var status = filterState.StatusFilter;
+            mediaQuery = mediaQuery.Where(m => m.Sources.Any(s => s.Status == status));
+        }
+
+        if (filterState.SourceFilter is { Count: > 0 })
+        {
+            sources = allSources.Where(x => filterState.SourceFilter.Contains(x.Id)).ToList();
+            // TODO: При таком варианте не учитывается направление связи
+            mediaQuery = mediaQuery.Where(m => m.Sources.Any(l => filterState.SourceFilter.Contains(l.SourceId)));
+        }
+
+        return (mediaQuery.ToList(), sources);
+    }
+
+    private static Bitmap? GetSyncIcon()
+    {
+        try
+        {
+            var bitmap = new Bitmap(16, 16);
+            using var g = Graphics.FromImage(bitmap);
+            using var pen = new Pen(Color.Blue, 2);
+
+            g.Clear(Color.Transparent);
+            g.DrawLine(pen, 2, 8, 12, 8);
+            g.DrawLine(pen, 9, 5, 12, 8);
+            g.DrawLine(pen, 9, 11, 12, 8);
+
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static Bitmap? GetCopyIcon()
+    {
+        try
+        {
+            var bitmap = new Bitmap(16, 16);
+            using var g = Graphics.FromImage(bitmap);
+            using var pen = new Pen(Color.DarkGray, 1);
+
+            g.Clear(Color.Transparent);
+            g.DrawRectangle(pen, 2, 2, 8, 8);
+            g.DrawRectangle(pen, 5, 5, 8, 8);
+
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void UpdateLoadingIndicator(bool isLoading)
+    {
+        if (uiLoadingLabel.InvokeRequired)
+        {
+            uiLoadingLabel.Invoke(() => uiLoadingLabel.Visible = isLoading);
+        }
+        else
+        {
+            uiLoadingLabel.Visible = isLoading;
+        }
+    }
+
+    private void UpdateStatusBar(int total, int filtered)
+    {
+        if (uiStatusStrip.InvokeRequired)
+        {
+            uiStatusStrip.Invoke(() =>
+            {
+                uiTotalCountLabel.Text = $"Всего: {total}";
+                uiFilteredCountLabel.Text = $"Отфильтровано: {filtered}";
+            });
+        }
+        else
+        {
+            uiTotalCountLabel.Text = $"Всего: {total}";
+            uiFilteredCountLabel.Text = $"Отфильтровано: {filtered}";
+        }
+    }
+
+    private void DebouncedSearch()
+    {
+        _searchDebounceTimer?.Dispose();
+        _searchDebounceTimer = new(_ =>
+            {
+                if (InvokeRequired)
                 {
-                     var sources = _orcestrator.GetSources();
-                    var fullSource = sources.First(x => x.Id == selectedMediaSourceLink.SourceId);
-                    MessageBox.Show("Данное хранилище уже есть у медиа " + fullSource.TitleFull);
-                    return;
+                    Invoke(() => RefreshData());
                 }
-                // todo вот бы заполнять ссылку на него сразу и не приседать
-                //var fullSource = sources.First(x => x.Id == selectedMediaSourceLink.SourceId);
-                currentMediaSources.Add(selectedMediaSourceLink);
+                else
+                {
+                    RefreshData();
+                }
+            },
+            null,
+            SearchDebounceMs,
+            Timeout.Infinite);
+    }
+
+    private FilterState BuildFilterState(List<SourceSyncRelation>? selectedRelations)
+    {
+        var filterState = new FilterState
+        {
+            SearchText = uiSearchToolStripTextBox.Text,
+        };
+
+        if (uiStatusFilterComboBox.SelectedIndex > 0)
+        {
+            filterState.StatusFilter = (uiStatusFilterComboBox.SelectedItem as StatusFilterItem)?.Tag;
+        }
+
+        if (selectedRelations is { Count: > 0 })
+        {
+            filterState.SourceFilter = selectedRelations
+                .SelectMany(x => new[] { x.From.Id, x.To.Id })
+                .Distinct()
+                .ToHashSet();
+        }
+
+        return filterState;
+    }
+
+    private void ShowContextMenu(Media media, Point location)
+    {
+        _contextMenu?.Dispose();
+        _contextMenu = new();
+
+        foreach (var rel in _orcestrator.GetRelations())
+        {
+            var fromSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.From.Id);
+            var toSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
+            var menuText = $"Синхронизировать {rel.From.TitleFull} -> {rel.To.TitleFull}";
+
+            if (fromSource != null && toSource == null)
+            {
+                var menuItem = new ToolStripMenuItem(menuText, GetSyncIcon());
+                menuItem.Click += async (s, e) =>
+                {
+                    UpdateLoadingIndicator(true);
+                    try
+                    {
+                        await _orcestrator.TransferByRelation(media, rel, fromSource.ExternalId);
+                    }
+                    catch (Exception ex)
+                    {
+                        // TODO: Логирование
+                        MessageBox.Show($"Ошибка при синхронизации: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        UpdateLoadingIndicator(false);
+                        RefreshData();
+                    }
+                };
+
+                _contextMenu.Items.Add(menuItem);
+            }
+            else
+            {
+                var menuItem = new ToolStripMenuItem(menuText, GetSyncIcon())
+                {
+                    Enabled = false,
+                };
+
+                if (fromSource == null && toSource == null)
+                {
+                    menuItem.ToolTipText = "Медиа отсутствует в исходном хранилище";
+                }
+                else if (fromSource == null)
+                {
+                    menuItem.ToolTipText = "Исходное хранилище недоступно";
+                }
+                else if (toSource != null)
+                {
+                    menuItem.ToolTipText = "Медиа уже существует в целевом хранилище";
+                }
+
+                _contextMenu.Items.Add(menuItem);
             }
         }
 
-        selectedMediaList.First().Sources = currentMediaSources;
-        _orcestrator.UpdateMedia(selectedMediaList.First());
-
-        foreach (var media in selectedMediaList.Skip(1))
+        if (_contextMenu.Items.Count > 0)
         {
-            _orcestrator.RemoveMedia(media);
+            _contextMenu.Items.Add(new ToolStripSeparator());
         }
+
+        var copyDetailsItem = new ToolStripMenuItem("Копировать детали в буфер обмена", GetCopyIcon());
+        copyDetailsItem.Click += (s, e) => CopyMediaDetailsToClipboard(media);
+        _contextMenu.Items.Add(copyDetailsItem);
+
+        if (_contextMenu.Items.Count > 0)
+        {
+            _contextMenu.Show(location);
+        }
+    }
+
+    private void CopyMediaDetailsToClipboard(Media media)
+    {
+        try
+        {
+            var sources = _orcestrator?.GetSources() ?? [];
+            var details = new StringBuilder();
+
+            details.AppendLine($"Название: {media.Title}");
+
+            if (!string.IsNullOrEmpty(media.Description))
+            {
+                details.AppendLine($"Описание: {media.Description}");
+            }
+
+            details.AppendLine();
+            details.AppendLine("Источники:");
+
+            if (media.Sources.Count == 0)
+            {
+                details.AppendLine(" Нет источников");
+            }
+            else
+            {
+                foreach (var sourceLink in media.Sources)
+                {
+                    var source = sources.FirstOrDefault(s => s.Id == sourceLink.SourceId);
+                    var sourceName = source?.TitleFull ?? "Неизвестный источник";
+                    var status = sourceLink.Status switch
+                    {
+                        MediaSourceLink.StatusOk => "✔ OK",
+                        MediaSourceLink.StatusError => "✘ Ошибка",
+                        MediaSourceLink.StatusNone => "○ Нет",
+                        _ => "● Неизвестно",
+                    };
+
+                    details.AppendLine($"  {sourceName}: {status}");
+                    if (!string.IsNullOrEmpty(sourceLink.ExternalId))
+                    {
+                        details.AppendLine($"    ID: {sourceLink.ExternalId}");
+                    }
+                }
+            }
+
+            Clipboard.SetText(details.ToString());
+            MessageBox.Show("Детали медиа скопированы в буфер обмена", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка при копировании: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private MergePreviewData ValidateMergeOperation(List<Media> selectedMedia)
+    {
+        if (selectedMedia.Count < 2)
+        {
+            throw new InvalidOperationException("Для объединения необходимо выбрать как минимум 2 медиа");
+        }
+
+        var targetMedia = selectedMedia.First();
+        var sourceMedias = selectedMedia.Skip(1).ToList();
+        var conflicts = new List<string>();
+        var resultingSources = new List<MediaSourceLink>();
+
+        var sourceDict = new Dictionary<string, MediaSourceLink>();
+
+        foreach (var sourceLink in targetMedia.Sources)
+        {
+            sourceDict[sourceLink.SourceId] = sourceLink;
+        }
+
+        var allSources = _orcestrator?.GetSources() ?? [];
+
+        foreach (var media in sourceMedias)
+        {
+            foreach (var sourceLink in media.Sources)
+            {
+                if (sourceDict.TryAdd(sourceLink.SourceId, sourceLink))
+                {
+                    continue;
+                }
+
+                var source = allSources.FirstOrDefault(s => s.Id == sourceLink.SourceId);
+                var sourceName = source?.TitleFull ?? sourceLink.SourceId;
+                conflicts.Add($"Источник '{sourceName}' присутствует в нескольких медиа");
+            }
+        }
+
+        resultingSources.AddRange(sourceDict.Values);
+
+        return new()
+        {
+            TargetMedia = targetMedia,
+            SourceMedias = sourceMedias,
+            ResultingSources = resultingSources,
+            Conflicts = conflicts,
+        };
+    }
+
+    private sealed class StatusFilterItem
+    {
+        public required string Text { get; init; }
+        public string? Tag { get; init; }
+
+        public override string ToString()
+        {
+            return Text;
+        }
+    }
+
+    private sealed class FilterState
+    {
+        public string SearchText { get; set; } = string.Empty;
+
+        public string? StatusFilter { get; set; }
+
+        public HashSet<string>? SourceFilter { get; set; }
+    }
+
+    private sealed class MergePreviewData
+    {
+        public required Media TargetMedia { get; init; }
+
+        public required List<Media> SourceMedias { get; init; }
+
+        public required List<MediaSourceLink> ResultingSources { get; init; }
+
+        public required List<string> Conflicts { get; init; }
+
+        public int TotalSourcesCount => ResultingSources.Count;
+
+        public bool HasConflicts => Conflicts.Count > 0;
     }
 }

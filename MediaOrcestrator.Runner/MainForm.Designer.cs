@@ -46,6 +46,8 @@
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiAuditTabPage = new TabPage();
+            uiClearTypeComboBox = new ComboBox();
+            uiClearSpecificTypeButton = new Button();
             uiClearDatabaseButton = new Button();
             uiForceScanButton = new Button();
             uiLogsTabPage = new TabPage();
@@ -237,6 +239,8 @@
             // 
             // uiAuditTabPage
             // 
+            uiAuditTabPage.Controls.Add(uiClearSpecificTypeButton);
+            uiAuditTabPage.Controls.Add(uiClearTypeComboBox);
             uiAuditTabPage.Controls.Add(uiClearDatabaseButton);
             uiAuditTabPage.Controls.Add(uiForceScanButton);
             uiAuditTabPage.Controls.Add(uiSyncButton);
@@ -246,6 +250,26 @@
             uiAuditTabPage.TabIndex = 3;
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
+            // 
+            // uiClearSpecificTypeButton
+            // 
+            uiClearSpecificTypeButton.Location = new Point(511, 354);
+            uiClearSpecificTypeButton.Name = "uiClearSpecificTypeButton";
+            uiClearSpecificTypeButton.Size = new Size(118, 23);
+            uiClearSpecificTypeButton.TabIndex = 5;
+            uiClearSpecificTypeButton.Text = "Очистить тип";
+            uiClearSpecificTypeButton.UseVisualStyleBackColor = true;
+            uiClearSpecificTypeButton.Click += uiClearSpecificTypeButton_Click;
+            // 
+            // uiClearTypeComboBox
+            // 
+            uiClearTypeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiClearTypeComboBox.FormattingEnabled = true;
+            uiClearTypeComboBox.Items.AddRange(new object[] { "medias", "sources", "source_relations" });
+            uiClearTypeComboBox.Location = new Point(281, 354);
+            uiClearTypeComboBox.Name = "uiClearTypeComboBox";
+            uiClearTypeComboBox.Size = new Size(224, 23);
+            uiClearTypeComboBox.TabIndex = 4;
             // 
             // uiClearDatabaseButton
             // 
@@ -362,6 +386,8 @@
         private CheckBox uiRelationViewModeCheckBox;
         private Button uiForceScanButton;
         private Button uiClearDatabaseButton;
+        private ComboBox uiClearTypeComboBox;
+        private Button uiClearSpecificTypeButton;
         private TabPage uiLogsTabPage;
         private TabPage uiToolsTabPage;
         private GroupBox groupBox1;

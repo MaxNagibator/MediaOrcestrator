@@ -56,7 +56,14 @@ file static class Program
         }
         finally
         {
-            Log.CloseAndFlush();
+            try
+            {
+                Log.CloseAndFlush();
+            }
+            catch
+            {
+                // Игнорируем ошибки при закрытии логов, так как приложение все равно завершается
+            }
         }
     }
 
@@ -92,8 +99,9 @@ file static class Program
                 {
                     var power = 1;
                     var otherRelations = allrel
-                   .Where(x => x.FromId != rel.FromId && x.ToId != rel.ToId)
-                   .Where(x => x.FromId == rel.ToId).ToList();
+                        .Where(x => x.FromId != rel.FromId && x.ToId != rel.ToId)
+                        .Where(x => x.FromId == rel.ToId)
+                        .ToList();
 
                     foreach (var otherRelation in otherRelations)
                     {
@@ -103,9 +111,11 @@ file static class Program
                     return power;
                 }
             }
+
             relations = relations.Select((x, i) => new { relation = x, power = relationPower[i] })
                 .OrderByDescending(x => x.power)
-                .Select(x => x.relation).ToList();
+                .Select(x => x.relation)
+                .ToList();
 
             logger.Information("Найдено связей: {RelationCount}", relations.Count);
 
@@ -157,7 +167,8 @@ file static class Program
                 var otherRelations = relations
                     // поскольку мы выкидываем обработанную связь, бесконечной рекурсии не будет, даже если кто то настроет по кругу хранилища
                     .Where(x => x.FromId != processRelation.FromId && x.ToId != processRelation.ToId)
-                    .Where(x => x.FromId == processRelation.ToId).ToList();
+                    .Where(x => x.FromId == processRelation.ToId)
+                    .ToList();
                 // playlist / next mutanti / next motivation sportphaza
 
                 foreach (var otherRelation in otherRelations)
