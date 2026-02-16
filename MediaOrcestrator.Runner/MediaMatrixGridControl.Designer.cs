@@ -6,8 +6,6 @@ namespace MediaOrcestrator.Runner
     partial class MediaMatrixGridControl : UserControl
     {
         private System.ComponentModel.IContainer components = null;
-        private Font _statusFont;
-        private Font _headerFont;
         private System.Threading.Timer _searchDebounceTimer;
         private ContextMenuStrip _contextMenu;
 
@@ -18,18 +16,6 @@ namespace MediaOrcestrator.Runner
                 if (components != null)
                 {
                     components.Dispose();
-                }
-                
-                if (_statusFont != null)
-                {
-                    _statusFont.Dispose();
-                    _statusFont = null;
-                }
-                
-                if (_headerFont != null)
-                {
-                    _headerFont.Dispose();
-                    _headerFont = null;
                 }
                 
                 if (_searchDebounceTimer != null)
@@ -49,7 +35,7 @@ namespace MediaOrcestrator.Runner
 
         private void InitializeComponent()
         {
-            uiMediaGrid = new DataGridView();
+            uiMediaGrid = new OptimizedMediaGridView();
             uiRefreshButton = new Button();
             uiSearchTextBox = new TextBox();
             uiMergerSelectedMediaButton = new Button();
@@ -141,16 +127,9 @@ namespace MediaOrcestrator.Runner
             // 
             // uMediaGrid
             // 
-            uiMediaGrid.AllowUserToAddRows = false;
-            uiMediaGrid.AllowUserToDeleteRows = false;
-            uiMediaGrid.AllowUserToResizeRows = false;
             uiMediaGrid.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            uiMediaGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             uiMediaGrid.Location = new Point(0, 65);
             uiMediaGrid.Name = "uMediaGrid";
-            uiMediaGrid.ReadOnly = false;
-            uiMediaGrid.RowHeadersVisible = false;
-            uiMediaGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             uiMediaGrid.Size = new Size(595, 313);
             uiMediaGrid.TabIndex = 0;
             uiMediaGrid.MouseClick += uiMediaGrid_MouseClick;
@@ -238,7 +217,7 @@ namespace MediaOrcestrator.Runner
             PerformLayout();
         }
 
-        private DataGridView uiMediaGrid;
+        private OptimizedMediaGridView uiMediaGrid;
         private Button uiRefreshButton;
         private TextBox uiSearchTextBox;
         private Button uiMergerSelectedMediaButton;
