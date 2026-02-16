@@ -24,23 +24,6 @@ if (string.IsNullOrWhiteSpace(channelUrl))
     throw new InvalidOperationException("URL канала не настроен. Пожалуйста, укажите 'Channel:Url' в appsettings.");
 }
 
-var path1 = "..\\..\\..\\..\\ModuleBuilds";
-
-var scanner = new InterfaceScanner();
-var myInterfaceType = typeof(ISourceType); // Пример интерфейса
-var implementations = scanner.FindImplementations(path1, myInterfaceType);
-foreach (var x in implementations)
-{
-    try
-    {
-        var aaaa = (ISourceType)Activator.CreateInstance(x.Type);
-        aaaa.Download();
-    }
-    catch
-    {
-    }
-}
-
 await service.DownloadVideosAsync(channelUrl);
 
 Log.CloseAndFlush();

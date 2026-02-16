@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Sinks.RichTextBoxForms.Themes;
+using System.Text;
 
 namespace MediaOrcestrator.Runner;
 
@@ -42,7 +43,63 @@ file static class Program
             var mainForm = serviceProvider.GetRequiredService<MainForm>();
 
             var orcestrator = serviceProvider.GetRequiredService<Orcestrator>();
-            orcestrator.Init();
+
+            // todo вынести в settingsManager
+
+            var settingsPath = "settings.txt";
+            var settings = new Dictionary<string, string>();
+            if (File.Exists(settingsPath))
+            {
+                var settingsLines = File.ReadAllLines(settingsPath);
+                settings = settingsLines.Select(x =>
+                {
+                    var spl = x.Split(" ");
+                    return new
+                    {
+                        key = spl[0],
+                        value = x.Substring(spl[0].Length + 1),
+                    };
+                }).ToDictionary(x => x.key.ToLower(), x => x.value);
+            }
+
+            string? GetSettingsStringValue(string key)
+            {
+                if (settings.ContainsKey(key.ToLower()))
+                {
+                    return settings[key];
+                }
+                return null;
+            }
+
+            void SetSettingsValue(string key, string value)
+            {
+                if (settings.ContainsKey(key.ToLower()))
+                {
+                    settings[key.ToLower()] = value;
+                }
+                settings.Add(key.ToLower(), value);
+                var saveFileOutPut = new StringBuilder();
+                foreach (var kv in settings)
+                {
+                    saveFileOutPut.AppendLine(kv.Key + " " + kv.Value);
+                }
+                File.WriteAllText(settingsPath, saveFileOutPut.ToString());
+            }
+
+            var pluginPath = GetSettingsStringValue("plugin_path");
+            if (pluginPath == null)
+            {
+                string result = InputMessageBox.Show("Введите путь до папки с плугинами, или оставьте системный", "Важная настройка", "ModuleBuilds");
+                if (result == null)
+                {
+                    MessageBox.Show($"Так нельзя, закрываюсь");
+                    return;
+                }
+                pluginPath = result;
+                SetSettingsValue("plugin_path", result);
+            }
+            orcestrator.Init(pluginPath);
+
             Task.Run(async () =>
             {
                 await GoGo(orcestrator);
@@ -53,6 +110,7 @@ file static class Program
         catch (Exception ex)
         {
             Log.Fatal(ex, "Приложение не смогло запуститься корректно");
+            MessageBox.Show(ex.Message, "Error");
         }
         finally
         {
@@ -74,7 +132,7 @@ file static class Program
     /// <returns></returns>
     private static async Task GoGo(Orcestrator orcestrator)
     {
-        await orcestrator.GetStorageFullInfo();
+        //await orcestrator.GetStorageFullInfo();
         return;
 
         var logger = Log.Logger;
@@ -199,5 +257,16 @@ file static class Program
 
         services.AddTransient<SourceControl>();
         services.AddTransient<RelationControl>();
+    }
+}
+
+public static class InputMessageBox
+{
+    public static string Show(string prompt, string title = "Ввод данных", string defaultValue = "")
+    {
+        using (var dialog = new InputDialog(prompt, title, defaultValue))
+        {
+            return dialog.ShowDialog() == DialogResult.OK ? dialog.InputText : null;
+        }
     }
 }

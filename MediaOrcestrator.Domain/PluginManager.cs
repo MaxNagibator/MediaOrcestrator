@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace MediaOrcestrator.Domain;
@@ -7,12 +7,13 @@ public class PluginManager(IServiceProvider serviceProvider)
 {
     public Dictionary<string, ISourceType> MediaSources { get; set; }
 
-    public void Init()
+    public void Init(string pluginPath)
     {
-        var path1 = "..\\..\\..\\..\\ModuleBuilds";
+      //  var path1 = "..\\..\\..\\..\\ModuleBuilds";
+      //  var path1 = "ModuleBuilds";
         var scanner = new InterfaceScanner();
         var myInterfaceType = typeof(ISourceType); // Пример интерфейса
-        var implementations = scanner.FindImplementations(path1, myInterfaceType);
+        var implementations = scanner.FindImplementations(pluginPath, myInterfaceType);
         MediaSources = new();
         foreach (var x in implementations)
         {

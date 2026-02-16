@@ -11,9 +11,9 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         return pluginManager.MediaSources;
     }
 
-    public void Init()
+    public void Init(string pluginPath)
     {
-        pluginManager.Init();
+        pluginManager.Init(pluginPath);
         var sources = GetSourceTypes();
     }
 
