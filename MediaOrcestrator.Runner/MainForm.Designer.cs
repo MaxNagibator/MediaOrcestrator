@@ -31,6 +31,7 @@
             var resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             uiMediaSourcePanel = new Panel();
             uiSyncButton = new Button();
+            uiPlanSyncButton = new Button();
             uiMediaMatrixGridControl = new MediaMatrixGridControl();
             uiAddSourceButton = new Button();
             uiSourcesComboBox = new ComboBox();
@@ -85,6 +86,17 @@
             uiSyncButton.Text = "Синхронизировать";
             uiSyncButton.UseVisualStyleBackColor = true;
             uiSyncButton.Click += uiSyncButton_Click;
+            // 
+            // uiPlanSyncButton
+            // 
+            uiPlanSyncButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiPlanSyncButton.Location = new Point(281, 190);
+            uiPlanSyncButton.Name = "uiPlanSyncButton";
+            uiPlanSyncButton.Size = new Size(348, 32);
+            uiPlanSyncButton.TabIndex = 6;
+            uiPlanSyncButton.Text = "Построить дерево синхронизации";
+            uiPlanSyncButton.UseVisualStyleBackColor = true;
+            uiPlanSyncButton.Click += uiPlanSyncButton_Click;
             // 
             // uiMediaMatrixGridControl
             // 
@@ -231,6 +243,7 @@
             uiAuditTabPage.Controls.Add(uiClearDatabaseButton);
             uiAuditTabPage.Controls.Add(uiForceScanButton);
             uiAuditTabPage.Controls.Add(uiSyncButton);
+            uiAuditTabPage.Controls.Add(uiPlanSyncButton);
             uiAuditTabPage.Location = new Point(4, 24);
             uiAuditTabPage.Name = "uiAuditTabPage";
             uiAuditTabPage.Size = new Size(1125, 742);
@@ -355,6 +368,7 @@
 
         private Panel uiMediaSourcePanel;
         private Button uiSyncButton;
+        private Button uiPlanSyncButton;
         private MediaMatrixGridControl uiMediaMatrixGridControl;
         private Button uiAddSourceButton;
         private ComboBox uiSourcesComboBox;

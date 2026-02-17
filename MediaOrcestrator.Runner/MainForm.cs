@@ -57,6 +57,28 @@ public partial class MainForm : Form
         }
     }
 
+    private void uiPlanSyncButton_Click(object sender, EventArgs e)
+    {
+       var planner = _serviceProvider.GetRequiredService<SyncPlanner>();
+        var medias = _orcestrator.GetMedias();
+        var relations = _orcestrator.GetRelations();
+
+        var intents = planner.Plan(medias, relations);
+
+        if (intents.Count == 0)
+        {
+            MessageBox.Show("Нет доступных задач для синхронизации.");
+            return;
+        }
+
+        // TODO: Нормально зарегистрировать в DI
+        using var syncTreeForm = new SyncTreeForm(_orcestrator, intents, _serviceProvider.GetRequiredService<ILogger<SyncTreeForm>>());
+        if (syncTreeForm.ShowDialog() == DialogResult.OK)
+        {
+            uiMediaMatrixGridControl.RefreshData();
+        }
+    }
+
     private void uiAddSourceButton_Click(object sender, EventArgs e)
     {
         if (uiSourcesComboBox.SelectedItem is not ISourceType selectedPlugin)
