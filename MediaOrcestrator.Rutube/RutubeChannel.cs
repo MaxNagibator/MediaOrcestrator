@@ -41,10 +41,6 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         try
         {
             var rutubeService = await CreateRutubeServiceAsync(currentSettings);
-            if (rutubeService == null)
-            {
-                return [];
-            }
 
             var categories = await rutubeService.GetCategoriesAsync();
 
@@ -53,7 +49,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
                     Value = x.Id.ToString(),
                     Label = x.Name,
                 })
-                .OrderBy(x=>x.Label)
+                .OrderBy(x => x.Label)
                 .ToList();
         }
         catch (Exception ex)
@@ -102,17 +98,11 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         var rutubeCategoryId = settings["category_id"];
         var rutubeService = await CreateRutubeServiceAsync(settings);
 
-        if (rutubeService == null)
-        {
-            logger.LogError("Не удалось создать RutubeService");
-            throw new InvalidOperationException("Не удалось инициализировать сервис RuTube");
-        }
-
         try
         {
-            var sessionId = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId);
-            logger.LogInformation("Видео успешно загружено на RuTube. Session ID: {SessionId}, Название: '{Title}'", sessionId, media.Title);
-            return sessionId;
+            var videoId = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId);
+            logger.LogInformation("Видео успешно загружено на RuTube. Video ID: {SessionId}, Название: '{Title}'", videoId, media.Title);
+            return videoId;
         }
         catch (Exception ex)
         {
@@ -121,19 +111,35 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         }
     }
 
-    private async Task<RutubeService?> CreateRutubeServiceAsync(Dictionary<string, string> settings)
+    public async Task DeleteAsync(string externalId, Dictionary<string, string> settings)
+    {
+        logger.LogInformation("Удаление медиа из RuTube. ID: {ExternalId}", externalId);
+
+        var rutubeService = await CreateRutubeServiceAsync(settings);
+
+        try
+        {
+            await rutubeService.DeleteVideoAsync(externalId);
+            logger.LogInformation("Медиа {ExternalId} успешно удалено из источника RuTube", externalId);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Ошибка HTTP при удалении из RuTube: {ExternalId}", externalId);
+            throw new IOException($"Ошибка сети при удалении из RuTube: {ex.Message}", ex);
+        }
+    }
+
+    private async Task<RutubeService> CreateRutubeServiceAsync(Dictionary<string, string> settings)
     {
         var authStatePath = settings.GetValueOrDefault("auth_state_path");
         if (string.IsNullOrEmpty(authStatePath))
         {
-            logger.LogWarning("Путь к файлу аутентификации не указан");
-            return null;
+            throw new InvalidOperationException("Путь к файлу аутентификации RuTube не указан в настройках.");
         }
 
         if (!File.Exists(authStatePath))
         {
-            logger.LogWarning("Файл аутентификации не найден: {AuthStatePath}", authStatePath);
-            return null;
+            throw new FileNotFoundException($"Файл аутентификации RuTube не найден: {authStatePath}", authStatePath);
         }
 
         logger.LogDebug("Чтение данных аутентификации из: {AuthStatePath}", authStatePath);
@@ -164,8 +170,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         if (string.IsNullOrEmpty(csrfToken))
         {
-            logger.LogWarning("CSRF токен не найден в файле аутентификации");
-            return null;
+            throw new InvalidOperationException("CSRF токен не найден в файле аутентификации RuTube. Убедитесь, что вы авторизованы в RuTube Studio.");
         }
 
         logger.LogDebug("CSRF токен успешно получен");

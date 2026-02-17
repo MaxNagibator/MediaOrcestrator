@@ -17,6 +17,7 @@ public interface ISourceType
     MediaDto GetMediaById();
     Task<string> Upload(MediaDto media, Dictionary<string, string> settings);
     Task<MediaDto> Download(string videoId, Dictionary<string, string> settings);
+    Task DeleteAsync(string externalId, Dictionary<string, string> settings);
 }
 
 public enum SettingType

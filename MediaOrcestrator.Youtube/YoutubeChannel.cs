@@ -226,4 +226,10 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
         logger.LogWarning("Загрузка на YouTube не реализована. Медиа: {Title}", media.Title);
         return Task.FromResult("not_implemented");
     }
+
+    public Task DeleteAsync(string externalId, Dictionary<string, string> settings)
+    {
+        logger.LogWarning("Удаление из YouTube не поддерживается. Нужно подключать апю ютуба. Media ID: {ExternalId}", externalId);
+        throw new NotSupportedException(@"Удалите видео вручную через веб-интерфейс YouTube Studio. (\/)._.(\/)");
+    }
 }

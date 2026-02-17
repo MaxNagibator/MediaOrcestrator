@@ -265,6 +265,61 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         logger.LogInformation("Успешно синхронизировано медиа {Media} в {ToSource}. ExternalId: {ExternalId}", media, rel.To, externalId);
     }
 
+   public async Task DeleteMediaFromSourceAsync(Media media, Source source)
+    {
+        var sourceLink = media.Sources.FirstOrDefault(s => s.SourceId == source.Id);
+        if (sourceLink == null)
+        {
+            logger.LogWarning("Попытка удалить медиа {MediaId} из источника {SourceId}, но связь отсутствует", media.Id, source.Id);
+            throw new InvalidOperationException($"Медиа {media.Title} отсутствует в источнике {source.TitleFull}");
+        }
+
+        logger.LogInformation("Начало удаления медиа {MediaId} ({MediaTitle}) из источника {SourceId} ({SourceTitle})",
+            media.Id, media.Title, source.Id, source.TitleFull);
+
+        try
+        {
+            await source.Type.DeleteAsync(sourceLink.ExternalId, source.Settings);
+            logger.LogInformation("Успешно удалено медиа {MediaId} из источника {SourceId}", media.Id, source.Id);
+        }
+        catch (NotSupportedException exception)
+        {
+            logger.LogError(exception, "Тип источника {SourceType} не поддерживает удаление", source.TypeId);
+            throw new InvalidOperationException($"Источник {source.TitleFull} не поддерживает удаление", exception);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Ошибка при удалении медиа {MediaId} из источника {SourceId}", media.Id, source.Id);
+            throw;
+        }
+
+        CleanupMediaLinks(media, source.Id);
+    }
+
+
+    private void CleanupMediaLinks(Media media, string sourceId)
+    {
+        logger.LogInformation("Очистка записей в базе данных для медиа {MediaId}, источник {SourceId}", media.Id, sourceId);
+
+        var linkToRemove = media.Sources.FirstOrDefault(s => s.SourceId == sourceId);
+        if (linkToRemove != null)
+        {
+            media.Sources.Remove(linkToRemove);
+            logger.LogDebug("Удалена связь MediaSourceLink для источника {SourceId}", sourceId);
+        }
+
+        if (media.Sources.Count != 0)
+        {
+            UpdateMedia(media);
+            logger.LogInformation("Медиа {MediaId} обновлено в базе данных (осталось источников: {RemainingCount})", media.Id, media.Sources.Count);
+        }
+        else
+        {
+            RemoveMedia(media);
+            logger.LogInformation("Медиа {MediaId} удалено из базы данных (не осталось источников)", media.Id);
+        }
+    }
+
     public class MediaSourceCache
     {
         private readonly Dictionary<string, List<MediaSourceLink>> _holder = new();

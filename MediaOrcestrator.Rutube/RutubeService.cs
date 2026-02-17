@@ -57,7 +57,7 @@ public sealed class RutubeService
         await PublishVideoAsync(session.VideoId);
         _logger.LogInformation("Видео успешно опубликовано");
 
-        return session.Sid;
+        return session.VideoId;
     }
 
     public async Task<List<CategoryInfo>> GetCategoriesAsync()
@@ -79,6 +79,30 @@ public sealed class RutubeService
 
         _logger.LogInformation("Получено категорий: {Count}", result?.Count ?? 0);
         return result ?? [];
+    }
+
+    public async Task DeleteVideoAsync(string videoId)
+    {
+        var url = $"https://studio.rutube.ru/api/v2/video/{videoId}/?client=vulp";
+        _logger.LogInformation("Отправка DELETE запроса в RuTube API для видео {VideoId}", videoId);
+
+        var response = await _httpClient.DeleteAsync(url);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // TODO: Возможно не верный мув, но позволяет громоздить логику принудительного удаления
+            _logger.LogWarning("Видео {VideoId} не найдено на RuTube, считаем уже удаленным", videoId);
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Не удалось удалить видео {VideoId}. Статус: {StatusCode}, Ответ: {Response}", videoId, response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось удалить видео: {response.StatusCode}. Ответ: {err}");
+        }
+
+        _logger.LogInformation("Видео {VideoId} успешно удалено через RuTube API", videoId);
     }
 
     private async Task<UploadSessionResponse> InitUploadSessionAsync()

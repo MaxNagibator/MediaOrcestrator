@@ -5,7 +5,7 @@ namespace MediaOrcestrator.Runner;
 
 public class OptimizedMediaGridView : DataGridView
 {
-    private const int FirstSourceColumnIndex = 2;
+    public const int FirstSourceColumnIndex = 2;
     private const int TitleColumnIndex = 1;
     private const int CheckboxColumnIndex = 0;
     private const int SourceTitleMaxLength = 20;

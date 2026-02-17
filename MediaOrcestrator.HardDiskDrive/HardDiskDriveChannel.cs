@@ -222,6 +222,62 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
 
         return Task.FromResult(hddId);
     }
+
+    public Task DeleteAsync(string externalId, Dictionary<string, string> settings)
+    {
+        logger.LogInformation("Удаление медиа из HDD. ID: {ExternalId}", externalId);
+
+        // TODO: Дублирование
+        var basePath = settings["path"];
+        var dbFileName = settings.GetValueOrDefault("dbFileName", "data.db");
+        var dbPath = Path.Combine(basePath, dbFileName);
+
+        if (!File.Exists(dbPath))
+        {
+            logger.LogError("База данных не найдена: {DbPath}", dbPath);
+            throw new FileNotFoundException("База данных не найдена", dbPath);
+        }
+
+        using var db = new LiteDatabase(dbPath);
+        var collection = db.GetCollection<DriveMedia>("files");
+        var file = collection.FindById(externalId);
+
+        if (file == null)
+        {
+            // TODO: Возможно не верный мув, но позволяет громоздить логику принудительного удаления
+            logger.LogWarning("Медиа {ExternalId} не найдено в базе данных, считаем уже удаленным", externalId);
+            return Task.CompletedTask;
+        }
+
+        var mediaFolder = Path.Combine(basePath, externalId);
+        if (Directory.Exists(mediaFolder))
+        {
+            try
+            {
+                Directory.Delete(mediaFolder, true);
+                logger.LogInformation("Удалена папка медиа: {FolderPath}", mediaFolder);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                logger.LogError(ex, "Отказано в доступе при удалении папки: {FolderPath}", mediaFolder);
+                throw new UnauthorizedAccessException($"Нет прав для удаления папки: {mediaFolder}", ex);
+            }
+            catch (IOException ex)
+            {
+                logger.LogError(ex, "Ошибка ввода-вывода при удалении папки: {FolderPath}", mediaFolder);
+                throw new IOException($"Ошибка при удалении папки: {mediaFolder}", ex);
+            }
+        }
+        else
+        {
+            logger.LogWarning("Папка медиа {FolderPath} не существует, пропускаем удаление файлов", mediaFolder);
+        }
+
+        collection.Delete(externalId);
+        logger.LogInformation("Медиа {ExternalId} удалено из базы данных HDD", externalId);
+
+        return Task.CompletedTask;
+    }
 }
 
 public class DriveMedia
