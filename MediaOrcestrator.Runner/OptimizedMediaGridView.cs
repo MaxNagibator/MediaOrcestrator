@@ -20,10 +20,13 @@ public class OptimizedMediaGridView : DataGridView
         AllowUserToAddRows = false;
         AllowUserToDeleteRows = false;
         AllowUserToResizeRows = false;
-        ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+        AllowUserToResizeColumns = true;
+        ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        ColumnHeadersHeight = 35;
         ReadOnly = false;
         RowHeadersVisible = false;
         SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
 
         CellFormatting += OnCellFormatting;
     }
@@ -54,6 +57,10 @@ public class OptimizedMediaGridView : DataGridView
             }
         }
 
+        SuspendLayout();
+
+        CurrentCell = null;
+        Rows.Clear();
         Columns.Clear();
 
         _headerFont ??= new(Font, FontStyle.Bold);
@@ -61,9 +68,11 @@ public class OptimizedMediaGridView : DataGridView
 
         var checkColumn = new DataGridViewCheckBoxColumn
         {
+            Name = "Check",
             HeaderText = string.Empty,
             Width = 30,
             ReadOnly = true,
+            Resizable = DataGridViewTriState.False,
         };
 
         Columns.Add(checkColumn);
@@ -87,6 +96,8 @@ public class OptimizedMediaGridView : DataGridView
             Columns[colIndex].HeaderCell.Style.Font = _headerFont;
             Columns[colIndex].HeaderCell.ToolTipText = source.TitleFull;
         }
+
+        ResumeLayout();
     }
 
     public void PopulateGrid(List<Source> sources, List<Media> mediaData)
@@ -94,6 +105,7 @@ public class OptimizedMediaGridView : DataGridView
         CurrentSources = sources;
 
         SuspendLayout();
+        CurrentCell = null;
         Rows.Clear();
 
         if (mediaData.Count > 0)

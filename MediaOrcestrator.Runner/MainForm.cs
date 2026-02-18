@@ -25,6 +25,7 @@ public partial class MainForm : Form
     private void MainForm_Load(object sender, EventArgs e)
     {
         DrawSources();
+        DrawRelations();
         // TODO: SetZalupaV2
         uiMediaMatrixGridControl.Initialize(_orcestrator);
         uiMediaMatrixGridControl.RefreshData();
@@ -102,7 +103,6 @@ public partial class MainForm : Form
 
     private void uiMediaSourcePanel_SizeChanged(object sender, EventArgs e)
     {
-        DrawSources();
     }
 
     private void UiAddRelationButton_Click(object sender, EventArgs e)
@@ -242,14 +242,11 @@ public partial class MainForm : Form
         }
 
         uiMediaSourcePanel.Controls.Clear();
-        var offset = -1;
         foreach (var source in _orcestrator.GetSources())
         {
-            offset++;
             var control = _serviceProvider.GetRequiredService<SourceControl>();
             control.SetMediaSource(source);
-            control.Width = uiMediaSourcePanel.Width;
-            control.Top = offset * control.Height;
+            control.Dock = DockStyle.Top;
             control.SourceDeleted += (_, _) => DrawSources();
             control.SourceUpdated += (_, _) => DrawSources();
 
@@ -268,19 +265,19 @@ public partial class MainForm : Form
         uiRelationsPanel.Controls.Clear();
         var relations = _orcestrator.GetRelations();
 
-        var i = -1;
         foreach (var rel in relations)
         {
-            i++;
             var control = _serviceProvider.GetRequiredService<RelationControl>();
             control.SetRelation(rel);
             control.RelationDeleted += (_, _) => DrawRelations();
             control.RelationSelectionChanged += (_, _) => uiMediaMatrixGridControl.RefreshData();
-            control.Top += control.Height * i; // todo pribrat
+            control.Dock = DockStyle.Top;
 
             uiRelationsPanel.Controls.Add(control);
             control.SendToBack();
         }
+
+        uiMediaMatrixGridControl.PopulateRelationsFilter();
     }
 
     private void uiRubuteAuthStateOpenBrowserButton_Click(object sender, EventArgs e)

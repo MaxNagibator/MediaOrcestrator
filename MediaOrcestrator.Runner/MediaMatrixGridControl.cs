@@ -300,7 +300,7 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
-    private void PopulateRelationsFilter()
+    public void PopulateRelationsFilter()
     {
         if (_orcestrator == null)
         {
