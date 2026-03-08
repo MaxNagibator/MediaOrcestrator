@@ -125,7 +125,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         try
         {
-            var videoId = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId, media.PreviewPath, publishAt);
+            var videoId = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, publishAt);
             logger.LogInformation("Видео успешно загружено на RuTube. Video ID: {SessionId}, Название: '{Title}'", videoId, media.Title);
             return videoId;
         }
