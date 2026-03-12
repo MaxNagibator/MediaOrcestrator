@@ -221,13 +221,15 @@ public partial class MainForm : Form
 
             var contextOptions = new BrowserNewContextOptions();
 
-            if (File.Exists(pathTextbox.Text))
+            var jsonPath = pathTextbox.Text + ".tmp.json";
+            var csvPath = pathTextbox.Text;
+            if (File.Exists(jsonPath))
             {
-                contextOptions.StorageStatePath = pathTextbox.Text;
+                contextOptions.StorageStatePath = jsonPath;
             }
             else
             {
-                var directory = Path.GetDirectoryName(pathTextbox.Text);
+                var directory = Path.GetDirectoryName(jsonPath);
                 if (!Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
@@ -308,11 +310,14 @@ public partial class MainForm : Form
 
                 await context.StorageStateAsync(new()
                 {
-                    Path = pathTextbox.Text,
+                    Path = jsonPath,
                 });
 
                 //_logger.LogInformation("Log saved to capture_log.json");
-                _logger.LogInformation("Auth state saved to auth_state.json");
+                _logger.LogInformation("Auth state saved to temp auth_state.json");
+
+                CookieTransformator.Run(jsonPath, csvPath, _logger);
+                _logger.LogInformation("Auth state convert to auth_state");
             }
         });
     }

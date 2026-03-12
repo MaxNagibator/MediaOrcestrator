@@ -1,14 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 
-class Program
+public class CookieTransformator
 {
-    public class CookieData
+    private class CookieData
     {
+        // todo регистр нормально сделать :)
         public string name { get; set; }
         public string value { get; set; }
         public string domain { get; set; }
@@ -19,32 +17,29 @@ class Program
         public string sameSite { get; set; }
     }
 
-    public class OriginData
+    private class OriginData
     {
         public string origin { get; set; }
         public List<StorageData> localStorage { get; set; }
     }
 
-    public class StorageData
+    private class StorageData
     {
         public string name { get; set; }
         public string value { get; set; }
     }
 
-    public class ChromeCookiesRoot
+    private class ChromeCookiesRoot
     {
         public List<CookieData> cookies { get; set; }
         public List<OriginData> origins { get; set; }
     }
 
-    static void Main(string[] args)
+    public static void Run(string playwrightCookiePath, string outputFile, ILogger _logger)
     {
-        string jsonFile = "E:\\bobgroup\\projects\\mediaOrcestrator\\youtubeAuthState\\auth_state";      // твой файл от playwright
-        string outputFile = "E:\\bobgroup\\projects\\mediaOrcestrator\\youtubeAuthState\\auth_state_cookies.txt";     // результат для yt-dlp
-
         try
         {
-            var jsonString = File.ReadAllText(jsonFile);
+            var playwrightCookieString = File.ReadAllText(playwrightCookiePath);
             var options = new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
@@ -52,46 +47,46 @@ class Program
                 AllowTrailingCommas = true
             };
 
-            var root = JsonSerializer.Deserialize<ChromeCookiesRoot>(jsonString, options);
+            var root = JsonSerializer.Deserialize<ChromeCookiesRoot>(playwrightCookieString, options);
 
             // Собираем все куки из основного массива
             var allCookies = new List<CookieData>();
 
-            if (root.cookies != null)
+            if (root!.cookies != null)
             {
                 allCookies.AddRange(root.cookies);
             }
 
-            // В некоторых форматах куки могут быть в origins
-            if (root.origins != null)
-            {
-                foreach (var origin in root.origins)
-                {
-                    // Извлекаем домен из origin URL
-                    string domain = ExtractDomainFromOrigin(origin.origin);
+            ////// В некоторых форматах куки могут быть в origins
+            ////if (root.origins != null)
+            ////{
+            ////    foreach (var origin in root.origins)
+            ////    {
+            ////        // Извлекаем домен из origin URL
+            ////        string domain = ExtractDomainFromOrigin(origin.origin);
 
-                    // localStorage не нужен для yt-dlp, только куки
-                    // но если вдруг там будут куки (редко), можно добавить
-                }
-            }
+            ////        // localStorage не нужен для yt-dlp, только куки
+            ////        // но если вдруг там будут куки (редко), можно добавить
+            ////    }
+            ////}
 
-            // Фильтруем только YouTube и Google куки (остальные нахуй не нужны)
-            var youtubeCookies = allCookies
-                .Where(c => c.domain != null &&
-                      (c.domain.Contains("youtube.com") ||
-                       c.domain.Contains("ytimg.com") ||
-                       c.domain.Contains("google.com") ||
-                       c.domain.Contains("accounts.google.com")))
-                .ToList();
+            //// Фильтруем только YouTube и Google куки (остальные нахуй не нужны)
+            ////var youtubeCookies = allCookies
+            ////    .Where(c => c.domain != null &&
+            ////          (c.domain.Contains("youtube.com") ||
+            ////           c.domain.Contains("ytimg.com") ||
+            ////           c.domain.Contains("google.com") ||
+            ////           c.domain.Contains("accounts.google.com")))
+            ////    .ToList();
 
             using (var writer = new StreamWriter(outputFile, false, new UTF8Encoding(false)))
             {
                 writer.WriteLine("# Netscape HTTP Cookie File");
                 writer.WriteLine($"# Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
-                writer.WriteLine($"# Total cookies: {youtubeCookies.Count}");
+                writer.WriteLine($"# Total cookies: {allCookies.Count}");
                 writer.WriteLine();
 
-                foreach (var cookie in youtubeCookies)
+                foreach (var cookie in allCookies)
                 {
                     // domain: должен начинаться с точки для поддоменов
                     string domain = cookie.domain;
@@ -143,33 +138,28 @@ class Program
                 writer.WriteLine("# Для использования:");
                 writer.WriteLine($"# yt-dlp --cookies {outputFile} <URL>");
             }
-
-            Console.WriteLine($"✅ Конвертация готова! Файл: {outputFile}");
-            Console.WriteLine($"📊 Всего YouTube/Google кук: {youtubeCookies.Count}");
-            Console.WriteLine($"\n🚀 Теперь юзай:");
-            Console.WriteLine($"yt-dlp --cookies {outputFile} Zwjo785eckY");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Ошибка: {ex.Message}");
-            Console.WriteLine($"Стек: {ex.StackTrace}");
+            _logger.LogError($"❌ Ошибка: {ex.Message}");
+            _logger.LogError($"Стек: {ex.StackTrace}");
         }
     }
 
-    static string ExtractDomainFromOrigin(string origin)
-    {
-        if (string.IsNullOrEmpty(origin)) return null;
+    ////static string ExtractDomainFromOrigin(string origin)
+    ////{
+    ////    if (string.IsNullOrEmpty(origin)) return null;
 
-        try
-        {
-            var uri = new Uri(origin);
-            return uri.Host;
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    ////    try
+    ////    {
+    ////        var uri = new Uri(origin);
+    ////        return uri.Host;
+    ////    }
+    ////    catch
+    ////    {
+    ////        return null;
+    ////    }
+    ////}
 
     static string EscapeField(string value)
     {
