@@ -39,8 +39,13 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         logger.LogInformation("Обнаружено {Count} элементов медиа в локальном кэше.", mediaAll.Count);
 
         var sourceTypes = GetSourceTypes();
+        var sources = GetSources();
+        if (true)
+        {
+            sources = sources.Where(x => x.TypeId == "HardDiskDrive").ToList();
+        }
 
-        await Parallel.ForEachAsync(GetSources(), async (mediaSource, cancellationToken) =>
+        await Parallel.ForEachAsync(sources, async (mediaSource, cancellationToken) =>
         {
             var plugin = sourceTypes.Values.FirstOrDefault(x => x.Name == mediaSource.TypeId);
 
@@ -52,8 +57,10 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
             var syncMedia = plugin.GetMedia(mediaSource.Settings);
             var mediaList = new List<MediaDto>();
+            var foundIds = new List<string>();
             await foreach (var s in syncMedia)
             {
+                foundIds.Add(s.Id);
                 var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.ExternalId == s.Id);
                 if (foundMediaSource != null)
                 {
@@ -123,6 +130,17 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                 mediaAll.Add(myMedia);
                 cache.GetMedia(mediaSource.Id).Add(newMediaSource);
             }
+
+            var existsVideos = cache.GetMedia(mediaSource.Id);
+            foreach (var existsVideo in existsVideos)
+            {
+                if (!foundIds.Contains(existsVideo.ExternalId))
+                {
+                    existsVideo.Status = MediaSourceLink.StatusMissing;
+                    mediaCol.Update(existsVideo.Media);
+                }
+            }
+            // save ?:)
         });
 
         logger.LogInformation("Синхронизация успешно завершена.");
@@ -354,9 +372,13 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         {
             throw new($"MediaSourceLink не найден для {rel.From.Id}");
         }
+        if (fromMediaSource.Status != MediaSourceLink.StatusOk)
+        {
+            throw new($"MediaSourceLink для {rel.From.Id} в плохом статусе " + fromMediaSource.Status);
+        }
 
         var toMediaSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
-        if (toMediaSource != null)
+        if (toMediaSource != null && toMediaSource.Status == MediaSourceLink.StatusOk)
         {
             // фаил уже загружен, значит ничего не делаем
             // в будущем возможно обновлять будем
@@ -382,14 +404,18 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
             externalId = await rel.To.Type.Upload(tempMedia, rel.To.Settings, cancellationToken);
         }
 
-        toMediaSource = new()
+        if (toMediaSource == null)
         {
-            MediaId = media.Id,
-            Media = media,
-            ExternalId = externalId,
-            Status = "OK",
-            SourceId = rel.To.Id,
-        };
+            toMediaSource = new()
+            {
+                MediaId = media.Id,
+                Media = media,
+                SourceId = rel.To.Id,
+            };
+        }
+
+        toMediaSource.Status = "OK";
+        toMediaSource.ExternalId = externalId;
 
         media.Sources.Add(toMediaSource);
         UpdateMedia(media);

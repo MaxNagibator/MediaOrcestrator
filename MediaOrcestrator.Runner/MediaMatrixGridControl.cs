@@ -1,5 +1,6 @@
 ﻿using MediaOrcestrator.Domain;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Text;
 
 namespace MediaOrcestrator.Runner;
@@ -220,7 +221,7 @@ public partial class MediaMatrixGridControl : UserControl
                              {ex.Message}
                              """,
                 "Ошибка",
-                MessageBoxButtons.OK,
+                MessageBoxButtons.OK, 
                 MessageBoxIcon.Error);
         }
     }
@@ -405,6 +406,26 @@ public partial class MediaMatrixGridControl : UserControl
         copyItem.Click += (_, _) => CopyMediaDetailsToClipboard(media);
         _contextMenu.Items.Add(copyItem);
 
+        var allSources = _orcestrator.GetSources();
+        foreach (var mediaSource in media.Sources)
+        {
+            var source = allSources.First(x => x.Id == mediaSource.SourceId);
+            // todo костыль для удобства (можно вынести ответственность получения полного пути в плагин)
+            // что бы ютуб давал ссылку на видос, а хдд путь до фаила, но эт потом как нить
+            // можно даже экшоний реализовывать наверное. что бы урл открывал
+            if (source.TypeId == "HardDiskDrive")
+            {
+                var openDirectory = new ToolStripMenuItem("Открыть папку " + source.TitleFull, GetCopyIcon());
+                openDirectory.Click += (_, _) =>
+                {
+                    // я думал он сам эксплорер запустит)
+                    var folderPath = source.Settings["path"] + "\\" + mediaSource.ExternalId;
+                    Process.Start("explorer.exe", folderPath);
+                };
+                _contextMenu.Items.Add(openDirectory);
+            }
+        }
+
         if (_contextMenu.Items.Count > 0)
         {
             _contextMenu.Show(location);
@@ -448,7 +469,8 @@ public partial class MediaMatrixGridControl : UserControl
             var toSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
             var menuText = $"Синхронизировать {rel.From.TitleFull} -> {rel.To.TitleFull}";
 
-            if (fromSource != null && toSource == null)
+            if (fromSource != null && fromSource.Status == MediaSourceLink.StatusOk 
+                && (toSource == null || toSource.Status != MediaSourceLink.StatusOk))
             {
                 var menuItem = new ToolStripMenuItem(menuText, GetSyncIcon());
                 menuItem.Click += async (_, _) =>
@@ -476,6 +498,7 @@ public partial class MediaMatrixGridControl : UserControl
             }
             else
             {
+                // после песенки отвечу
                 var menuItem = new ToolStripMenuItem(menuText, GetSyncIcon())
                 {
                     Enabled = false,
@@ -489,7 +512,7 @@ public partial class MediaMatrixGridControl : UserControl
                 {
                     menuItem.ToolTipText = "Исходное хранилище недоступно";
                 }
-                else if (toSource != null)
+                else if (toSource != null && toSource.Status == MediaSourceLink.StatusOk)
                 {
                     menuItem.ToolTipText = "Медиа уже существует в целевом хранилище";
                 }
@@ -704,6 +727,7 @@ public partial class MediaMatrixGridControl : UserControl
                     {
                         MediaSourceLink.StatusOk => "✔ OK",
                         MediaSourceLink.StatusError => "✘ Ошибка",
+                        MediaSourceLink.StatusMissing => "⛒ Пропал",
                         MediaSourceLink.StatusNone => "○ Нет",
                         _ => "● Неизвестно",
                     };

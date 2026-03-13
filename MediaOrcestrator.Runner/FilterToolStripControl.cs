@@ -19,6 +19,7 @@ public partial class FilterToolStripControl : UserControl
         uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Все", Tag = null });
         uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "OK", Tag = MediaSourceLink.StatusOk });
         uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Ошибка", Tag = MediaSourceLink.StatusError });
+        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Пропал", Tag = MediaSourceLink.StatusMissing });
         uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Нет", Tag = MediaSourceLink.StatusNone });
         uiStatusFilterComboBox.SelectedIndex = 0;
     }

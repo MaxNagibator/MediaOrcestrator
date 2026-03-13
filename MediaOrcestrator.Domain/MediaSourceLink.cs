@@ -13,6 +13,14 @@ public class MediaSourceLink
     public const string StatusNone = "None";
 
     /// <summary>
+    /// Как будто бы есть, но в источнике не найден.
+    /// </summary>
+    /// <remarks>
+    /// После загрузки на рутуб, ошибок нету, но видео пропадает.
+    /// </remarks>
+    public const string StatusMissing = "Missing";
+
+    /// <summary>
     /// Идентификатор источника.
     /// </summary>
     public string SourceId { get; set; }

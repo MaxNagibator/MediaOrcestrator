@@ -211,6 +211,23 @@ public class OptimizedMediaGridView : DataGridView
                     row.Cells[i + FirstSourceColumnIndex].Value = cellValue;
                 }
 
+                if (false)
+                {
+                    // экспресс починка дублей
+                    var sourceId = new List<string>();
+                    var delete = new List<string>();
+                    foreach (var source in media.Sources)
+                    {
+                        if (sourceId.Contains(source.SourceId))
+                        {
+                            delete.Add(source.ExternalId);
+                            continue;
+                        }
+                        sourceId.Add(source.SourceId);
+                    }
+                    media.Sources = media.Sources.Where(x => !delete.Contains(x.ExternalId)).ToList();
+                }
+
                 var platformStatuses = media.Sources.ToDictionary(x => x.SourceId, x => x.Status);
                 var platformSortNumbers = media.Sources.ToDictionary(x => x.SourceId, x => x.SortNumber);
 
@@ -359,6 +376,7 @@ public class OptimizedMediaGridView : DataGridView
         {
             MediaSourceLink.StatusOk => "✔",
             MediaSourceLink.StatusError => "✘",
+            MediaSourceLink.StatusMissing => "⛒",
             MediaSourceLink.StatusNone => "○",
             null => "○",
             _ => "●",
@@ -369,8 +387,9 @@ public class OptimizedMediaGridView : DataGridView
     {
         return status switch
         {
-            MediaSourceLink.StatusOk => Color.Green,
-            MediaSourceLink.StatusError => Color.Red,
+            MediaSourceLink.StatusOk => Color.DarkGreen,
+            MediaSourceLink.StatusError => Color.DarkRed,
+            MediaSourceLink.StatusMissing => Color.DarkRed,
             MediaSourceLink.StatusNone => Color.Gray,
             null => Color.Gray,
             _ => Color.Blue,
