@@ -235,7 +235,7 @@ public class OptimizedMediaGridView : DataGridView
 
                 for (var i = 0; i < sources.Count; i++)
                 {
-                    var status = platformStatuses.GetValueOrDefault(sources[i].Id, MediaSourceLink.StatusNone);
+                    var status = platformStatuses.GetValueOrDefault(sources[i].Id, MediaStatus.None);
                     var sort = platformSortNumbers.GetValueOrDefault(sources[i].Id, -1);
                     var cell = row.Cells[i + sourceStartIdx];
                     cell.Value = sort;
@@ -345,8 +345,9 @@ public class OptimizedMediaGridView : DataGridView
 
         if (e.CellStyle != null)
         {
-            e.Value = GetStatusSymbol(status);
-            e.CellStyle.ForeColor = GetStatusColor(status);
+            var cc = MediaStatusHelper.GetById(status);
+            e.Value = cc.IconText;
+            e.CellStyle.ForeColor = cc.IconColor;
         }
     }
 
@@ -368,31 +369,5 @@ public class OptimizedMediaGridView : DataGridView
         }
 
         return $"{bytes / (1024.0 * 1024 * 1024):F2} ГБ";
-    }
-
-    private static string GetStatusSymbol(string? status)
-    {
-        return status switch
-        {
-            MediaSourceLink.StatusOk => "✔",
-            MediaSourceLink.StatusError => "✘",
-            MediaSourceLink.StatusMissing => "⛒",
-            MediaSourceLink.StatusNone => "○",
-            null => "○",
-            _ => "●",
-        };
-    }
-
-    private static Color GetStatusColor(string? status)
-    {
-        return status switch
-        {
-            MediaSourceLink.StatusOk => Color.DarkGreen,
-            MediaSourceLink.StatusError => Color.DarkRed,
-            MediaSourceLink.StatusMissing => Color.DarkRed,
-            MediaSourceLink.StatusNone => Color.Gray,
-            null => Color.Gray,
-            _ => Color.Blue,
-        };
     }
 }

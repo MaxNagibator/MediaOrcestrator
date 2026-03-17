@@ -54,10 +54,10 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
             var categories = await rutubeService.GetCategoriesAsync();
 
             return categories.Select(x => new SettingOption
-                {
-                    Value = x.Id.ToString(),
-                    Label = x.Name,
-                })
+            {
+                Value = x.Id.ToString(),
+                Label = x.Name,
+            })
                 .OrderBy(x => x.Label)
                 .ToList();
         }
@@ -86,7 +86,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         throw new NotImplementedException("Загрузка с RuTube не поддерживается");
     }
 
-    public async Task<string> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public async Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, string? currentStatus, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало загрузки видео на RuTube. Название: '{Title}'", media.Title);
 
@@ -125,9 +125,10 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         try
         {
-            var videoId = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, publishAt);
-            logger.LogInformation("Видео успешно загружено на RuTube. Video ID: {SessionId}, Название: '{Title}'", videoId, media.Title);
-            return videoId;
+            var result = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, publishAt, currentStatus);
+            logger.LogInformation("Видео загружено на RuTube. Status: {Status}. Video ID: {SessionId}, Название: '{Title}'", result.Status.Id, result.Id, media.Title);
+
+            return result;
         }
         catch (Exception ex)
         {

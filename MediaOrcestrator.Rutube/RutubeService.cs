@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using MediaOrcestrator.Modules;
+using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -32,14 +33,19 @@ public sealed partial class RutubeService
         }
     }
 
-    public async Task<string> UploadVideoAsync(
+    public async Task<UploadResult> UploadVideoAsync(
         string filePath,
         string title,
         string description,
         string categoryId,
         string? thumbnailPath = null,
-        DateTime? publishAt = null)
+        DateTime? publishAt = null,
+        string? currentStatus = null)
     {
+        if (currentStatus == "PreviewFail")
+        {
+            // todo не загружать видос по новой, а просто попробовать дозагрузить нужное, можно предварительно ещё раз чекнуть
+        }
         _logger.LogInformation("Инициализация сессии загрузки на RuTube");
         var session = await InitUploadSessionAsync();
         _logger.LogInformation("Сессия создана. Session ID: {SessionId}, Video ID: {VideoId}", session.Sid, session.VideoId);
@@ -61,25 +67,54 @@ public sealed partial class RutubeService
 
         if (!string.IsNullOrEmpty(thumbnailPath) && File.Exists(thumbnailPath))
         {
-            _logger.LogInformation("Загрузка превью");
-            var thumbnailUrl = await UploadThumbnailAsync(session.VideoId, thumbnailPath);
-            _logger.LogInformation("Превью загружено: {ThumbnailUrl}", thumbnailUrl);
+            try
+            {
+                _logger.LogInformation("Загрузка превью");
+                var thumbnailUrl = await UploadThumbnailAsync(session.VideoId, thumbnailPath);
+                _logger.LogInformation("Превью загружено: {ThumbnailUrl}", thumbnailUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка загрузки превьюшки");
+                return new UploadResult
+                {
+                    Status = MediaStatusHelper.GetById(MediaStatus.PartialOk),
+                    Id = session.VideoId,
+                    Message = "Ошибка загрузки превьюшки",
+                };
+            }
+        }
+        try
+        {
+            if (publishAt.HasValue && publishAt.Value > DateTime.Now)
+            {
+                _logger.LogInformation("Планирование публикации на {PublishAt}", publishAt.Value);
+                await PublishVideoAsync(session.VideoId, publishAt.Value);
+                _logger.LogInformation("Видео успешно запланировано");
+            }
+            else
+            {
+                _logger.LogInformation("Немедленная публикация видео");
+                await UpdateMetadataAsync(session.VideoId, title, description, categoryId, false);
+                _logger.LogInformation("Видео успешно опубликовано");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка публикации");
+            return new UploadResult
+            {
+                Status = MediaStatusHelper.GetById(MediaStatus.PartialOk),
+                Id = session.VideoId,
+                Message = "Ошибка публикации",
+            };
         }
 
-        if (publishAt.HasValue && publishAt.Value > DateTime.Now)
+        return new UploadResult
         {
-            _logger.LogInformation("Планирование публикации на {PublishAt}", publishAt.Value);
-            await PublishVideoAsync(session.VideoId, publishAt.Value);
-            _logger.LogInformation("Видео успешно запланировано");
-        }
-        else
-        {
-            _logger.LogInformation("Немедленная публикация видео");
-            await UpdateMetadataAsync(session.VideoId, title, description, categoryId, false);
-            _logger.LogInformation("Видео успешно опубликовано");
-        }
-
-        return session.VideoId;
+            Status = MediaStatusHelper.Ok(),
+            Id = session.VideoId,
+        };
     }
 
     public async Task<List<CategoryInfo>> GetCategoriesAsync()

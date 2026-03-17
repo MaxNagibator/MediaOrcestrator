@@ -17,10 +17,13 @@ public partial class FilterToolStripControl : UserControl
 
         uiStatusFilterComboBox.Items.Clear();
         uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Все", Tag = null });
-        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "OK", Tag = MediaSourceLink.StatusOk });
-        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Ошибка", Tag = MediaSourceLink.StatusError });
-        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Пропал", Tag = MediaSourceLink.StatusMissing });
-        uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Нет", Tag = MediaSourceLink.StatusNone });
+
+        var statuses = MediaStatusHelper.GetAll();
+        foreach (var stat in statuses)
+        {
+            uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = stat.Text, Tag = stat.Id });
+        }
+
         uiStatusFilterComboBox.SelectedIndex = 0;
     }
 

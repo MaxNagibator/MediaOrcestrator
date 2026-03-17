@@ -1,4 +1,5 @@
 ﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text;
@@ -469,8 +470,8 @@ public partial class MediaMatrixGridControl : UserControl
             var toSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
             var menuText = $"Синхронизировать {rel.From.TitleFull} -> {rel.To.TitleFull}";
 
-            if (fromSource != null && fromSource.Status == MediaSourceLink.StatusOk 
-                && (toSource == null || toSource.Status != MediaSourceLink.StatusOk))
+            if (fromSource != null && fromSource.Status == MediaStatus.Ok
+                && (toSource == null || toSource.Status != MediaStatus.Ok))
             {
                 var menuItem = new ToolStripMenuItem(menuText, GetSyncIcon());
                 menuItem.Click += async (_, _) =>
@@ -512,7 +513,7 @@ public partial class MediaMatrixGridControl : UserControl
                 {
                     menuItem.ToolTipText = "Исходное хранилище недоступно";
                 }
-                else if (toSource != null && toSource.Status == MediaSourceLink.StatusOk)
+                else if (toSource != null && toSource.Status == MediaStatus.Ok)
                 {
                     menuItem.ToolTipText = "Медиа уже существует в целевом хранилище";
                 }
@@ -723,16 +724,9 @@ public partial class MediaMatrixGridControl : UserControl
                 {
                     var source = sources.FirstOrDefault(s => s.Id == sourceLink.SourceId);
                     var sourceName = source?.TitleFull ?? "Неизвестный источник";
-                    var status = sourceLink.Status switch
-                    {
-                        MediaSourceLink.StatusOk => "✔ OK",
-                        MediaSourceLink.StatusError => "✘ Ошибка",
-                        MediaSourceLink.StatusMissing => "⛒ Пропал",
-                        MediaSourceLink.StatusNone => "○ Нет",
-                        _ => "● Неизвестно",
-                    };
+                    var status = MediaStatusHelper.GetById(sourceLink.Status);
 
-                    details.AppendLine($"  {sourceName}: {status}");
+                    details.AppendLine($"  {sourceName}: {(status.IconText + " " + status.Text)}");
                     if (!string.IsNullOrEmpty(sourceLink.ExternalId))
                     {
                         details.AppendLine($"    ID: {sourceLink.ExternalId}");

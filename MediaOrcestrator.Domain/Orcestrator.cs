@@ -136,7 +136,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
             {
                 if (!foundIds.Contains(existsVideo.ExternalId))
                 {
-                    existsVideo.Status = MediaSourceLink.StatusMissing;
+                    existsVideo.Status = MediaStatus.Missing;
                     mediaCol.Update(existsVideo.Media);
                 }
             }
@@ -372,13 +372,14 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         {
             throw new($"MediaSourceLink не найден для {rel.From.Id}");
         }
-        if (fromMediaSource.Status != MediaSourceLink.StatusOk)
+        if (fromMediaSource.Status != MediaStatus.Ok)
         {
             throw new($"MediaSourceLink для {rel.From.Id} в плохом статусе " + fromMediaSource.Status);
         }
 
         var toMediaSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
-        if (toMediaSource != null && toMediaSource.Status == MediaSourceLink.StatusOk)
+        // todo частично успешные пока повторно не обрабатываем
+        if (toMediaSource != null && (toMediaSource.Status == MediaStatus.Ok || toMediaSource.Status == MediaStatus.PartialOk))
         {
             // фаил уже загружен, значит ничего не делаем
             // в будущем возможно обновлять будем
@@ -386,7 +387,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
             return;
         }
 
-        string externalId;
+        UploadResult uploadResult;
         var debug = false;
         if (debug)
         {
@@ -395,31 +396,43 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                 throw new("ошибка");
             }
 
-            externalId = Guid.NewGuid().ToString();
+            uploadResult = new UploadResult
+            {
+                Status = MediaStatusHelper.Ok(),
+                Id = Guid.NewGuid().ToString(),
+            };
         }
         else
         {
             var tempMedia = await rel.From.Type.Download(fromMediaSource.ExternalId, rel.From.Settings, cancellationToken);
             tempMedia.Id = media.Id;
-            externalId = await rel.To.Type.Upload(tempMedia, rel.To.Settings, cancellationToken);
+            uploadResult = await rel.To.Type.Upload(tempMedia, rel.To.Settings, toMediaSource?.Status, cancellationToken);
         }
 
-        if (toMediaSource == null)
+        // если айди есть, значит частично или полностью успех и связь устанавливаем
+        if (uploadResult.Id != null)
         {
-            toMediaSource = new()
+            if (toMediaSource == null)
             {
-                MediaId = media.Id,
-                Media = media,
-                SourceId = rel.To.Id,
-            };
+                toMediaSource = new()
+                {
+                    MediaId = media.Id,
+                    Media = media,
+                    SourceId = rel.To.Id,
+                };
+            }
+
+            toMediaSource.Status = uploadResult.Status.Id;
+            toMediaSource.ExternalId = uploadResult.Id!;
+
+            media.Sources.Add(toMediaSource);
+            UpdateMedia(media);
+            logger.LogInformation("Успешно синхронизировано медиа {Media} в {ToSource}. ExternalId: {ExternalId}", media, rel.To, uploadResult.Id);
         }
-
-        toMediaSource.Status = "OK";
-        toMediaSource.ExternalId = externalId;
-
-        media.Sources.Add(toMediaSource);
-        UpdateMedia(media);
-        logger.LogInformation("Успешно синхронизировано медиа {Media} в {ToSource}. ExternalId: {ExternalId}", media, rel.To, externalId);
+        else
+        {
+            throw new Exception("Провал синхронизации: " + uploadResult.Status.Text + " " + uploadResult.Message);
+        }
     }
 
     public async Task DeleteMediaFromSourceAsync(Media media, Source source, CancellationToken cancellationToken = default)

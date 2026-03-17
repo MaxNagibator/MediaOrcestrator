@@ -20,7 +20,7 @@ public interface ISourceType
     IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, CancellationToken cancellationToken = default);
 
     Task<MediaDto?> GetMediaByIdAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
-    Task<string> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
+    Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, string? currentStatus, CancellationToken cancellationToken = default);
     Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
     Task DeleteAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
 }
@@ -30,6 +30,28 @@ public enum SettingType
     None = 0,
     Text = 1,
     Dropdown = 2,
+}
+
+
+/// <summary>
+/// Результат загрузки.
+/// </summary>
+public class UploadResult
+{
+    /// <summary>
+    /// Статус загрузки.
+    /// </summary>
+    public MediaStatus Status { get; set; }
+
+    /// <summary>
+    /// Дополнительный текст к статусу.
+    /// </summary>
+    public string? Message { get; set; }
+
+    /// <summary>
+    /// Идинетификатор загруженного медиа в источнике.
+    /// </summary>
+    public string? Id { get; set; }
 }
 
 public class SourceSettings
