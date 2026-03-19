@@ -200,15 +200,15 @@ public partial class MainForm : Form
 
     private void uiRubuteAuthStateOpenBrowserButton_Click(object sender, EventArgs e)
     {
-        GetCookie("https://studio.rutube.ru/", uiRubuteAuthStatePathTextBox);
+        GetCookie("https://studio.rutube.ru/", uiRubuteAuthStatePathTextBox, false);
     }
 
     private void uiYoutubeAuthStateOpenBrowserButton_Click(object sender, EventArgs e)
     {
-        GetCookie("https://studio.youtube.com/", uiYoutubeAuthStatePathTextBox);
+        GetCookie("https://studio.youtube.com/", uiYoutubeAuthStatePathTextBox, true);
     }
 
-    private void GetCookie(string openPage, TextBox pathTextbox)
+    private void GetCookie(string openPage, TextBox pathTextbox, bool transformCookie)
     {
         Task.Run(async () =>
         {
@@ -221,7 +221,7 @@ public partial class MainForm : Form
 
             var contextOptions = new BrowserNewContextOptions();
 
-            var jsonPath = pathTextbox.Text + ".tmp.json";
+            var jsonPath = transformCookie ? pathTextbox.Text + ".tmp.json" : pathTextbox.Text;
             var csvPath = pathTextbox.Text;
             if (File.Exists(jsonPath))
             {
@@ -313,11 +313,17 @@ public partial class MainForm : Form
                     Path = jsonPath,
                 });
 
-                //_logger.LogInformation("Log saved to capture_log.json");
-                _logger.LogInformation("Auth state saved to temp auth_state.json");
+                if (transformCookie)
+                {
+                    _logger.LogInformation("Auth state saved to temp auth_state.json");
 
-                CookieTransformator.Run(jsonPath, csvPath, _logger);
-                _logger.LogInformation("Auth state convert to auth_state");
+                    CookieTransformator.Run(jsonPath, csvPath, _logger);
+                    _logger.LogInformation("Auth state convert to auth_state");
+                }
+                else
+                {
+                    _logger.LogInformation("Auth state ");
+                }
             }
         });
     }

@@ -237,7 +237,7 @@ public partial class MediaMatrixGridControl : UserControl
 
         if (!string.IsNullOrEmpty(filterState.SearchText))
         {
-            mediaQuery = mediaQuery.Where(x => x.Title.Contains(filterState.SearchText, StringComparison.OrdinalIgnoreCase));
+            mediaQuery = mediaQuery.Where(x => x.Title != null && x.Title.Contains(filterState.SearchText, StringComparison.OrdinalIgnoreCase));
         }
 
         if (filterState.StatusFilter != null)

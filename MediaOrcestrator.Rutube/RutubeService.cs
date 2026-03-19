@@ -70,9 +70,49 @@ public sealed partial class RutubeService
         {
             try
             {
-                throw new Exception("blable");
                 _logger.LogInformation("Загрузка превью");
-                var thumbnailUrl = await UploadThumbnailAsync(session.VideoId, thumbnailPath);
+
+                string thumbnailUrl;
+                if (Path.GetExtension(thumbnailPath).Equals(".webp", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        _logger.LogInformation("Обнаружен WebP формат, конвертируем в JPG...");
+
+                        string tempJpgPath = thumbnailPath + ".jpg";
+
+                        using (var image = SixLabors.ImageSharp.Image.Load(thumbnailPath))
+                        {
+                            var encoder = new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder
+                            {
+                                Quality = 90
+                            };
+
+                            if (File.Exists(tempJpgPath))
+                            {
+                                File.Delete(tempJpgPath);
+                            }
+
+                            using (var fileStream = new FileStream(tempJpgPath, FileMode.Create))
+                            {
+                                await image.SaveAsync(fileStream, encoder);
+                            }
+                        }
+
+                        _logger.LogInformation("Конвертация завершена, загружаем JPG");
+                        thumbnailUrl = await UploadThumbnailAsync(session.VideoId, tempJpgPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Ошибка при конвертации WebP в JPG, пробуем загрузить оригинал");
+                        thumbnailUrl = await UploadThumbnailAsync(session.VideoId, thumbnailPath);
+                    }
+                }
+                else
+                {
+                    thumbnailUrl = await UploadThumbnailAsync(session.VideoId, thumbnailPath);
+                }
+
                 _logger.LogInformation("Превью загружено: {ThumbnailUrl}", thumbnailUrl);
             }
             catch (Exception ex)

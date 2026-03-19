@@ -170,7 +170,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
         var ytDlpPath = settings["yt_dlp_path"];
         var ffmpegPath = settings["ffmpeg_path"];
         var jsRuntime = settings.GetValueOrDefault("js_runtime", "none");
-        var cookiePath = settings["auth_state_path"];
+        var cookiePath = settings.GetValueOrDefault("auth_state_path","");
         var ytDlp = new YtDlp(ytDlpPath, ffmpegPath, jsRuntime, cookiePath);
 
         object progressLock = new();
@@ -226,7 +226,6 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
         }
 
         return CreateMediaDto(video, finalPath);
-        // bob217 -> 9I_JIereHga -> bob217
     }
 
     public Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, string? currentStatus, CancellationToken cancellationToken = default)
