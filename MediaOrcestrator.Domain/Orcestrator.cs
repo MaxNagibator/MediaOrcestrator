@@ -40,7 +40,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
         var sourceTypes = GetSourceTypes();
         var sources = GetSources();
-        if (true)
+        if (false)
         {
             sources = sources.Where(x => x.TypeId == "HardDiskDrive").ToList();
         }
@@ -379,7 +379,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
         var toMediaSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
         // todo частично успешные пока повторно не обрабатываем
-        if (toMediaSource != null && (toMediaSource.Status == MediaStatus.Ok || toMediaSource.Status == MediaStatus.PartialOk))
+        if (toMediaSource != null && toMediaSource.Status == MediaStatus.Ok)
         {
             // фаил уже загружен, значит ничего не делаем
             // в будущем возможно обновлять будем
@@ -406,7 +406,15 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         {
             var tempMedia = await rel.From.Type.Download(fromMediaSource.ExternalId, rel.From.Settings, cancellationToken);
             tempMedia.Id = media.Id;
-            uploadResult = await rel.To.Type.Upload(tempMedia, rel.To.Settings, toMediaSource?.Status, cancellationToken);
+            if (toMediaSource?.Status == MediaStatus.PartialOk)
+            {
+                var externalId = toMediaSource.ExternalId;
+                uploadResult = await rel.To.Type.Update(externalId, tempMedia, rel.To.Settings, cancellationToken);
+            }
+            else
+            {
+                uploadResult = await rel.To.Type.Upload(tempMedia, rel.To.Settings, cancellationToken);
+            }
         }
 
         // если айди есть, значит частично или полностью успех и связь устанавливаем
@@ -420,12 +428,12 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                     Media = media,
                     SourceId = rel.To.Id,
                 };
+
+                media.Sources.Add(toMediaSource);
             }
 
             toMediaSource.Status = uploadResult.Status.Id;
             toMediaSource.ExternalId = uploadResult.Id!;
-
-            media.Sources.Add(toMediaSource);
             UpdateMedia(media);
             logger.LogInformation("Успешно синхронизировано медиа {Media} в {ToSource}. ExternalId: {ExternalId}", media, rel.To, uploadResult.Id);
         }

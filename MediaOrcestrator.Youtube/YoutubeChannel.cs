@@ -228,7 +228,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
         return CreateMediaDto(video, finalPath);
     }
 
-    public Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, string? currentStatus, CancellationToken cancellationToken = default)
+    public Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogWarning("Загрузка на YouTube не реализована. Медиа: {Title}", media.Title);
 
@@ -237,6 +237,11 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger) : ISourceType
             Status = MediaStatusHelper.GetById(MediaStatus.Error),
             Message = media.Title,
         });
+    }
+
+    public Task<UploadResult> Update(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
     }
 
     public Task DeleteAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)

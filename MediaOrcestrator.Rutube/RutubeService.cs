@@ -34,36 +34,38 @@ public sealed partial class RutubeService
     }
 
     public async Task<UploadResult> UploadVideoAsync(
+        string? videoId,
         string filePath,
         string title,
         string description,
         string categoryId,
         string? thumbnailPath = null,
-        DateTime? publishAt = null,
-        string? currentStatus = null)
+        DateTime? publishAt = null)
     {
-        if (currentStatus == "PreviewFail")
+        var isNewVideo = false;
+        if (videoId == null)
         {
-            // todo не загружать видос по новой, а просто попробовать дозагрузить нужное, можно предварительно ещё раз чекнуть
+            isNewVideo = true;
+            _logger.LogInformation("Инициализация сессии загрузки на RuTube");
+            var session = await InitUploadSessionAsync();
+            _logger.LogInformation("Сессия создана. Session ID: {SessionId}, Video ID: {VideoId}", session.Sid, session.VideoId);
+
+            _logger.LogDebug("Создание TUS ресурса для загрузки");
+            var uploadUrl = await CreateTusResourceAsync(session.Sid, session.VideoId, filePath);
+            _logger.LogDebug("URL загрузки получен: {UploadUrl}", uploadUrl);
+
+            _logger.LogInformation("Начало загрузки видео данных");
+            await PerformTusUploadAsync(uploadUrl, filePath);
+            _logger.LogInformation("Загрузка данных завершена");
+
+            _logger.LogDebug("Ожидание обработки на сервере (5 секунд)");
+            await Task.Delay(5000);
+
+            _logger.LogInformation("Обновление метаданных видео (черновик)");
+            await UpdateMetadataAsync(session.VideoId, title, description, categoryId, true);
+            _logger.LogInformation("Метаданные обновлены");
+            videoId = session.VideoId;
         }
-        _logger.LogInformation("Инициализация сессии загрузки на RuTube");
-        var session = await InitUploadSessionAsync();
-        _logger.LogInformation("Сессия создана. Session ID: {SessionId}, Video ID: {VideoId}", session.Sid, session.VideoId);
-
-        _logger.LogDebug("Создание TUS ресурса для загрузки");
-        var uploadUrl = await CreateTusResourceAsync(session.Sid, session.VideoId, filePath);
-        _logger.LogDebug("URL загрузки получен: {UploadUrl}", uploadUrl);
-
-        _logger.LogInformation("Начало загрузки видео данных");
-        await PerformTusUploadAsync(uploadUrl, filePath);
-        _logger.LogInformation("Загрузка данных завершена");
-
-        _logger.LogDebug("Ожидание обработки на сервере (5 секунд)");
-        await Task.Delay(5000);
-
-        _logger.LogInformation("Обновление метаданных видео (черновик)");
-        await UpdateMetadataAsync(session.VideoId, title, description, categoryId, true);
-        _logger.LogInformation("Метаданные обновлены");
 
         string errorMessage = "";
         if (!string.IsNullOrEmpty(thumbnailPath) && File.Exists(thumbnailPath))
@@ -72,6 +74,7 @@ public sealed partial class RutubeService
             {
                 _logger.LogInformation("Загрузка превью");
 
+                //throw new Exception("basdasd");
                 string thumbnailUrl;
                 if (Path.GetExtension(thumbnailPath).Equals(".webp", StringComparison.OrdinalIgnoreCase))
                 {
@@ -100,17 +103,17 @@ public sealed partial class RutubeService
                         }
 
                         _logger.LogInformation("Конвертация завершена, загружаем JPG");
-                        thumbnailUrl = await UploadThumbnailAsync(session.VideoId, tempJpgPath);
+                        thumbnailUrl = await UploadThumbnailAsync(videoId, tempJpgPath);
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Ошибка при конвертации WebP в JPG, пробуем загрузить оригинал");
-                        thumbnailUrl = await UploadThumbnailAsync(session.VideoId, thumbnailPath);
+                        thumbnailUrl = await UploadThumbnailAsync(videoId, thumbnailPath);
                     }
                 }
                 else
                 {
-                    thumbnailUrl = await UploadThumbnailAsync(session.VideoId, thumbnailPath);
+                    thumbnailUrl = await UploadThumbnailAsync(videoId, thumbnailPath);
                 }
 
                 _logger.LogInformation("Превью загружено: {ThumbnailUrl}", thumbnailUrl);
@@ -121,43 +124,50 @@ public sealed partial class RutubeService
                 errorMessage += "Ошибка загрузки превьюшки";
             }
         }
-        try
+        if (isNewVideo)
         {
-            if (publishAt.HasValue && publishAt.Value > DateTime.Now)
+            // todo код с душком
+            try
             {
-                _logger.LogInformation("Планирование публикации на {PublishAt}", publishAt.Value);
-                await PublishVideoAsync(session.VideoId, publishAt.Value);
-                _logger.LogInformation("Видео успешно запланировано");
+                if (videoId == null)
+                {
+                    if (publishAt.HasValue && publishAt.Value > DateTime.Now)
+                    {
+                        _logger.LogInformation("Планирование публикации на {PublishAt}", publishAt.Value);
+                        await PublishVideoAsync(videoId, publishAt.Value);
+                        _logger.LogInformation("Видео успешно запланировано");
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Немедленная публикация видео");
+                        await UpdateMetadataAsync(videoId, title, description, categoryId, false);
+                        _logger.LogInformation("Видео успешно опубликовано");
+                    }
+                }
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogInformation("Немедленная публикация видео");
-                await UpdateMetadataAsync(session.VideoId, title, description, categoryId, false);
-                _logger.LogInformation("Видео успешно опубликовано");
+                _logger.LogError(ex, "Ошибка публикации");
+                if (errorMessage != null)
+                {
+                    errorMessage += "\r\n";
+                }
+                errorMessage += "Ошибка публикации";
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Ошибка публикации");
-            if (errorMessage != null)
-            {
-                errorMessage += "\r\n";
-            }
-            errorMessage += "Ошибка публикации";
         }
         if (errorMessage == null)
         {
             return new UploadResult
             {
                 Status = MediaStatusHelper.Ok(),
-                Id = session.VideoId,
+                Id = videoId,
             };
         }
 
         return new UploadResult
         {
             Status = MediaStatusHelper.GetById(MediaStatus.PartialOk),
-            Id = session.VideoId,
+            Id = videoId,
             Message = errorMessage,
         };
     }

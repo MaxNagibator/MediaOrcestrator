@@ -159,7 +159,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
         });
     }
 
-    public async Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, string? currentStatus, CancellationToken cancellationToken = default)
+    public async Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало сохранения файла на жёсткий диск. Название: '{Title}'", media.Title);
 
@@ -256,6 +256,11 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
             Status = MediaStatusHelper.Ok(),
             Id = hddId,
         };
+    }
+
+    public Task<UploadResult> Update(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
     }
 
     public Task DeleteAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)

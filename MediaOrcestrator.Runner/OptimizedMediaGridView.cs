@@ -220,12 +220,13 @@ public class OptimizedMediaGridView : DataGridView
                     {
                         if (sourceId.Contains(source.SourceId))
                         {
+                         //   media.Sources = media.Sources.Take(3).ToList();
                             delete.Add(source.ExternalId);
-                            continue;
+                           continue;
                         }
                         sourceId.Add(source.SourceId);
                     }
-                    media.Sources = media.Sources.Where(x => !delete.Contains(x.ExternalId)).ToList();
+                    //media.Sources = media.Sources.Where(x => !delete.Contains(x.ExternalId)).ToList();
                 }
 
                 var platformStatuses = media.Sources.ToDictionary(x => x.SourceId, x => x.Status);

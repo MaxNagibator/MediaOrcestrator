@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MediaOrcestrator.Domain\MediaOrcestrator.Domain.csproj" />
+    <ProjectReference Include="..\MediaOrcestrator.Modules\MediaOrcestrator.Modules.csproj" />
   </ItemGroup>
 
   <ItemGroup>

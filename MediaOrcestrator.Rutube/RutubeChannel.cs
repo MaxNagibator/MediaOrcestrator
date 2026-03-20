@@ -86,7 +86,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         throw new NotImplementedException("Загрузка с RuTube не поддерживается");
     }
 
-    public async Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, string? currentStatus, CancellationToken cancellationToken = default)
+    public async Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало загрузки видео на RuTube. Название: '{Title}'", media.Title);
 
@@ -125,7 +125,29 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         try
         {
-            var result = await rutubeService.UploadVideoAsync(filePath, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, publishAt, currentStatus);
+            var result = await rutubeService.UploadVideoAsync(null, filePath, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, publishAt);
+            logger.LogInformation("Видео загружено на RuTube. Status: {Status}. Video ID: {SessionId}, Название: '{Title}'", result.Status.Id, result.Id, media.Title);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при загрузке видео на RuTube. Название: '{Title}'", media.Title);
+            throw;
+        }
+    }
+
+    public async Task<UploadResult> Update(string externalId, MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation("Начало обновление данных видео на RuTube. Название: '{Title}'", media.Title);
+
+        var rutubeCategoryId = settings["category_id"];
+        var rutubeService = await CreateRutubeServiceAsync(settings);
+
+        try
+        {
+            // пока тока превью обновляем
+            var result = await rutubeService.UploadVideoAsync(externalId, null, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, null);
             logger.LogInformation("Видео загружено на RuTube. Status: {Status}. Video ID: {SessionId}, Название: '{Title}'", result.Status.Id, result.Id, media.Title);
 
             return result;

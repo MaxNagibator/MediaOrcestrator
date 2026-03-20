@@ -20,9 +20,10 @@ public interface ISourceType
     IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, CancellationToken cancellationToken = default);
 
     Task<MediaDto?> GetMediaByIdAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
-    Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, string? currentStatus, CancellationToken cancellationToken = default);
+    Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
     Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
     Task DeleteAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
+    Task<UploadResult> Update(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken);
 }
 
 public enum SettingType
