@@ -471,4 +471,35 @@ public sealed partial class RutubeService
                 result.VideoId, result.Timestamp);
         }
     }
+
+    public async IAsyncEnumerable<GetVideoApiItem> GetVideoAsync()
+    {
+        var url = "https://studio.rutube.ru/api/v2/video/person/?ordering=-calculated_date&limit=400&page=1";
+        while (true)
+        {
+            var response = await _httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Ошибка получения видео. Статус: {StatusCode}, Ответ: {Response}", response.StatusCode, err);
+                throw new HttpRequestException($"Не удалось опубликовать видео: {response.StatusCode}. Ответ: {err}");
+            }
+
+            var body = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<GetVideoApiResponse>(body);
+            foreach (var v in result.Results)
+            {
+                yield return v;
+            }
+
+            if (result.HasNext)
+            {
+                url = result.Next;
+            }
+            else
+            {
+                yield break;
+            }
+        }
+    }
 }

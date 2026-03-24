@@ -60,6 +60,7 @@
             groupBox1 = new GroupBox();
             uiRubuteAuthStatePathTextBox = new TextBox();
             uiRubuteAuthStateOpenBrowserButton = new Button();
+            comboBox1 = new ComboBox();
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
@@ -224,6 +225,7 @@
             // 
             // uiAuditTabPage
             // 
+            uiAuditTabPage.Controls.Add(comboBox1);
             uiAuditTabPage.Controls.Add(button1);
             uiAuditTabPage.Controls.Add(uiClearSpecificTypeButton);
             uiAuditTabPage.Controls.Add(uiClearTypeComboBox);
@@ -398,6 +400,16 @@
             uiRubuteAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
             uiRubuteAuthStateOpenBrowserButton.Click += uiRubuteAuthStateOpenBrowserButton_Click;
             // 
+            // comboBox1
+            // 
+            comboBox1.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboBox1.FormattingEnabled = true;
+            comboBox1.Items.AddRange(new object[] { "medias", "sources", "source_relations" });
+            comboBox1.Location = new Point(51, 201);
+            comboBox1.Name = "comboBox1";
+            comboBox1.Size = new Size(224, 23);
+            comboBox1.TabIndex = 7;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -456,5 +468,6 @@
         private TextBox uiYoutubeAuthStatePathTextBox;
         private Button uiYoutubeAuthStateOpenBrowserButton;
         private Button button1;
+        private ComboBox comboBox1;
     }
 }

@@ -125,7 +125,7 @@ file static class Program
         while (true)
         {
             logger.Information("Обновление полной информации о хранилище...");
-            await orcestrator.GetStorageFullInfo();
+            await orcestrator.GetStorageFullInfo(false);
             // todo делаем бич вариант, потом распараллелим, возможно (ну типо почему бы и не синхкать две связи rutube -> hdd,   youtube -> vkvideo в параллель
             var relations = orcestrator.GetRelations();
 

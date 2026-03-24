@@ -63,12 +63,23 @@ public partial class MainForm : Form
 
     private async void button1_Click(object sender, EventArgs e)
     {
+        Source? syncSource = null;
+        if (comboBox1.SelectedItem != null)
+        {
+            if (comboBox1.SelectedItem is not Source value)
+            {
+                MessageBox.Show("Пожалуйста, выберите источник для связи.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            syncSource = value;
+        }
+
         // todo дубрирование ебейшее
         _logger.LogInformation("Пользователь нажал кнопку синхронизации быстрой.");
         uiSyncButton.Enabled = false;
         try
         {
-            await _orcestrator.GetStorageFullInfo(false);
+            await _orcestrator.GetStorageFullInfo(false, syncSource);
             _logger.LogInformation("Синхронизация через UI завершена.");
             DrawSources();
             uiMediaMatrixGridControl.RefreshData();
@@ -359,8 +370,10 @@ public partial class MainForm : Form
     {
         uiRelationFromComboBox.Items.Clear();
         uiRelationToComboBox.Items.Clear();
+        comboBox1.Items.Clear();
         uiRelationFromComboBox.DisplayMember = "TitleFull";
         uiRelationToComboBox.DisplayMember = "TitleFull";
+        comboBox1.DisplayMember = "TitleFull";
 
         uiSourcesComboBox.Items.Clear();
         uiSourcesComboBox.DisplayMember = "Name";
@@ -396,6 +409,7 @@ public partial class MainForm : Form
 
             uiRelationFromComboBox.Items.Add(source);
             uiRelationToComboBox.Items.Add(source);
+            comboBox1.Items.Add(source);
         }
 
         DrawRelations();

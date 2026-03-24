@@ -17,9 +17,14 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         var sources = GetSourceTypes();
     }
 
-    public async Task GetStorageFullInfo(bool isFull)
+    public async Task GetStorageFullInfo(bool isFull, Source? filterSource = null)
     {
-        logger.LogInformation("Запуск процесса синхронизации...");
+        string additional = "";
+        if (filterSource != null)
+        {
+            additional = " " + filterSource.TitleFull;
+        }
+        logger.LogInformation($"Запуск процесса синхронизации{additional}...");
 
         var mediaCol = db.GetCollection<Media>("medias");
         //mediaCol.DeleteAll();
@@ -31,6 +36,13 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         {
             foreach (var source in media.Sources)
             {
+                if (filterSource != null)
+                {
+                    if (source.SourceId != filterSource.Id)
+                    {
+                        continue;
+                    }
+                }
                 source.Media = media;
                 cache.GetMedia(source.SourceId).Add(source);
             }
@@ -40,9 +52,10 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
 
         var sourceTypes = GetSourceTypes();
         var sources = GetSources();
-        if (false)
+
+        if (filterSource != null)
         {
-            sources = sources.Where(x => x.TypeId == "HardDiskDrive").ToList();
+            sources = sources.Where(x => x.Id == filterSource.Id).ToList();
         }
 
         await Parallel.ForEachAsync(sources, async (mediaSource, cancellationToken) =>
@@ -171,6 +184,22 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         //    //}
         //}
         //medias = db.GetCollection<Media>("medias").FindAll().ToList();
+       // foreach (var media in medias) // времяночка для очистки
+       // {
+       //     foreach (var source in media.Sources)
+         //   {
+           //     if (source.Status == MediaStatus.Missing)
+             //   {
+               //     source.Status = MediaStatus.Ok;
+               // }
+//
+  //              db.GetCollection<Media>("medias").Update(media);
+    //        }
+            //if (media.Sources.Any(x => x.ExternalId == null))
+            //{
+            //    db.GetCollection<Media>("medias").Delete(media.Id);
+            //}
+        }
         return medias;
     }
 

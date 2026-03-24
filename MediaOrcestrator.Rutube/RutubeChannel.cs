@@ -70,9 +70,55 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
     public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, bool isFull, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        logger.LogWarning("Получение списка медиа из RuTube не реализовано");
-        await Task.CompletedTask;
-        yield break;
+        logger.LogInformation("Получение списка медиа для хранища {Name}", Name);
+        var rutubeService = await CreateRutubeServiceAsync(settings);
+        var apiVideoItems = rutubeService.GetVideoAsync();
+        await foreach (var video in apiVideoItems)
+        {
+            logger.LogDebug("Обработка видео: '{VideoTitle}' (ID: {VideoId})", video.Title, video.Id);
+            
+            var metadata = new List<MetadataItem>
+                {
+                    new()
+                    {
+                        Key = "Duration",
+                        DisplayName = "Длительность",
+                        Value = TimeSpan.FromSeconds(video.Duration).ToString(),
+                        DisplayType = "System.TimeSpan",
+                    },
+                    new()
+                    {
+                        Key = "Author",
+                        DisplayName = "Автор",
+                        Value = video.Author.Name,
+                        DisplayType = "System.String",
+                    },
+                    new()
+                    {
+                        Key = "CreationDate",
+                        DisplayName = "Дата создания",
+                        Value = video.CreatedTs.ToString("O"),
+                        DisplayType = "System.DateTime",
+                    },
+                    new()
+                    {
+                        Key = "Views",
+                        DisplayName = "Просмотры",
+                        Value = video.Hits.ToString(),
+                        DisplayType = "System.Int64",
+                    },
+                 };
+
+
+            yield return new MediaDto()
+            {
+                Id = video.Id,
+                Title = video.Title,
+                DataPath = video.VideoUrl,
+                PreviewPath = video.ThumbnailUrl,
+                Metadata = metadata,
+            };
+        }
     }
 
     public Task<MediaDto?> GetMediaByIdAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)

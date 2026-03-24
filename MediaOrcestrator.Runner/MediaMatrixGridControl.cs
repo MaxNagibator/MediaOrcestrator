@@ -222,7 +222,7 @@ public partial class MediaMatrixGridControl : UserControl
                              {ex.Message}
                              """,
                 "Ошибка",
-                MessageBoxButtons.OK, 
+                MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
     }
