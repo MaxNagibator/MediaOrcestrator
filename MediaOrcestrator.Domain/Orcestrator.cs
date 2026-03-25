@@ -71,40 +71,48 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
             {
                 foundIds.Add(s.Id);
                 var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.ExternalId == s.Id);
-                if (foundMediaSource != null)
+                if (foundMediaSource == null)
                 {
-                    if (s.Metadata is { Count: > 0 } && foundMediaSource.Media != null)
-                    {
-                        var providedKeys = new HashSet<string>();
-                        foreach (var item in s.Metadata)
-                        {
-                            providedKeys.Add(item.Key);
-                            var existing = foundMediaSource.Media.Metadata
-                                .FirstOrDefault(m => m.Key == item.Key && m.SourceId == mediaSource.Id);
-
-                            if (existing != null)
-                            {
-                                existing.Value = item.Value;
-                                existing.DisplayName = item.DisplayName;
-                                existing.DisplayType = item.DisplayType;
-                            }
-                            else
-                            {
-                                item.SourceId = mediaSource.Id;
-                                foundMediaSource.Media.Metadata.Add(item);
-                            }
-                        }
-
-                        foundMediaSource.Media.Metadata
-                            .RemoveAll(m => m.SourceId == mediaSource.Id && !providedKeys.Contains(m.Key));
-
-                        mediaCol.Update(foundMediaSource.Media);
-                    }
-
+                    mediaList.Insert(0, s);
                     continue;
                 }
 
-                mediaList.Insert(0, s);
+                var hasChange = false;
+                if (s.Metadata is { Count: > 0 } && foundMediaSource.Media != null)
+                {
+                    var providedKeys = new HashSet<string>();
+                    foreach (var item in s.Metadata)
+                    {
+                        providedKeys.Add(item.Key);
+                        var existing = foundMediaSource.Media.Metadata
+                            .FirstOrDefault(m => m.Key == item.Key && m.SourceId == mediaSource.Id);
+                        if (existing != null)
+                        {
+                            existing.Value = item.Value;
+                            existing.DisplayName = item.DisplayName;
+                            existing.DisplayType = item.DisplayType;
+                        }
+                        else
+                        {
+                            item.SourceId = mediaSource.Id;
+                            foundMediaSource.Media.Metadata.Add(item);
+                        }
+                    }
+
+                    foundMediaSource.Media.Metadata
+                        .RemoveAll(m => m.SourceId == mediaSource.Id && !providedKeys.Contains(m.Key));
+                    hasChange = true;
+                }
+                if (foundMediaSource.Status == MediaStatus.Missing
+                    || foundMediaSource.Status == MediaStatus.Error)
+                {
+                    foundMediaSource.Status = MediaStatus.Ok;
+                    hasChange = true;
+                }
+                if (hasChange)
+                {
+                    mediaCol.Update(foundMediaSource!.Media);
+                }
             }
 
             var sortNumber = cache.GetMedia(mediaSource.Id).Select(x => x.SortNumber).DefaultIfEmpty(1).Max();
@@ -130,7 +138,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
                     MediaId = mediaId,
                     Media = myMedia,
                     ExternalId = s.Id,
-                    Status = "OK",
+                    Status = MediaStatus.Ok,
                     SourceId = mediaSource.Id,
                     SortNumber = sortNumber,
                 };
@@ -197,7 +205,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         //{
         //    db.GetCollection<Media>("medias").Delete(media.Id);
         //}
-        //}
+        // }
         return medias;
     }
 
