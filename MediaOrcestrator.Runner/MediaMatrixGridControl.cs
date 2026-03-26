@@ -101,6 +101,15 @@ public partial class MediaMatrixGridControl : UserControl
             row.Selected = true;
         }
 
+        var selectedMedia = uiMediaGrid.GetSelectedMedia();
+        var screenLocation = uiMediaGrid.PointToScreen(e.Location);
+
+        if (selectedMedia.Count > 1)
+        {
+            ShowBatchContextMenu(selectedMedia, screenLocation);
+            return;
+        }
+
         if (uiMediaGrid.GetMediaAtRow(ht.RowIndex) is { } media)
         {
             Source? specificSource = null;
@@ -118,7 +127,7 @@ public partial class MediaMatrixGridControl : UserControl
                 }
             }
 
-            ShowContextMenu(media, uiMediaGrid.PointToScreen(e.Location), specificSource);
+            ShowContextMenu(media, screenLocation, specificSource);
         }
     }
 
@@ -346,6 +355,213 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
+    private void ShowBatchContextMenu(List<Media> selectedMedia, Point location)
+    {
+        _contextMenu?.Dispose();
+        _contextMenu = new();
+
+        var headerItem = new ToolStripMenuItem($"Выбрано: {selectedMedia.Count} медиа") { Enabled = false };
+        _contextMenu.Items.Add(headerItem);
+        _contextMenu.Items.Add(new ToolStripSeparator());
+
+        foreach (var rel in _orcestrator!.GetRelations())
+        {
+            var eligibleMedia = selectedMedia
+                .Where(m =>
+                {
+                    var from = m.Sources.FirstOrDefault(s => s.SourceId == rel.From.Id);
+                    var to = m.Sources.FirstOrDefault(s => s.SourceId == rel.To.Id);
+                    return from is { Status: MediaStatus.Ok } && to is not { Status: MediaStatus.Ok };
+                })
+                .ToList();
+
+            var menuText = $"Синхронизировать {rel.From.TitleFull} → {rel.To.TitleFull} ({eligibleMedia.Count})";
+            var menuItem = new ToolStripMenuItem(menuText, GetSyncIcon());
+
+            if (eligibleMedia.Count == 0)
+            {
+                menuItem.Enabled = false;
+                menuItem.ToolTipText = "Нет подходящих медиа для синхронизации";
+            }
+            else
+            {
+                var capturedRel = rel;
+                var capturedMedia = eligibleMedia;
+                menuItem.Click += async (_, _) => await HandleBatchSyncAsync(capturedMedia, capturedRel);
+            }
+
+            _contextMenu.Items.Add(menuItem);
+        }
+
+        _contextMenu.Items.Add(new ToolStripSeparator());
+
+        var updateMetaItem = new ToolStripMenuItem($"Обновить метаданные ({selectedMedia.Count})", GetSyncIcon());
+        updateMetaItem.Click += async (_, _) => await HandleBatchUpdateMetadataAsync(selectedMedia);
+        _contextMenu.Items.Add(updateMetaItem);
+
+        _contextMenu.Items.Add(new ToolStripSeparator());
+
+        var allSources = _orcestrator.GetSources().Where(s => !s.IsDisable).ToList();
+        foreach (var source in allSources)
+        {
+            var deletableMedia = selectedMedia
+                .Where(m => m.Sources.Any(s => s.SourceId == source.Id))
+                .ToList();
+
+            if (deletableMedia.Count == 0)
+            {
+                continue;
+            }
+
+            var deleteItem = new ToolStripMenuItem($"Удалить из {source.TitleFull} ({deletableMedia.Count})", GetDeleteIcon());
+            var capturedSource = source;
+            deleteItem.Click += async (_, _) => await HandleBatchDeleteAsync(deletableMedia, capturedSource);
+            _contextMenu.Items.Add(deleteItem);
+        }
+
+        _contextMenu.Show(location);
+    }
+
+    private async Task HandleBatchSyncAsync(List<Media> mediaList, SourceSyncRelation rel)
+    {
+        var result = MessageBox.Show($"Синхронизировать {mediaList.Count} медиа из {rel.From.TitleFull} в {rel.To.TitleFull}?",
+            "Подтверждение пакетной синхронизации",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+
+        if (result != DialogResult.Yes)
+        {
+            return;
+        }
+
+        _logger?.LogInformation("Запуск пакетной синхронизации {Count} медиа: {From} → {To}",
+            mediaList.Count, rel.From.TitleFull, rel.To.TitleFull);
+
+        UpdateLoadingIndicator(true);
+        var errors = new List<(Media media, Exception ex)>();
+
+        try
+        {
+            foreach (var media in mediaList)
+            {
+                try
+                {
+                    await _orcestrator!.TransferByRelation(media, rel);
+                    _logger?.LogInformation("Синхронизировано: '{Title}'", media.Title);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Ошибка синхронизации '{Title}'", media.Title);
+                    errors.Add((media, ex));
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                var errorDetails = string.Join("\n", errors.Select(e => $"- {e.media.Title}: {e.ex.Message}"));
+                MessageBox.Show($"Синхронизировано: {mediaList.Count - errors.Count} из {mediaList.Count}\n\nОшибки:\n{errorDetails}",
+                    "Пакетная синхронизация завершена с ошибками",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+        finally
+        {
+            UpdateLoadingIndicator(false);
+            RefreshData();
+        }
+    }
+
+    private async Task HandleBatchDeleteAsync(List<Media> mediaList, Source source)
+    {
+        var result = MessageBox.Show($"Удалить {mediaList.Count} медиа из {source.TitleFull}?\n\nЭто действие нельзя отменить.",
+            "Подтверждение пакетного удаления",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+
+        if (result != DialogResult.Yes)
+        {
+            return;
+        }
+
+        _logger?.LogInformation("Запуск пакетного удаления {Count} медиа из '{Source}'",
+            mediaList.Count, source.TitleFull);
+
+        UpdateLoadingIndicator(true);
+        var errors = new List<(Media media, Exception ex)>();
+
+        try
+        {
+            foreach (var media in mediaList)
+            {
+                try
+                {
+                    await _orcestrator!.DeleteMediaFromSourceAsync(media, source);
+                    _logger?.LogInformation("Удалено: '{Title}' из '{Source}'", media.Title, source.TitleFull);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Ошибка удаления '{Title}' из '{Source}'", media.Title, source.TitleFull);
+                    errors.Add((media, ex));
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                var errorDetails = string.Join("\n", errors.Select(e => $"- {e.media.Title}: {e.ex.Message}"));
+                MessageBox.Show($"Удалено: {mediaList.Count - errors.Count} из {mediaList.Count}\n\nОшибки:\n{errorDetails}",
+                    "Пакетное удаление завершено с ошибками",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+        finally
+        {
+            UpdateLoadingIndicator(false);
+            RefreshData();
+        }
+    }
+
+    private async Task HandleBatchUpdateMetadataAsync(List<Media> mediaList)
+    {
+        _logger?.LogInformation("Запуск пакетного обновления метаданных для {Count} медиа", mediaList.Count);
+
+        UpdateLoadingIndicator(true);
+        var errors = new List<(Media media, Exception ex)>();
+
+        try
+        {
+            foreach (var media in mediaList)
+            {
+                try
+                {
+                    await _orcestrator!.ForceUpdateMetadataAsync(media);
+                    _logger?.LogInformation("Метаданные обновлены: '{Title}'", media.Title);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Ошибка обновления метаданных '{Title}'", media.Title);
+                    errors.Add((media, ex));
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                var errorDetails = string.Join("\n", errors.Select(e => $"- {e.media.Title}: {e.ex.Message}"));
+                MessageBox.Show($"Обновлено: {mediaList.Count - errors.Count} из {mediaList.Count}\n\nОшибки:\n{errorDetails}",
+                    "Обновление метаданных завершено с ошибками",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+        finally
+        {
+            UpdateLoadingIndicator(false);
+            RefreshData();
+        }
+    }
+
     private void ShowContextMenu(Media media, Point location, Source? specificSource = null)
     {
         _contextMenu?.Dispose();
@@ -423,6 +639,7 @@ public partial class MediaMatrixGridControl : UserControl
                     var folderPath = source.Settings["path"] + "\\" + mediaSource.ExternalId;
                     Process.Start("explorer.exe", folderPath);
                 };
+
                 _contextMenu.Items.Add(openDirectory);
             }
         }
@@ -470,7 +687,8 @@ public partial class MediaMatrixGridControl : UserControl
             var toSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.To.Id);
             var menuText = $"Синхронизировать {rel.From.TitleFull} -> {rel.To.TitleFull}";
 
-            if (fromSource != null && fromSource.Status == MediaStatus.Ok
+            if (fromSource != null
+                && fromSource.Status == MediaStatus.Ok
                 && (toSource == null || toSource.Status != MediaStatus.Ok))
             {
                 var menuItem = new ToolStripMenuItem(menuText, GetSyncIcon());
@@ -726,7 +944,7 @@ public partial class MediaMatrixGridControl : UserControl
                     var sourceName = source?.TitleFull ?? "Неизвестный источник";
                     var status = MediaStatusHelper.GetById(sourceLink.Status);
 
-                    details.AppendLine($"  {sourceName}: {(status.IconText + " " + status.Text)}");
+                    details.AppendLine($"  {sourceName}: {status.IconText + " " + status.Text}");
                     if (!string.IsNullOrEmpty(sourceLink.ExternalId))
                     {
                         details.AppendLine($"    ID: {sourceLink.ExternalId}");

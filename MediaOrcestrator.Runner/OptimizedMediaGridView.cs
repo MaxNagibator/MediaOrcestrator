@@ -220,10 +220,11 @@ public class OptimizedMediaGridView : DataGridView
                     {
                         if (sourceId.Contains(source.SourceId))
                         {
-                         //   media.Sources = media.Sources.Take(3).ToList();
+                            //   media.Sources = media.Sources.Take(3).ToList();
                             delete.Add(source.ExternalId);
-                           continue;
+                            continue;
                         }
+
                         sourceId.Add(source.SourceId);
                     }
                     //media.Sources = media.Sources.Where(x => !delete.Contains(x.ExternalId)).ToList();
@@ -281,6 +282,20 @@ public class OptimizedMediaGridView : DataGridView
         foreach (DataGridViewRow row in Rows)
         {
             if (row.Cells[CheckboxColumnIndex].Value is true && row.Tag is Media media)
+            {
+                result.Add(media);
+            }
+        }
+
+        return result;
+    }
+
+    public List<Media> GetSelectedMedia()
+    {
+        var result = new List<Media>();
+        foreach (DataGridViewRow row in SelectedRows)
+        {
+            if (row.Tag is Media media)
             {
                 result.Add(media);
             }

@@ -1,12 +1,15 @@
-﻿using LiteDB;
+using LiteDB;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace MediaOrcestrator.HardDiskDrive;
 
 // todo разделить ответственность между ISourceDefinition and ISourceManager (а у SourceManager внутри будет Definition св-во)
-public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourceType
+public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IToolConsumer
 {
     public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
@@ -39,6 +42,22 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
         },
     ];
 
+    public IReadOnlyList<ToolDescriptor> RequiredTools =>
+    [
+        new()
+        {
+            Name = WellKnownTools.FFmpeg,
+            GitHubRepo = "BtbN/FFmpeg-Builds",
+            AssetPattern = "ffmpeg-N-*-win64-gpl.zip",
+            VersionCommand = "-version",
+            VersionPattern = @"ffmpeg version N-\d+-\w+-(\d{8})",
+            VersionTagPattern = @"autobuild-(\d{4}-\d{2}-\d{2})",
+            ArchiveType = ArchiveType.Zip,
+            ArchiveExecutablePath = "ffmpeg-*/bin/ffmpeg.exe",
+            CompanionExecutables = ["ffprobe"],
+        },
+    ];
+
     public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, bool isFull, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var basePath = settings["path"];
@@ -66,12 +85,10 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
 
         logger.LogInformation("Найдено файлов в базе данных: {Count}", files.Count);
 
-        await Task.CompletedTask;
-
         foreach (var file in files)
         {
             logger.LogDebug("Обработка файла: ID={FileId}, Название='{Title}'", file.Id, file.Title);
-            yield return CreateMediaDto(file, basePath);
+            yield return await CreateMediaDtoAsync(file, basePath, cancellationToken);
         }
 
         logger.LogInformation("Завершено получение медиа с жёсткого диска");
@@ -102,9 +119,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
             return null;
         }
 
-        await Task.CompletedTask;
-
-        return CreateMediaDto(file, basePath);
+        return await CreateMediaDtoAsync(file, basePath, cancellationToken);
     }
 
     public Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
@@ -251,7 +266,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
             throw;
         }
 
-        return new UploadResult
+        return new()
         {
             Status = MediaStatusHelper.Ok(),
             Id = hddId,
@@ -319,7 +334,24 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
         return Task.CompletedTask;
     }
 
-    private static MediaDto CreateMediaDto(DriveMedia file, string basePath)
+    private static bool TryParseFraction(string value, out double result)
+    {
+        result = 0;
+        var parts = value.Split('/');
+
+        if (parts.Length == 2
+            && double.TryParse(parts[0], CultureInfo.InvariantCulture, out var numerator)
+            && double.TryParse(parts[1], CultureInfo.InvariantCulture, out var denominator)
+            && denominator != 0)
+        {
+            result = numerator / denominator;
+            return true;
+        }
+
+        return double.TryParse(value, CultureInfo.InvariantCulture, out result);
+    }
+
+    private async Task<MediaDto> CreateMediaDtoAsync(DriveMedia file, string basePath, CancellationToken cancellationToken)
     {
         var fullPath = Path.Combine(basePath, file.Id, file.Path);
         var fileInfo = new FileInfo(fullPath);
@@ -329,30 +361,211 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger) : ISourc
             ? Path.Combine(basePath, file.Id, file.PreviewPath)
             : string.Empty;
 
+        var metadata = new List<MetadataItem>
+        {
+            new()
+            {
+                Key = "Size",
+                DisplayName = "Размер",
+                Value = fileExists ? fileInfo.Length.ToString() : "0",
+                DisplayType = "ByteSize",
+            },
+            new()
+            {
+                Key = "CreationDate",
+                DisplayName = "Дата создания",
+                Value = fileExists ? fileInfo.CreationTime.ToString("O") : "",
+                DisplayType = "System.DateTime",
+            },
+        };
+
+        if (fileExists)
+        {
+            var videoInfo = await GetVideoInfoAsync(fullPath, cancellationToken);
+
+            if (videoInfo is not null)
+            {
+                metadata.AddRange(videoInfo);
+            }
+        }
+
         return new()
         {
             Id = file.Id,
             Description = file.Description,
             Title = file.Title,
             PreviewPath = previewFullPath,
-            Metadata =
-            [
-                new()
-                {
-                    Key = "Size",
-                    DisplayName = "Размер",
-                    Value = fileExists ? fileInfo.Length.ToString() : "0",
-                    DisplayType = "ByteSize",
-                },
-                new()
-                {
-                    Key = "CreationDate",
-                    DisplayName = "Дата создания",
-                    Value = fileExists ? fileInfo.CreationTime.ToString("O") : "",
-                    DisplayType = "System.DateTime",
-                },
-            ],
+            Metadata = metadata,
         };
+    }
+
+    private async Task<List<MetadataItem>?> GetVideoInfoAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var ffprobePath = toolPathProvider.GetCompanionPath(WellKnownTools.FFmpeg, "ffprobe");
+
+        if (ffprobePath is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = $"-v quiet -print_format json -show_format -show_streams \"{filePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(psi);
+
+            if (process is null)
+            {
+                return null;
+            }
+
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode == 0)
+            {
+                return ParseFfprobeOutput(output);
+            }
+
+            logger.LogWarning("ffprobe завершился с кодом {ExitCode} для файла: {FilePath}", process.ExitCode, filePath);
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Не удалось получить информацию о видео через ffprobe: {FilePath}", filePath);
+            return null;
+        }
+    }
+
+    private List<MetadataItem>? ParseFfprobeOutput(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        var result = new List<MetadataItem>();
+
+        if (root.TryGetProperty("format", out var format))
+        {
+            if (format.TryGetProperty("duration", out var duration)
+                && double.TryParse(duration.GetString(), CultureInfo.InvariantCulture, out var seconds))
+            {
+                result.Add(new()
+                {
+                    Key = "Duration",
+                    DisplayName = "Длительность",
+                    Value = TimeSpan.FromSeconds(seconds).ToString(@"hh\:mm\:ss"),
+                    DisplayType = "System.TimeSpan",
+                });
+            }
+
+            if (format.TryGetProperty("bit_rate", out var bitRate))
+            {
+                result.Add(new()
+                {
+                    Key = "Bitrate",
+                    DisplayName = "Битрейт",
+                    Value = bitRate.GetString() ?? "",
+                    DisplayType = "Bitrate",
+                });
+            }
+        }
+
+        if (!root.TryGetProperty("streams", out var streams))
+        {
+            return result.Count > 0 ? result : null;
+        }
+
+        foreach (var stream in streams.EnumerateArray())
+        {
+            var codecType = stream.TryGetProperty("codec_type", out var ct) ? ct.GetString() : null;
+
+            if (codecType != "video")
+            {
+                continue;
+            }
+
+            if (stream.TryGetProperty("width", out var w) && stream.TryGetProperty("height", out var h))
+            {
+                result.Add(new()
+                {
+                    Key = "Resolution",
+                    DisplayName = "Разрешение",
+                    Value = $"{w.GetInt32()}x{h.GetInt32()}",
+                });
+            }
+
+            if (stream.TryGetProperty("codec_name", out var videoCodec))
+            {
+                result.Add(new()
+                {
+                    Key = "VideoCodec",
+                    DisplayName = "Видеокодек",
+                    Value = videoCodec.GetString() ?? "",
+                });
+            }
+
+            if (stream.TryGetProperty("r_frame_rate", out var frameRate))
+            {
+                var fpsStr = frameRate.GetString();
+                if (fpsStr is not null && TryParseFraction(fpsStr, out var fps))
+                {
+                    result.Add(new()
+                    {
+                        Key = "FrameRate",
+                        DisplayName = "Частота кадров",
+                        Value = fps.ToString("F2", CultureInfo.InvariantCulture),
+                        DisplayType = "FPS",
+                    });
+                }
+            }
+
+            break;
+        }
+
+        foreach (var stream in streams.EnumerateArray())
+        {
+            var codecType = stream.TryGetProperty("codec_type", out var ct) ? ct.GetString() : null;
+
+            if (codecType == "audio")
+            {
+                if (stream.TryGetProperty("codec_name", out var audioCodec))
+                {
+                    result.Add(new()
+                    {
+                        Key = "AudioCodec",
+                        DisplayName = "Аудиокодек",
+                        Value = audioCodec.GetString() ?? "",
+                    });
+                }
+
+                if (stream.TryGetProperty("sample_rate", out var sampleRate))
+                {
+                    result.Add(new()
+                    {
+                        Key = "SampleRate",
+                        DisplayName = "Частота дискретизации",
+                        Value = sampleRate.GetString() ?? "",
+                        DisplayType = "Hz",
+                    });
+                }
+
+                break;
+            }
+        }
+
+        return result.Count > 0 ? result : null;
     }
 
     private async Task<string?> SaveThumbnailAsync(MediaDto media, string mediaFolder, CancellationToken cancellationToken)

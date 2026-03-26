@@ -37,6 +37,8 @@ public partial class MainForm : Form
 
         var planner = _serviceProvider.GetRequiredService<SyncPlanner>();
         uiSyncTreeControl.Initialize(planner, _orcestrator, _serviceProvider.GetRequiredService<ILogger<SyncTreeControl>>());
+
+        CheckToolUpdatesInBackground();
     }
 
     private async void uiSyncButton_Click(object sender, EventArgs e)
@@ -413,6 +415,35 @@ public partial class MainForm : Form
         }
 
         DrawRelations();
+    }
+
+    private async void CheckToolUpdatesInBackground()
+    {
+        try
+        {
+            var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
+            var statuses = await Task.Run(() => toolManager.CheckForUpdatesAsync());
+            var updatesAvailable = statuses.Where(s => s.UpdateAvailable).ToList();
+
+            if (updatesAvailable.Count <= 0)
+            {
+                return;
+            }
+
+            var names = string.Join(", ", updatesAvailable.Select(s => s.Name));
+            _logger.LogInformation("Доступны обновления для: {Tools}", names);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Фоновая проверка обновлений инструментов не удалась");
+        }
+    }
+
+    private void uiManageToolsButton_Click(object sender, EventArgs e)
+    {
+        var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
+        using var form = new ToolsForm(toolManager);
+        form.ShowDialog(this);
     }
 
     private void DrawRelations()

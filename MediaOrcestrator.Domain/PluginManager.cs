@@ -1,10 +1,10 @@
-﻿using MediaOrcestrator.Modules;
+using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Domain;
 
-public class PluginManager(IServiceProvider serviceProvider, ILogger<PluginManager> logger)
+public class PluginManager(IServiceProvider serviceProvider, ToolManager toolManager, ILogger<PluginManager> logger)
 {
     public Dictionary<string, ISourceType> MediaSources { get; private set; } = new();
 
@@ -20,6 +20,10 @@ public class PluginManager(IServiceProvider serviceProvider, ILogger<PluginManag
             var id = type.FullName ?? "UnknownType";
 
             var instance = (ISourceType)ActivatorUtilities.CreateInstance(serviceProvider, type);
+
+            /*var instance = typeof(IToolConsumer).IsAssignableFrom(type)
+                ? (ISourceType)ActivatorUtilities.CreateInstance(serviceProvider, type, (IToolPathProvider)toolManager)
+                : (ISourceType)ActivatorUtilities.CreateInstance(serviceProvider, type);*/
 
             if (instance.SettingsKeys != null
                 && instance.SettingsKeys.Any(x => x.Key.StartsWith("_system", StringComparison.Ordinal)))
@@ -37,5 +41,15 @@ public class PluginManager(IServiceProvider serviceProvider, ILogger<PluginManag
                 logger.LogError("Не удалось добавить плагин '{PluginId}'. Плагин с таким ID уже зарегистрирован", id);
             }
         }
+
+        var toolConsumers = MediaSources.Values.OfType<IToolConsumer>().ToList();
+
+        if (toolConsumers.Count <= 0)
+        {
+            return;
+        }
+
+        toolManager.RegisterTools(toolConsumers);
+        toolManager.ResolveAll();
     }
 }

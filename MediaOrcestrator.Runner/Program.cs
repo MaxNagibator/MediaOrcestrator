@@ -1,5 +1,6 @@
 ﻿using LiteDB;
 using MediaOrcestrator.Domain;
+using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -234,6 +235,23 @@ file static class Program
 
         services.AddSingleton<LiteDatabase>(_ => new(databasePath));
         services.AddSingleton<PluginManager>();
+        services.AddHttpClient("GitHub", client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("MediaOrcestrator/1.0");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        services.AddSingleton<GitHubReleaseProvider>();
+        services.AddSingleton<IReleaseProvider>(sp => sp.GetRequiredService<GitHubReleaseProvider>());
+        services.AddSingleton<ToolVersionDetector>();
+        services.AddSingleton<ToolInstaller>();
+        services.AddSingleton<ToolManager>(sp =>
+            new(Path.Combine(AppContext.BaseDirectory, "tools"),
+                sp.GetRequiredService<IReleaseProvider>(),
+                sp.GetRequiredService<ToolVersionDetector>(),
+                sp.GetRequiredService<ToolInstaller>(),
+                sp.GetRequiredService<ILogger<ToolManager>>()));
+        services.AddSingleton<IToolPathProvider>(sp => sp.GetRequiredService<ToolManager>());
         services.AddSingleton<Orcestrator>();
         services.AddSingleton<SyncPlanner>();
         services.AddTransient<MainForm>();

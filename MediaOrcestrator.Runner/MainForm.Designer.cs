@@ -335,6 +335,15 @@
             // 
             uiToolsTabPage.Controls.Add(groupBox2);
             uiToolsTabPage.Controls.Add(groupBox1);
+            // uiManageToolsButton
+            uiManageToolsButton = new Button();
+            uiManageToolsButton.Location = new Point(6, 300);
+            uiManageToolsButton.Name = "uiManageToolsButton";
+            uiManageToolsButton.Size = new Size(200, 35);
+            uiManageToolsButton.Text = "Управление инструментами";
+            uiManageToolsButton.UseVisualStyleBackColor = true;
+            uiManageToolsButton.Click += uiManageToolsButton_Click;
+            uiToolsTabPage.Controls.Add(uiManageToolsButton);
             uiToolsTabPage.Location = new Point(4, 24);
             uiToolsTabPage.Name = "uiToolsTabPage";
             uiToolsTabPage.Size = new Size(1143, 753);
@@ -469,5 +478,6 @@
         private Button uiYoutubeAuthStateOpenBrowserButton;
         private Button button1;
         private ComboBox comboBox1;
+        private Button uiManageToolsButton;
     }
 }

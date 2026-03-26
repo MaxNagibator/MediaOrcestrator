@@ -32,4 +32,10 @@
     <PackageReference Include="Microsoft.Playwright" Version="1.57.0" />
   </ItemGroup>
 
+  <Target Name="BuildModules" AfterTargets="Build">
+    <MSBuild Projects="..\MediaOrcestrator.Youtube\MediaOrcestrator.Youtube.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="..\MediaOrcestrator.Rutube\MediaOrcestrator.Rutube.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="..\MediaOrcestrator.HardDiskDrive\MediaOrcestrator.HardDiskDrive.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+  </Target>
+
 </Project>
