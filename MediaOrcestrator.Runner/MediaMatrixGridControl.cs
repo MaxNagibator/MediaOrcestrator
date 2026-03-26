@@ -17,10 +17,11 @@ public partial class MediaMatrixGridControl : UserControl
         uiFilterControl.FilterChanged += (_, _) => RefreshData();
     }
 
-    public void Initialize(Orcestrator orcestrator, ILogger<MediaMatrixGridControl> logger)
+    public void Initialize(Orcestrator orcestrator, ILogger<MediaMatrixGridControl> logger, SettingsManager settingsManager)
     {
         _orcestrator = orcestrator;
         _logger = logger;
+        uiFilterControl.SetSettingsManager(settingsManager);
         uiFilterControl.PopulateRelationsFilter(orcestrator);
     }
 
@@ -54,16 +55,11 @@ public partial class MediaMatrixGridControl : UserControl
                 return (filteredMedia, filteredSources, allMedia.Count);
             });
 
-            var allMetadataInfos = mediaData
-                .SelectMany(m => m.Metadata)
-                .GroupBy(m => m.Key)
-                .Select(g => g.First())
-                .OrderBy(m => m.Key)
-                .ToList();
+            var allMetadataColumns = BuildMetadataColumns(mediaData, sources);
 
-            uiFilterControl.UpdateMetadataFilter(allMetadataInfos);
-            var selectedMetadataKeys = uiFilterControl.GetSelectedMetadataFields();
-            var selectedMetadata = allMetadataInfos.Where(m => selectedMetadataKeys.Contains(m.Key)).ToList();
+            uiFilterControl.UpdateMetadataFilter(allMetadataColumns);
+            var selectedColumnIds = uiFilterControl.GetSelectedMetadataFields();
+            var selectedMetadata = allMetadataColumns.Where(c => selectedColumnIds.Contains(c.ColumnId)).ToList();
 
             uiMediaGrid.SetupColumns(sources, selectedMetadata);
             uiMediaGrid.PopulateGrid(sources, mediaData, selectedMetadata);
@@ -653,7 +649,7 @@ public partial class MediaMatrixGridControl : UserControl
     private void AddMetadataMenuItems(ContextMenuStrip contextMenu, Media media, Source? specificSource)
     {
         var viewMetaItem = new ToolStripMenuItem("Просмотр метаданных медиа", null);
-        viewMetaItem.Click += (_, _) => ShowMetadataDialog(media);
+        viewMetaItem.Click += (_, _) => ShowMediaDetail(media);
         contextMenu.Items.Add(viewMetaItem);
 
         var updateMetaItem = new ToolStripMenuItem("Принудительное обновление метаданных", GetSyncIcon());
@@ -840,23 +836,53 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
-    private void ShowMetadataDialog(Media media)
+    private void ShowMediaDetail(Media media)
     {
-        var details = new StringBuilder();
-        if (media.Metadata.Count == 0)
+        var sources = _orcestrator?.GetSources() ?? [];
+        var form = new MediaDetailForm(media, sources, _logger);
+        form.Show(this);
+    }
+
+    private static List<MetadataColumnInfo> BuildMetadataColumns(List<Media> mediaData, List<Source> sources)
+    {
+        // TODO: Жидкое место
+        var sourceNameMap = sources.ToDictionary(s => s.Id, s => s.TitleFull);
+
+        var pairs = mediaData
+            .SelectMany(m => m.Metadata)
+            .Where(m => m.SourceId != null)
+            .GroupBy(m => (m.Key, m.SourceId))
+            .Select(g => g.First())
+            .ToList();
+
+        var duplicateKeys = pairs
+            .GroupBy(m => m.Key)
+            .Where(g => g.Select(m => m.SourceId).Distinct().Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet();
+
+        var result = new List<MetadataColumnInfo>();
+
+        foreach (var group in pairs.GroupBy(m => m.Key).OrderBy(g => g.Key))
         {
-            details.AppendLine("Нет метаданных.");
-        }
-        else
-        {
-            foreach (var meta in media.Metadata.OrderBy(m => m.Key))
+            if (duplicateKeys.Contains(group.Key))
             {
-                var sourceName = _orcestrator?.GetSources().FirstOrDefault(s => s.Id == meta.SourceId)?.TitleFull ?? meta.SourceId ?? "Неизвестно";
-                details.AppendLine($"{meta.Key} [{sourceName}]: {meta.Value}");
+                foreach (var meta in group.OrderBy(m => m.SourceId))
+                {
+                    var sourceName = sourceNameMap.GetValueOrDefault(meta.SourceId!, meta.SourceId!);
+                    var displayName = (meta.DisplayName ?? meta.Key) + $" ({sourceName})";
+                    var columnId = $"{meta.Key} ({sourceName})";
+                    result.Add(new(columnId, meta.Key, meta.SourceId, displayName, meta.DisplayType));
+                }
+            }
+            else
+            {
+                var meta = group.First();
+                result.Add(new(meta.Key, meta.Key, null, meta.DisplayName ?? meta.Key, meta.DisplayType));
             }
         }
 
-        MessageBox.Show(details.ToString(), $"Метаданные: {media.Title}", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        return result;
     }
 
     private async Task HandleUpdateMetadataAsync(Media media)

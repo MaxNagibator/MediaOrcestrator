@@ -27,7 +27,10 @@ public partial class MainForm : Form
         DrawSources();
         DrawRelations();
         // TODO: SetZalupaV2
-        uiMediaMatrixGridControl.Initialize(_orcestrator, _serviceProvider.GetRequiredService<ILogger<MediaMatrixGridControl>>());
+        uiMediaMatrixGridControl.Initialize(
+            _orcestrator,
+            _serviceProvider.GetRequiredService<ILogger<MediaMatrixGridControl>>(),
+            _serviceProvider.GetRequiredService<SettingsManager>());
         uiMediaMatrixGridControl.RefreshData();
 
         if (uiClearTypeComboBox.Items.Count > 0)
