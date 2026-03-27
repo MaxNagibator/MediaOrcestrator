@@ -846,7 +846,7 @@ public partial class MediaMatrixGridControl : UserControl
     private static List<MetadataColumnInfo> BuildMetadataColumns(List<Media> mediaData, List<Source> sources)
     {
         // TODO: Жидкое место
-        var sourceNameMap = sources.ToDictionary(s => s.Id, s => s.TitleFull);
+        var sourceNameMap = sources.ToDictionary(s => s.Id, s => s.Title);
 
         var pairs = mediaData
             .SelectMany(m => m.Metadata)

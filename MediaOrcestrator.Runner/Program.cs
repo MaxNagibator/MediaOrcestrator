@@ -83,6 +83,11 @@ file static class Program
             var orcestrator = serviceProvider.GetRequiredService<Orcestrator>();
             orcestrator.Init(pluginPath);
 
+            var backupService = serviceProvider.GetRequiredService<DatabaseBackupService>();
+            backupService.ValidateLog();
+            backupService.Backup(BackupTrigger.Startup);
+            backupService.StartScheduled(TimeSpan.FromHours(6));
+
             Task.Run(async () =>
             {
                 await GoGo(orcestrator);
@@ -234,6 +239,10 @@ file static class Program
         });
 
         services.AddSingleton<LiteDatabase>(_ => new(databasePath));
+        services.AddSingleton<DatabaseBackupService>(sp =>
+            new(sp.GetRequiredService<LiteDatabase>(),
+                databasePath,
+                sp.GetRequiredService<ILogger<DatabaseBackupService>>()));
         services.AddSingleton<PluginManager>();
         services.AddHttpClient("GitHub", client =>
         {

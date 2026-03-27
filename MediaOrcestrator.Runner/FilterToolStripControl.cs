@@ -221,7 +221,7 @@ public partial class FilterToolStripControl : UserControl
 
     private void SaveMetadataSelection()
     {
-        _settingsManager?.SetValue(MetadataColumnsSettingKey, string.Join(";", _selectedMetadataFields));
+        _settingsManager?.SetValue(MetadataColumnsSettingKey, string.Join(";", _selectedMetadataFields.OrderBy(x => x)));
     }
 
     private void OnFilterChanged()

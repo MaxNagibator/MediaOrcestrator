@@ -6,9 +6,15 @@ partial class MediaDetailForm
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing && (components != null))
+        if (disposing)
         {
-            components.Dispose();
+            uiPreviewBox.Image?.Dispose();
+            _titleFont?.Dispose();
+            _headerFont?.Dispose();
+            _groupFont?.Dispose();
+            _boldFont?.Dispose();
+            _regularFont?.Dispose();
+            components?.Dispose();
         }
 
         base.Dispose(disposing);

@@ -8,20 +8,31 @@ namespace MediaOrcestrator.Runner;
 public partial class MediaDetailForm : Form
 {
     private readonly ILogger? _logger;
+    private readonly Font _titleFont;
+    private readonly Font _headerFont;
+    private readonly Font _groupFont;
+    private readonly Font _boldFont;
+    private readonly Font _regularFont;
 
     public MediaDetailForm(Media media, List<Source> sources, ILogger? logger = null)
     {
         _logger = logger;
         InitializeComponent();
 
+        _titleFont = new(Font.FontFamily, 11, FontStyle.Bold);
+        _headerFont = new(Font.FontFamily, 10, FontStyle.Bold);
+        _groupFont = new(Font.FontFamily, 9.5f, FontStyle.Bold);
+        _boldFont = new(Font.FontFamily, 9, FontStyle.Bold);
+        _regularFont = new(Font.FontFamily, 9, FontStyle.Regular);
+
         _logger?.LogDebug("Открытие окна деталей для медиа '{Title}' (Sources: {Count}, Metadata: {MetaCount})",
             media.Title, media.Sources.Count, media.Metadata.Count);
 
         Text = $"Подробная информация: {media.Title}";
         uiTitleLabel.Text = media.Title ?? "";
-        uiTitleLabel.Font = new(Font.FontFamily, 11, FontStyle.Bold);
+        uiTitleLabel.Font = _titleFont;
         uiDescriptionLabel.Text = media.Description ?? "";
-        uiSourcesHeaderLabel.Font = new(Font.FontFamily, 10, FontStyle.Bold);
+        uiSourcesHeaderLabel.Font = _headerFont;
 
         var sourceDict = sources.ToDictionary(s => s.Id);
         TryLoadPreview(media, sourceDict);
@@ -94,6 +105,17 @@ public partial class MediaDetailForm : Form
             AutoScroll = true,
         };
 
+        flow.Resize += (_, _) =>
+        {
+            flow.SuspendLayout();
+            var width = flow.ClientSize.Width - flow.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth;
+            foreach (Control child in flow.Controls)
+            {
+                child.Width = Math.Max(100, width);
+            }
+            flow.ResumeLayout();
+        };
+
         foreach (var sourceLink in media.Sources)
         {
             var source = sourceDict.GetValueOrDefault(sourceLink.SourceId);
@@ -103,7 +125,7 @@ public partial class MediaDetailForm : Form
             var groupBox = new GroupBox
             {
                 Text = sourceName,
-                Font = new(Font.FontFamily, 9.5f, FontStyle.Bold),
+                Font = _groupFont,
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowOnly,
                 MinimumSize = new(0, 50),
@@ -121,12 +143,12 @@ public partial class MediaDetailForm : Form
 
             innerFlow.Controls.Add(CreateLabel(
                 $"{status.IconText} {status.Text}",
-                new(Font.FontFamily, 9, FontStyle.Bold),
+                _boldFont,
                 status.IconColor));
 
             innerFlow.Controls.Add(CreateLabel(
                 $"ID: {sourceLink.ExternalId}",
-                new(Font.FontFamily, 9, FontStyle.Regular),
+                _regularFont,
                 Color.FromArgb(100, 100, 100)));
 
             var sourceMetadata = media.Metadata
@@ -138,7 +160,7 @@ public partial class MediaDetailForm : Form
             {
                 innerFlow.Controls.Add(CreateLabel(
                     "(нет метаданных)",
-                    new(Font.FontFamily, 9, FontStyle.Regular),
+                    _regularFont,
                     Color.Gray));
             }
             else
@@ -150,7 +172,7 @@ public partial class MediaDetailForm : Form
 
                     innerFlow.Controls.Add(CreateLabel(
                         $"{displayName}: {displayValue}",
-                        new(Font.FontFamily, 9, FontStyle.Regular)));
+                        _regularFont));
                 }
             }
 
@@ -222,7 +244,7 @@ public partial class MediaDetailForm : Form
                 _ => converted?.ToString() ?? meta.Value,
             };
         }
-        catch
+        catch (Exception)
         {
             return meta.Value;
         }
