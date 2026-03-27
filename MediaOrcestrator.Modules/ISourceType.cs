@@ -30,7 +30,7 @@ public interface ISourceType
     Uri? GetExternalUri(string externalId, Dictionary<string, string> settings) => null;
 
     ConvertType[] GetAvailabelConvertTypes();
-    Task ConvertAsync(ConvertType type);
+    Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
 }
 
 public class ConvertType

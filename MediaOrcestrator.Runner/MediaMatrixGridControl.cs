@@ -413,6 +413,14 @@ public partial class MediaMatrixGridControl : UserControl
             var capturedSource = source;
             deleteItem.Click += async (_, _) => await HandleBatchDeleteAsync(deletableMedia, capturedSource);
             _contextMenu.Items.Add(deleteItem);
+
+
+            foreach (var t in source.Type.GetAvailabelConvertTypes())
+            {
+                var bbbbb = new ToolStripMenuItem($"Конвертировать " + t.Name, GetDeleteIcon());
+                bbbbb.Click += async (_, _) => await source.Type.ConvertAsync(t.Id, deletableMedia[0].Id, source.Settings);
+                _contextMenu.Items.Add(bbbbb);
+            }
         }
 
         _contextMenu.Show(location);

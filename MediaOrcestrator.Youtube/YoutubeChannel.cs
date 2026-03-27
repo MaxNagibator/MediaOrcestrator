@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
 using YoutubeExplode;
@@ -411,5 +411,15 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
         // Последняя попытка (если все предыдущие провалились)
         return await action();
+    }
+
+    public ConvertType[] GetAvailabelConvertTypes()
+    {
+        return [];
+    }
+
+    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 }

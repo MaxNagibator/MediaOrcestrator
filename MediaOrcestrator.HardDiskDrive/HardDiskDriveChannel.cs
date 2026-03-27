@@ -1,9 +1,11 @@
 ﻿using LiteDB;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 
 namespace MediaOrcestrator.HardDiskDrive;
@@ -621,12 +623,111 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
 
     public ConvertType[] GetAvailabelConvertTypes()
     {
-        return [new ConvertType { Id = 1, Name = "h264", Action = { "process C:\\Services\\utils\\ffmpeg\\ffmpeg -i \"E:\\bobgroup\\projects\\mediaOrcestrator\\Dev\\hdd1\\d415fc2e-3191-447b-8270-099ef2ed9787\\main.mp4\" -c:v h264_nvenc -preset slow -c:a copy \"E:\\bobgroup\\projects\\mediaOrcestrator\\Dev\\hdd1\\d415fc2e-3191-447b-8270-099ef2ed9787\\output_3.mp4\"" } }];
+        return [new ConvertType { Id = 1, Name = "vp9 to h264" }];
     }
 
-    public Task ConvertAsync(int typeId)
+    private async Task ConvertationVp9ToH264(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
-        return await GetAvailabelConvertTypes().First(x => x.Id == typeId).Action();
+        logger.LogInformation("Конвертация медиа из HDD. ID: {ExternalId}", externalId);
+
+        var m = await GetMediaByIdAsync(externalId, settings, cancellationToken);
+        if (m.Metadata.First(x => x.Key == "codek") != "vp9")
+        {
+            return;
+        }
+
+        // TODO: Дублирование
+        var basePath = settings["path"];
+        var dbFileName = settings.GetValueOrDefault("dbFileName", "data.db");
+        var dbPath = Path.Combine(basePath, dbFileName);
+
+        if (!File.Exists(dbPath))
+        {
+            logger.LogError("База данных не найдена: {DbPath}", dbPath);
+            throw new FileNotFoundException("База данных не найдена", dbPath);
+        }
+
+        using var db = new LiteDatabase(dbPath);
+        var collection = db.GetCollection<DriveMedia>("files");
+        var file = collection.FindById(externalId);
+
+        if (file == null)
+        {
+            logger.LogError("Медиа {ExternalId} не найдено в базе данных, не можем конвертировать", externalId);
+            throw new Exception($"Медиа {externalId} не найдено в базе данных, не можем конвертировать");
+        }
+
+        var mediaFolder = Path.Combine(basePath, externalId);
+        if (!Directory.Exists(mediaFolder))
+        {
+            throw new Exception($"Папка медиа {mediaFolder} не найдена");
+        }
+
+        var fullPath = Path.Combine(basePath, file.Id, file.Path);
+        var convertPath = fullPath + "_convert.mp4";
+        await ConvertAsync(fullPath, convertPath, cancellationToken);
+    }
+
+    private async Task ConvertAsync(string inputPath, string outputPath, CancellationToken cancellationToken = default)
+    {
+        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg);
+        if (ffmpegPath is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-i \"{inputPath}\" -c:v h264_nvenc -preset slow -c:a copy \"{outputPath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(psi);
+
+            if (process is null)
+            {
+                return;
+            }
+
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode == 0)
+            {
+                logger.LogInformation("ffmpeg convert output:\r\n" + output);
+                return;
+            }
+
+            logger.LogWarning("ffmpeg завершился с кодом {ExitCode} для файла: {FilePath}", process.ExitCode, inputPath);
+            return;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Не удалось сконвертировать видео через ffmpeg: {FilePath}", inputPath);
+        }
+    }
+
+    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    {
+        if (typeId == 1)
+        {
+            return ConvertationVp9ToH264(externalId, settings, cancellationToken);
+        }
+        else
+        {
+            throw new NotImplementedException("type not implemented " + typeId);
+        }
+
     }
 }
 

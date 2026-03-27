@@ -275,4 +275,14 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         return new(cookieStringBuilder.ToString(), csrfToken, serviceLogger);
     }
+
+    public ConvertType[] GetAvailabelConvertTypes()
+    {
+        return [];
+    }
+
+    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
 }
