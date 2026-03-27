@@ -6,14 +6,23 @@ namespace MediaOrcestrator.Runner;
 public partial class FilterToolStripControl : UserControl
 {
     private const int SearchDebounceMs = 1000;
+    private const string MetadataColumnsSettingKey = "metadata_columns";
     private readonly HashSet<SourceSyncRelation> _selectedRelations = [];
     private readonly HashSet<string> _availableMetadataFields = [];
     private readonly HashSet<string> _selectedMetadataFields = [];
-    private bool _metadataInitialized;
+    private SettingsManager? _settingsManager;
 
     public FilterToolStripControl()
     {
         InitializeComponent();
+
+        uiMetadataDropDownButton.DropDown.Closing += (_, e) =>
+        {
+            if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
+            {
+                e.Cancel = true;
+            }
+        };
 
         uiStatusFilterComboBox.Items.Clear();
         uiStatusFilterComboBox.Items.Add(new StatusFilterItem { Text = "Все", Tag = null });
@@ -25,6 +34,12 @@ public partial class FilterToolStripControl : UserControl
         }
 
         uiStatusFilterComboBox.SelectedIndex = 0;
+    }
+
+    public void SetSettingsManager(SettingsManager settingsManager)
+    {
+        _settingsManager = settingsManager;
+        LoadSavedMetadataSelection();
     }
 
     public event EventHandler? FilterChanged;
@@ -74,59 +89,50 @@ public partial class FilterToolStripControl : UserControl
         }
     }
 
-    public void UpdateMetadataFilter(List<MetadataItem> availableMetadata)
+    public void UpdateMetadataFilter(List<MetadataColumnInfo> availableColumns)
     {
-        var newSet = availableMetadata.Select(m => m.Key).ToHashSet();
+        var newSet = availableColumns.Select(c => c.ColumnId).ToHashSet();
         if (_availableMetadataFields.SetEquals(newSet))
         {
             return;
         }
 
         _availableMetadataFields.Clear();
-        foreach (var k in newSet)
+        foreach (var id in newSet)
         {
-            _availableMetadataFields.Add(k);
+            _availableMetadataFields.Add(id);
         }
 
-        // TODO: Автоматический выбор всех по умолчанию. Возможно стоит убрать
-        if (!_metadataInitialized)
-        {
-            foreach (var k in newSet)
-            {
-                _selectedMetadataFields.Add(k);
-            }
-
-            _metadataInitialized = true;
-        }
+        _selectedMetadataFields.IntersectWith(_availableMetadataFields);
 
         uiMetadataDropDownButton.DropDownItems.Clear();
 
-        foreach (var meta in availableMetadata)
+        foreach (var col in availableColumns)
         {
-            var key = meta.Key;
-            var isChecked = _selectedMetadataFields.Contains(key);
+            var isChecked = _selectedMetadataFields.Contains(col.ColumnId);
 
-            var item = new ToolStripMenuItem(meta.DisplayName ?? key)
+            var item = new ToolStripMenuItem(col.DisplayName)
             {
                 CheckOnClick = true,
                 Checked = isChecked,
-                Tag = key,
+                Tag = col.ColumnId,
             };
 
             item.CheckedChanged += (s, _) =>
             {
-                if (s is ToolStripMenuItem { Tag: string mk } menuItem)
+                if (s is ToolStripMenuItem { Tag: string columnId } menuItem)
                 {
                     if (menuItem.Checked)
                     {
-                        _selectedMetadataFields.Add(mk);
+                        _selectedMetadataFields.Add(columnId);
                     }
                     else
                     {
-                        _selectedMetadataFields.Remove(mk);
+                        _selectedMetadataFields.Remove(columnId);
                     }
                 }
 
+                SaveMetadataSelection();
                 OnFilterChanged();
             };
 
@@ -197,6 +203,25 @@ public partial class FilterToolStripControl : UserControl
             null,
             SearchDebounceMs,
             Timeout.Infinite);
+    }
+
+    private void LoadSavedMetadataSelection()
+    {
+        var saved = _settingsManager?.GetStringValue(MetadataColumnsSettingKey);
+        if (string.IsNullOrEmpty(saved))
+        {
+            return;
+        }
+
+        foreach (var columnId in saved.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            _selectedMetadataFields.Add(columnId);
+        }
+    }
+
+    private void SaveMetadataSelection()
+    {
+        _settingsManager?.SetValue(MetadataColumnsSettingKey, string.Join(";", _selectedMetadataFields.OrderBy(x => x)));
     }
 
     private void OnFilterChanged()

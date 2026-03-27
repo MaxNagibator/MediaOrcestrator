@@ -8,7 +8,7 @@ namespace MediaOrcestrator.Youtube;
 
 public sealed record YtDlpProgress(int PartNumber, double Progress);
 
-public sealed partial class YtDlp(string path, string ffmpegPath, string jsRuntime = "none", string cookiePath = "")
+public sealed partial class YtDlp(string path, string ffmpegPath, string jsRuntime = "none", string? jsRuntimeDir = null, string cookiePath = "")
 {
     public async Task DownloadAsync(
         string url,
@@ -84,8 +84,7 @@ public sealed partial class YtDlp(string path, string ffmpegPath, string jsRunti
         CancellationToken cancellationToken = default)
     {
         var argumentsList = arguments.ToList();
-        string commandString = $"{path} {string.Join(" ", argumentsList.Select(a => a.Contains(' ') ? $"\"{a}\"" : a))}";
-
+        var commandString = $"{path} {string.Join(" ", argumentsList.Select(a => a.Contains(' ') ? $"\"{a}\"" : a))}";
 
         StringBuilder stdErrBuffer = new();
 
@@ -98,6 +97,16 @@ public sealed partial class YtDlp(string path, string ffmpegPath, string jsRunti
         {
             var command = Cli.Wrap(path)
                 .WithArguments(arguments)
+                .WithEnvironmentVariables(env =>
+                {
+                    if (jsRuntimeDir is null)
+                    {
+                        return;
+                    }
+
+                    var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                    env.Set("PATH", $"{jsRuntimeDir};{currentPath}");
+                })
                 .WithStandardOutputPipe(stdOutPipe)
                 .WithStandardErrorPipe(stdErrPipe);
 

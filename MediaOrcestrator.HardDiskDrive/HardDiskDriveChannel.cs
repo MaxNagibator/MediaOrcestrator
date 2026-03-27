@@ -58,6 +58,17 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
         },
     ];
 
+    public Uri? GetExternalUri(string externalId, Dictionary<string, string> settings)
+    {
+        if (!settings.TryGetValue("path", out var basePath))
+        {
+            return null;
+        }
+
+        var folderPath = Path.Combine(basePath, externalId);
+        return new(folderPath);
+    }
+
     public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, bool isFull, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var basePath = settings["path"];

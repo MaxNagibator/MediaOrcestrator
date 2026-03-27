@@ -10,6 +10,12 @@ namespace MediaOrcestrator.Youtube;
 
 public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IToolConsumer, ILegacyToolPathProvider
 {
+    private static readonly Dictionary<string, string> LegacySettingDefaults = new()
+    {
+        ["yt_dlp_path"] = @"c:\Services\utils\yt-dlp.exe",
+        ["ffmpeg_path"] = @"c:\Services\utils\ffmpeg\ffmpeg.exe",
+    };
+
     private readonly Func<YoutubeClient, string, Task<Channel?>>[] _parsers =
     [
         async (youtubeClient, url) => ChannelId.TryParse(url) is { } id ? await youtubeClient.Channels.GetAsync(id) : null,
@@ -17,12 +23,6 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         async (youtubeClient, url) => ChannelHandle.TryParse(url) is { } handle ? await youtubeClient.Channels.GetByHandleAsync(handle) : null,
         async (youtubeClient, url) => UserName.TryParse(url) is { } userName ? await youtubeClient.Channels.GetByUserAsync(userName) : null,
     ];
-
-    private static readonly Dictionary<string, string> LegacySettingDefaults = new()
-    {
-        ["yt_dlp_path"] = @"c:\Services\utils\yt-dlp.exe",
-        ["ffmpeg_path"] = @"c:\Services\utils\ffmpeg\ffmpeg.exe",
-    };
 
     public IReadOnlyList<ToolDescriptor> RequiredTools =>
     [
@@ -45,25 +45,17 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
             ArchiveType = ArchiveType.Zip,
             ArchiveExecutablePath = "ffmpeg-*/bin/ffmpeg.exe",
         },
+        new()
+        {
+            Name = WellKnownTools.Deno,
+            GitHubRepo = "denoland/deno",
+            AssetPattern = "deno-x86_64-pc-windows-msvc.zip",
+            VersionCommand = "--version",
+            VersionPattern = @"deno (\S+)",
+            ArchiveType = ArchiveType.Zip,
+            ArchiveExecutablePath = "deno.exe",
+        },
     ];
-
-    public string? GetLegacyToolPath(string toolName)
-    {
-        var key = toolName switch
-        {
-            WellKnownTools.YtDlp => "yt_dlp_path",
-            WellKnownTools.FFmpeg => "ffmpeg_path",
-            _ => null,
-        };
-
-        if (key is null)
-        {
-            return null;
-        }
-
-        var legacyDefault = LegacySettingDefaults.GetValueOrDefault(key);
-        return legacyDefault is not null && File.Exists(legacyDefault) ? legacyDefault : null;
-    }
 
     public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
@@ -100,7 +92,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
                 new() { Value = "node", Label = "node" },
                 new() { Value = "quickjs", Label = "quickjs" },
             ],
-            Description = "JavaScript runtime для YouTube extraction (требуется для yt-dlp)",
+            Description = "JavaScript runtime для YouTube extraction (требуется для yt-dlp). Deno устанавливается и обновляется автоматически через панель инструментов",
         },
         new()
         {
@@ -110,6 +102,29 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
             Description = "JSON файл с cookies и CSRF токеном для авторизации на Youtube (для 18+ видео)",
         },
     ];
+
+    public string? GetLegacyToolPath(string toolName)
+    {
+        var key = toolName switch
+        {
+            WellKnownTools.YtDlp => "yt_dlp_path",
+            WellKnownTools.FFmpeg => "ffmpeg_path",
+            _ => null,
+        };
+
+        if (key is null)
+        {
+            return null;
+        }
+
+        var legacyDefault = LegacySettingDefaults.GetValueOrDefault(key);
+        return legacyDefault is not null && File.Exists(legacyDefault) ? legacyDefault : null;
+    }
+
+    public Uri? GetExternalUri(string externalId, Dictionary<string, string> settings)
+    {
+        return new($"https://www.youtube.com/watch?v={externalId}");
+    }
 
     public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, bool isFull, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -148,24 +163,24 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
                 var previewPath = thumbnail?.Url ?? string.Empty;
 
                 var metadata = new List<MetadataItem>
-            {
-                new()
                 {
-                    Key = "Duration",
-                    DisplayName = "Длительность",
-                    Value = video.Duration?.ToString() ?? "",
-                    DisplayType = "System.TimeSpan",
-                },
-                new()
-                {
-                    Key = "Author",
-                    DisplayName = "Автор",
-                    Value = video.Author.ChannelTitle,
-                    DisplayType = "System.String",
-                },
-            };
+                    new()
+                    {
+                        Key = "Duration",
+                        DisplayName = "Длительность",
+                        Value = video.Duration?.ToString() ?? "",
+                        DisplayType = "System.TimeSpan",
+                    },
+                    new()
+                    {
+                        Key = "Author",
+                        DisplayName = "Автор",
+                        Value = video.Author.ChannelTitle,
+                        DisplayType = "System.String",
+                    },
+                };
 
-                yield return new MediaDto()
+                yield return new()
                 {
                     Id = video.Id.Value,
                     Title = video.Title,
@@ -177,33 +192,6 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         }
 
         logger.LogInformation("Завершено получение медиа для канала: {ChannelUrl}", channelUrl);
-    }
-
-    // Вспомогательный метод для retry логики
-    private async Task<T> RetryAsync<T>(Func<Task<T>> action, int maxRetries, int delayMs, CancellationToken cancellationToken)
-    {
-        int retryCount = 0;
-
-        while (retryCount < maxRetries)
-        {
-            try
-            {
-                return await action();
-            }
-            catch (Exception ex) when (retryCount < maxRetries - 1)
-            {
-                retryCount++;
-                logger.LogWarning(ex, "Попытка {RetryCount}/{MaxRetries} не удалась. Повтор через {DelayMs}мс", retryCount, maxRetries, delayMs);
-
-                if (delayMs > 0)
-                {
-                    await Task.Delay(delayMs, cancellationToken);
-                }
-            }
-        }
-
-        // Последняя попытка (если все предыдущие провалились)
-        return await action();
     }
 
     public async Task<Channel?> GetChannel(YoutubeClient client, string channelUrl)
@@ -262,14 +250,16 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         logger.LogDebug("Создана временная директория: {TempPath}", Path.GetDirectoryName(finalPath));
 
         var ytDlpPath = toolPathProvider.GetToolPath(WellKnownTools.YtDlp)
-            ?? throw new InvalidOperationException("yt-dlp не установлен. Установите через панель управления инструментами.");
+                        ?? throw new InvalidOperationException("yt-dlp не установлен. Установите через панель управления инструментами.");
 
         var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg)
-            ?? throw new InvalidOperationException("ffmpeg не установлен. Установите через панель управления инструментами.");
+                         ?? throw new InvalidOperationException("ffmpeg не установлен. Установите через панель управления инструментами.");
 
-        var jsRuntime = settings.GetValueOrDefault("js_runtime", "none");
-        var cookiePath = settings.GetValueOrDefault("auth_state_path","");
-        var ytDlp = new YtDlp(ytDlpPath, ffmpegPath, jsRuntime, cookiePath);
+        var denoPath = toolPathProvider.GetToolPath(WellKnownTools.Deno);
+        var jsRuntimeDir = denoPath is not null ? Path.GetDirectoryName(denoPath) : null;
+        var jsRuntime = denoPath is not null ? "deno" : settings.GetValueOrDefault("js_runtime", "none");
+        var cookiePath = settings.GetValueOrDefault("auth_state_path", "");
+        var ytDlp = new YtDlp(ytDlpPath, ffmpegPath, jsRuntime, jsRuntimeDir, cookiePath);
 
         object progressLock = new();
         double oldPercent = -1;
@@ -394,5 +384,32 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
             Metadata = metadata,
             TempDataPath = tempDataPath,
         };
+    }
+
+    // Вспомогательный метод для retry логики
+    private async Task<T> RetryAsync<T>(Func<Task<T>> action, int maxRetries, int delayMs, CancellationToken cancellationToken)
+    {
+        var retryCount = 0;
+
+        while (retryCount < maxRetries)
+        {
+            try
+            {
+                return await action();
+            }
+            catch (Exception ex) when (retryCount < maxRetries - 1)
+            {
+                retryCount++;
+                logger.LogWarning(ex, "Попытка {RetryCount}/{MaxRetries} не удалась. Повтор через {DelayMs}мс", retryCount, maxRetries, delayMs);
+
+                if (delayMs > 0)
+                {
+                    await Task.Delay(delayMs, cancellationToken);
+                }
+            }
+        }
+
+        // Последняя попытка (если все предыдущие провалились)
+        return await action();
     }
 }

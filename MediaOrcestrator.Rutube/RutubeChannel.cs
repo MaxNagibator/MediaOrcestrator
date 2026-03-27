@@ -40,6 +40,11 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         },
     ];
 
+    public Uri? GetExternalUri(string externalId, Dictionary<string, string> settings)
+    {
+        return new($"https://rutube.ru/video/{externalId}/");
+    }
+
     public async Task<List<SettingOption>> GetSettingOptionsAsync(string settingKey, Dictionary<string, string> currentSettings)
     {
         if (settingKey != "category_id")
@@ -54,10 +59,10 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
             var categories = await rutubeService.GetCategoriesAsync();
 
             return categories.Select(x => new SettingOption
-            {
-                Value = x.Id.ToString(),
-                Label = x.Name,
-            })
+                {
+                    Value = x.Id.ToString(),
+                    Label = x.Name,
+                })
                 .OrderBy(x => x.Label)
                 .ToList();
         }
@@ -76,41 +81,40 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         await foreach (var video in apiVideoItems)
         {
             logger.LogDebug("Обработка видео: '{VideoTitle}' (ID: {VideoId})", video.Title, video.Id);
-            
+
             var metadata = new List<MetadataItem>
+            {
+                new()
                 {
-                    new()
-                    {
-                        Key = "Duration",
-                        DisplayName = "Длительность",
-                        Value = TimeSpan.FromSeconds(video.Duration).ToString(),
-                        DisplayType = "System.TimeSpan",
-                    },
-                    new()
-                    {
-                        Key = "Author",
-                        DisplayName = "Автор",
-                        Value = video.Author.Name,
-                        DisplayType = "System.String",
-                    },
-                    new()
-                    {
-                        Key = "CreationDate",
-                        DisplayName = "Дата создания",
-                        Value = video.CreatedTs.ToString("O"),
-                        DisplayType = "System.DateTime",
-                    },
-                    new()
-                    {
-                        Key = "Views",
-                        DisplayName = "Просмотры",
-                        Value = video.Hits.ToString(),
-                        DisplayType = "System.Int64",
-                    },
-                 };
+                    Key = "Duration",
+                    DisplayName = "Длительность",
+                    Value = TimeSpan.FromSeconds(video.Duration).ToString(),
+                    DisplayType = "System.TimeSpan",
+                },
+                new()
+                {
+                    Key = "Author",
+                    DisplayName = "Автор",
+                    Value = video.Author.Name,
+                    DisplayType = "System.String",
+                },
+                new()
+                {
+                    Key = "CreationDate",
+                    DisplayName = "Дата создания",
+                    Value = video.CreatedTs.ToString("O"),
+                    DisplayType = "System.DateTime",
+                },
+                new()
+                {
+                    Key = "Views",
+                    DisplayName = "Просмотры",
+                    Value = video.Hits.ToString(),
+                    DisplayType = "System.Int64",
+                },
+            };
 
-
-            yield return new MediaDto()
+            yield return new()
             {
                 Id = video.Id,
                 Title = video.Title,
@@ -193,7 +197,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         try
         {
             // пока тока превью обновляем
-            var result = await rutubeService.UploadVideoAsync(externalId, null, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, null);
+            var result = await rutubeService.UploadVideoAsync(externalId, null, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath);
             logger.LogInformation("Видео загружено на RuTube. Status: {Status}. Video ID: {SessionId}, Название: '{Title}'", result.Status.Id, result.Id, media.Title);
 
             return result;
