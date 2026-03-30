@@ -38,7 +38,7 @@ public partial class MediaDetailForm : Form
         uiSourcesHeaderLabel.Font = _headerFont;
 
         var sourceDict = sources.ToDictionary(s => s.Id);
-        TryLoadPreview(media, sourceDict);
+        TryLoadPreview(media);
         PopulateSources(media, sourceDict);
     }
 
@@ -106,46 +106,66 @@ public partial class MediaDetailForm : Form
         }
     }
 
-    private void TryLoadPreview(Media media, Dictionary<string, Source> sourceDict)
+    private void TryLoadPreview(Media media)
     {
-        foreach (var sourceLink in media.Sources)
+        foreach (var meta in media.Metadata.Where(m => m.Key == "PreviewUrl" && !string.IsNullOrEmpty(m.Value)))
         {
-            if (!sourceDict.TryGetValue(sourceLink.SourceId, out var source))
+            var path = meta.Value;
+
+            if (File.Exists(path))
+            {
+                try
+                {
+                    using var image = Image.Load(path);
+                    using var ms = new MemoryStream();
+                    image.Save(ms, new BmpEncoder());
+                    ms.Position = 0;
+                    uiPreviewBox.Image = new Bitmap(ms);
+                    _logger?.LogDebug("Превью загружено: {Path}", path);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Не удалось загрузить превью: {Path}", path);
+                }
+            }
+
+            if (!Uri.TryCreate(path, UriKind.Absolute, out var uri)
+                || uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
             {
                 continue;
             }
 
-            if (source.TypeId != "HardDiskDrive" || !source.Settings.TryGetValue("path", out var basePath))
-            {
-                continue;
-            }
+            _ = LoadOnlinePreviewAsync(path);
+            return;
+        }
+    }
 
-            var folder = Path.Combine(basePath, sourceLink.ExternalId);
-            if (!Directory.Exists(folder))
-            {
-                continue;
-            }
+    private async Task LoadOnlinePreviewAsync(string url)
+    {
+        try
+        {
+            using var httpClient = new HttpClient();
+            var data = await httpClient.GetByteArrayAsync(url);
+            using var image = Image.Load(data);
+            using var ms = new MemoryStream();
+            await image.SaveAsync(ms, new BmpEncoder());
+            ms.Position = 0;
+            var bitmap = new Bitmap(ms);
 
-            var thumbnailPath = Directory.GetFiles(folder, "thumbnail.*").FirstOrDefault();
-            if (thumbnailPath == null)
+            if (!IsDisposed)
             {
-                continue;
+                uiPreviewBox.Image = bitmap;
+                _logger?.LogDebug("Онлайн превью загружено: {Url}", url);
             }
-
-            try
+            else
             {
-                using var image = Image.Load(thumbnailPath);
-                using var ms = new MemoryStream();
-                image.Save(ms, new BmpEncoder());
-                ms.Position = 0;
-                uiPreviewBox.Image = new Bitmap(ms);
-                _logger?.LogDebug("Превью загружено: {Path}", thumbnailPath);
-                return;
+                bitmap.Dispose();
             }
-            catch (Exception ex)
-            {
-                _logger?.LogWarning(ex, "Не удалось загрузить превью: {Path}", thumbnailPath);
-            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Не удалось загрузить онлайн превью: {Url}", url);
         }
     }
 
@@ -218,7 +238,7 @@ public partial class MediaDetailForm : Form
                 Color.FromArgb(100, 100, 100)));
 
             var sourceMetadata = media.Metadata
-                .Where(m => m.SourceId == sourceLink.SourceId)
+                .Where(m => m.SourceId == sourceLink.SourceId && m.Key != "PreviewUrl")
                 .OrderBy(m => m.Key)
                 .ToList();
 

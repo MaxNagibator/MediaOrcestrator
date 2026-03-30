@@ -112,6 +112,11 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
                     Value = video.Hits.ToString(),
                     DisplayType = "System.Int64",
                 },
+                new()
+                {
+                    Key = "PreviewUrl",
+                    Value = video.ThumbnailUrl ?? "",
+                },
             };
 
             yield return new()

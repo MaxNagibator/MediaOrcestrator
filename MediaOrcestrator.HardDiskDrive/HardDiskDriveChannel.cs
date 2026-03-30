@@ -390,6 +390,11 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
             },
         };
 
+        if (!string.IsNullOrEmpty(previewFullPath))
+        {
+            metadata.Add(new() { Key = "PreviewUrl", Value = previewFullPath });
+        }
+
         if (fileExists)
         {
             var videoInfo = await GetVideoInfoAsync(fullPath, cancellationToken);

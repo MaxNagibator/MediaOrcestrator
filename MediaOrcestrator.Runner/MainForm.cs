@@ -27,10 +27,10 @@ public partial class MainForm : Form
         DrawSources();
         DrawRelations();
         // TODO: SetZalupaV2
-        uiMediaMatrixGridControl.Initialize(
-            _orcestrator,
+        uiMediaMatrixGridControl.Initialize(_orcestrator,
             _serviceProvider.GetRequiredService<ILogger<MediaMatrixGridControl>>(),
             _serviceProvider.GetRequiredService<SettingsManager>());
+
         uiMediaMatrixGridControl.RefreshData();
 
         if (uiClearTypeComboBox.Items.Count > 0)
@@ -76,6 +76,7 @@ public partial class MainForm : Form
                 MessageBox.Show("Пожалуйста, выберите источник для связи.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
             syncSource = value;
         }
 
@@ -250,126 +251,88 @@ public partial class MainForm : Form
         GetCookie("https://studio.youtube.com/", uiYoutubeAuthStatePathTextBox, true);
     }
 
+    private void uiVkVideoAuthStateOpenBrowserButton_Click(object sender, EventArgs e)
+    {
+        GetCookie("https://cabinet.vkvideo.ru/", uiVkVideoAuthStatePathTextBox, false);
+    }
+
+    private void uiManageToolsButton_Click(object sender, EventArgs e)
+    {
+        var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
+        using var form = new ToolsForm(toolManager);
+        form.ShowDialog(this);
+    }
+
     private void GetCookie(string openPage, TextBox pathTextbox, bool transformCookie)
     {
+        var jsonPath = transformCookie ? pathTextbox.Text + ".tmp.json" : pathTextbox.Text;
+        var csvPath = pathTextbox.Text;
+
         Task.Run(async () =>
         {
-            using var playwright = await Playwright.CreateAsync();
-            await using var browser = await playwright.Chromium.LaunchAsync(new()
+            try
             {
-                Headless = false,
-                Args = new[] { "--disable-blink-features=AutomationControlled" }
-            });
-
-            var contextOptions = new BrowserNewContextOptions();
-
-            var jsonPath = transformCookie ? pathTextbox.Text + ".tmp.json" : pathTextbox.Text;
-            var csvPath = pathTextbox.Text;
-            if (File.Exists(jsonPath))
-            {
-                contextOptions.StorageStatePath = jsonPath;
-            }
-            else
-            {
-                var directory = Path.GetDirectoryName(jsonPath);
-                if (!Directory.Exists(directory))
+                using var playwright = await Playwright.CreateAsync();
+                await using var browser = await playwright.Chromium.LaunchAsync(new()
                 {
-                    Directory.CreateDirectory(directory);
-                }
-            }
-            await using var context = await browser.NewContextAsync(contextOptions);
-            var page = await context.NewPageAsync();
-
-            var captureLog = new List<object>();
-
-            page.Request += (_, request) =>
-            {
-                var reqData = new
-                {
-                    Timestamp = DateTime.UtcNow,
-                    Type = "Request",
-                    request.Method,
-                    request.Url,
-                    request.Headers,
-                    request.PostData,
-                };
-
-                if (false)
-                {
-                    lock (captureLog)
-                    {
-                        captureLog.Add(reqData);
-                        _logger.LogInformation($"[REQ] {request.Method} {request.Url}");
-                    }
-                }
-            };
-
-            page.Response += async (_, response) =>
-            {
-                string? body = null;
-                try
-                {
-                    if (response.Headers.TryGetValue("content-type", out var contentType) && (contentType.Contains("application/json") || contentType.Contains("text/")))
-                    {
-                        body = await response.TextAsync();
-                    }
-                }
-                catch
-                {
-                }
-
-                var resData = new
-                {
-                    Timestamp = DateTime.UtcNow,
-                    Type = "Response",
-                    response.Status,
-                    response.Url,
-                    response.Headers,
-                    Body = body,
-                };
-
-                if (false)
-                {
-                    lock (captureLog)
-                    {
-                        captureLog.Add(resData);
-                        _logger.LogInformation($"[RES] {response.Status} {response.Url}");
-                    }
-                }
-            };
-
-            _logger.LogInformation("Navigating to " + openPage + "...");
-            await page.GotoAsync(openPage, new()
-            {
-                Timeout = 0,
-            });
-
-            var msg = "Зайдите в свой профиль и нажмие OK, или отмена, если передумали";
-            if (MessageBox.Show(msg, "Сохранить куку в фаил?", MessageBoxButtons.OKCancel) == DialogResult.OK)
-            {
-                _logger.LogInformation("Browser is open.");
-                _logger.LogInformation("Press any key to save log and exit...");
-
-                await context.StorageStateAsync(new()
-                {
-                    Path = jsonPath,
+                    Headless = false,
+                    Args = ["--disable-blink-features=AutomationControlled"],
                 });
 
-                if (transformCookie)
+                var contextOptions = new BrowserNewContextOptions();
+                if (File.Exists(jsonPath))
                 {
-                    _logger.LogInformation("Auth state saved to temp auth_state.json");
-
-                    CookieTransformator.Run(jsonPath, csvPath, _logger);
-                    _logger.LogInformation("Auth state convert to auth_state");
+                    contextOptions.StorageStatePath = jsonPath;
                 }
                 else
                 {
-                    _logger.LogInformation("Auth state ");
+                    var directory = Path.GetDirectoryName(jsonPath);
+                    if (!Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
                 }
+
+                await using var context = await browser.NewContextAsync(contextOptions);
+                var page = await context.NewPageAsync();
+
+                _logger.LogInformation("Navigating to " + openPage + "...");
+                await page.GotoAsync(openPage, new()
+                {
+                    Timeout = 0,
+                });
+
+                var msg = "Зайдите в свой профиль и нажмие OK, или отмена, если передумали";
+                if (MessageBox.Show(msg, "Сохранить куку в фаил?", MessageBoxButtons.OKCancel) == DialogResult.OK)
+                {
+                    _logger.LogInformation("Browser is open.");
+                    _logger.LogInformation("Press any key to save log and exit...");
+
+                    await context.StorageStateAsync(new()
+                    {
+                        Path = jsonPath,
+                    });
+
+                    if (transformCookie)
+                    {
+                        _logger.LogInformation("Auth state saved to temp auth_state.json");
+
+                        CookieTransformator.Run(jsonPath, csvPath, _logger);
+                        _logger.LogInformation("Auth state convert to auth_state");
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Auth state ");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при работе с браузером для {Url}", openPage);
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         });
     }
-
 
     private void DrawSources()
     {
@@ -440,13 +403,6 @@ public partial class MainForm : Form
         {
             _logger.LogWarning(ex, "Фоновая проверка обновлений инструментов не удалась");
         }
-    }
-
-    private void uiManageToolsButton_Click(object sender, EventArgs e)
-    {
-        var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
-        using var form = new ToolsForm(toolManager);
-        form.ShowDialog(this);
     }
 
     private void DrawRelations()

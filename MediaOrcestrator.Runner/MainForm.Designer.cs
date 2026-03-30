@@ -54,6 +54,9 @@
             uiSyncTreeControl = new SyncTreeControl();
             uiLogsTabPage = new TabPage();
             uiToolsTabPage = new TabPage();
+            groupBox3 = new GroupBox();
+            uiVkVideoAuthStatePathTextBox = new TextBox();
+            uiVkVideoAuthStateOpenBrowserButton = new Button();
             groupBox2 = new GroupBox();
             uiYoutubeAuthStatePathTextBox = new TextBox();
             uiYoutubeAuthStateOpenBrowserButton = new Button();
@@ -68,6 +71,7 @@
             uiAuditTabPage.SuspendLayout();
             uiSyncTreeTabPage.SuspendLayout();
             uiToolsTabPage.SuspendLayout();
+            groupBox3.SuspendLayout();
             groupBox2.SuspendLayout();
             groupBox1.SuspendLayout();
             SuspendLayout();
@@ -333,6 +337,7 @@
             // 
             // uiToolsTabPage
             // 
+            uiToolsTabPage.Controls.Add(groupBox3);
             uiToolsTabPage.Controls.Add(groupBox2);
             uiToolsTabPage.Controls.Add(groupBox1);
             // uiManageToolsButton
@@ -379,7 +384,36 @@
             uiYoutubeAuthStateOpenBrowserButton.Text = "открыть брузер";
             uiYoutubeAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
             uiYoutubeAuthStateOpenBrowserButton.Click += uiYoutubeAuthStateOpenBrowserButton_Click;
-            // 
+            //
+            // groupBox3 прив
+            //
+            groupBox3.Controls.Add(uiVkVideoAuthStatePathTextBox);
+            groupBox3.Controls.Add(uiVkVideoAuthStateOpenBrowserButton);
+            groupBox3.Location = new Point(219, 415);
+            groupBox3.Name = "groupBox3";
+            groupBox3.Size = new Size(467, 100);
+            groupBox3.TabIndex = 3;
+            groupBox3.TabStop = false;
+            groupBox3.Text = "VkVideo auth_state";
+            //
+            // uiVkVideoAuthStatePathTextBox
+            //
+            uiVkVideoAuthStatePathTextBox.Location = new Point(7, 51);
+            uiVkVideoAuthStatePathTextBox.Name = "uiVkVideoAuthStatePathTextBox";
+            uiVkVideoAuthStatePathTextBox.Size = new Size(454, 23);
+            uiVkVideoAuthStatePathTextBox.TabIndex = 1;
+            uiVkVideoAuthStatePathTextBox.Text = "E:\\bobgroup\\projects\\mediaOrcestrator\\vkvideoAuthState\\auth_state";
+            //
+            // uiVkVideoAuthStateOpenBrowserButton
+            //
+            uiVkVideoAuthStateOpenBrowserButton.Location = new Point(6, 22);
+            uiVkVideoAuthStateOpenBrowserButton.Name = "uiVkVideoAuthStateOpenBrowserButton";
+            uiVkVideoAuthStateOpenBrowserButton.Size = new Size(101, 23);
+            uiVkVideoAuthStateOpenBrowserButton.TabIndex = 0;
+            uiVkVideoAuthStateOpenBrowserButton.Text = "открыть брузер";
+            uiVkVideoAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
+            uiVkVideoAuthStateOpenBrowserButton.Click += uiVkVideoAuthStateOpenBrowserButton_Click;
+            //
             // groupBox1
             // 
             groupBox1.Controls.Add(uiRubuteAuthStatePathTextBox);
@@ -476,6 +510,9 @@
         private GroupBox groupBox2;
         private TextBox uiYoutubeAuthStatePathTextBox;
         private Button uiYoutubeAuthStateOpenBrowserButton;
+        private GroupBox groupBox3;
+        private TextBox uiVkVideoAuthStatePathTextBox;
+        private Button uiVkVideoAuthStateOpenBrowserButton;
         private Button button1;
         private ComboBox comboBox1;
         private Button uiManageToolsButton;
