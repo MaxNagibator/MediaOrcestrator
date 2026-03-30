@@ -414,18 +414,25 @@ public partial class MediaMatrixGridControl : UserControl
             deleteItem.Click += async (_, _) => await HandleBatchDeleteAsync(deletableMedia, capturedSource);
             _contextMenu.Items.Add(deleteItem);
 
-
             foreach (var t in source.Type.GetAvailabelConvertTypes())
             {
-                var bbbbb = new ToolStripMenuItem($"Конвертировать " + t.Name, GetDeleteIcon());
-                bbbbb.Click += async (_, _) =>
+                var convertItem = new ToolStripMenuItem("Конвертировать " + t.Name);
+                convertItem.Click += async (_, _) =>
                 {
-                    foreach (var media in deletableMedia)
+                    try
                     {
-                        await source.Type.ConvertAsync(t.Id, media.Id, source.Settings);
+                        foreach (var media in deletableMedia)
+                        {
+                            await source.Type.ConvertAsync(t.Id, media.Id, source.Settings);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "Ошибка конвертации", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 };
-                _contextMenu.Items.Add(bbbbb);
+
+                _contextMenu.Items.Add(convertItem);
             }
         }
 
@@ -637,7 +644,7 @@ public partial class MediaMatrixGridControl : UserControl
         foreach (var mediaSource in media.Sources)
         {
             var source = allSources.FirstOrDefault(x => x.Id == mediaSource.SourceId);
-            if (source == null)
+            if (source?.Type == null)
             {
                 continue;
             }
@@ -655,6 +662,33 @@ public partial class MediaMatrixGridControl : UserControl
             };
 
             _contextMenu.Items.Add(openItem);
+        }
+
+        foreach (var mediaSource in media.Sources)
+        {
+            var source = allSources.FirstOrDefault(x => x.Id == mediaSource.SourceId);
+            if (source?.Type == null)
+            {
+                continue;
+            }
+
+            foreach (var t in source.Type.GetAvailabelConvertTypes())
+            {
+                var convertItem = new ToolStripMenuItem($"Конвертировать {t.Name} ({source.TitleFull})");
+                convertItem.Click += async (_, _) =>
+                {
+                    try
+                    {
+                        await source.Type.ConvertAsync(t.Id, mediaSource.ExternalId, source.Settings);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "Ошибка конвертации", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+
+                _contextMenu.Items.Add(convertItem);
+            }
         }
 
         if (_contextMenu.Items.Count > 0)
