@@ -1,16 +1,19 @@
 ﻿using MediaOrcestrator.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Runner;
 
 public partial class SourceControl : UserControl
 {
     private readonly Orcestrator _orcestrator;
+    private readonly ILogger<SourceControl> _logger;
     private Source? _source;
 
-    public SourceControl(Orcestrator orcestrator)
+    public SourceControl(Orcestrator orcestrator, ILogger<SourceControl> logger)
     {
         InitializeComponent();
         _orcestrator = orcestrator;
+        _logger = logger;
     }
 
     public event EventHandler? SourceDeleted;
@@ -70,7 +73,7 @@ public partial class SourceControl : UserControl
 
         using var settingsForm = new SourceSettingsForm();
         // TODO: Подумать _source.Type
-        settingsForm.SetSettings(pluginInfo.SettingsKeys, _source.Type);
+        settingsForm.SetSettings(pluginInfo.SettingsKeys, _source.Type, _logger);
         settingsForm.SetEditSource(_source);
 
         if (settingsForm.ShowDialog() != DialogResult.OK)

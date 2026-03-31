@@ -1,14 +1,19 @@
 ﻿using MediaOrcestrator.Domain;
 using MediaOrcestrator.Modules;
+using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Runner;
 
 public partial class SourceSettingsForm : Form
 {
     private readonly Dictionary<string, Control> _controls = [];
+    private readonly List<Button> _loadButtons = [];
     private IEnumerable<SourceSettings> _settingsKeys = [];
     private Source? _editSource;
     private ISourceType? _sourceType;
+    private ILogger? _logger;
+    private Button? _authButton;
+    private Label? _authStatusLabel;
 
     public SourceSettingsForm()
     {
@@ -17,10 +22,11 @@ public partial class SourceSettingsForm : Form
 
     public Dictionary<string, string>? Settings { get; private set; }
 
-    public void SetSettings(IEnumerable<SourceSettings> settingsKeys, ISourceType? sourceType = null)
+    public void SetSettings(IEnumerable<SourceSettings> settingsKeys, ISourceType? sourceType = null, ILogger? logger = null)
     {
         _settingsKeys = settingsKeys;
         _sourceType = sourceType;
+        _logger = logger;
     }
 
     public void SetEditSource(Source source)
@@ -34,6 +40,16 @@ public partial class SourceSettingsForm : Form
     {
         uiSettingsPanel.Controls.Clear();
         _controls.Clear();
+        _loadButtons.Clear();
+
+        // TODO: Костыль. Можно подумать над перемешением в IStorageType
+        var auth = _sourceType as IAuthenticatable;
+
+        if (auth != null && _logger != null)
+        {
+            var authPanel = CreateAuthPanel(auth);
+            uiSettingsPanel.Controls.Add(authPanel);
+        }
 
         var settingsTable = CreateSettingsTable();
         uiSettingsPanel.Controls.Add(settingsTable);
@@ -48,6 +64,11 @@ public partial class SourceSettingsForm : Form
             var card = CreateSettingCard(setting);
             settingsTable.RowStyles.Add(new(SizeType.AutoSize));
             settingsTable.Controls.Add(card, 0, settingsTable.RowCount++);
+        }
+
+        if (auth != null && _logger != null)
+        {
+            UpdateAuthStatus(auth);
         }
     }
 
@@ -143,6 +164,84 @@ public partial class SourceSettingsForm : Form
         return table;
     }
 
+    private Panel CreateAuthPanel(IAuthenticatable auth)
+    {
+        var panel = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 45,
+            BackColor = Color.White,
+            Padding = new(10, 8, 10, 8),
+            Margin = new(10, 5, 10, 5),
+            BorderStyle = BorderStyle.FixedSingle,
+        };
+
+        _authButton = new()
+        {
+            Text = "Авторизовать",
+            Width = 120,
+            Height = 28,
+            Dock = DockStyle.Left,
+        };
+
+        _authStatusLabel = new()
+        {
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new(10, 0, 0, 0),
+        };
+
+        _authButton.Click += async (_, _) => await RunAuthAsync(auth);
+
+        panel.Controls.Add(_authStatusLabel);
+        panel.Controls.Add(_authButton);
+
+        return panel;
+    }
+
+    private async Task RunAuthAsync(IAuthenticatable auth)
+    {
+        _authButton!.Enabled = false;
+        _authButton.Text = "Авторизация...";
+
+        try
+        {
+            var settings = GetCurrentSettings();
+            var ui = new WinFormsAuthUI(this, _logger!);
+            await Task.Run(() => auth.AuthenticateAsync(settings, ui, CancellationToken.None));
+            UpdateAuthStatus(auth);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка авторизации: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            _authButton.Enabled = true;
+            _authButton.Text = "Авторизовать";
+        }
+    }
+
+    private void UpdateAuthStatus(IAuthenticatable auth)
+    {
+        var settings = GetCurrentSettings();
+        var isAuth = auth.IsAuthenticated(settings);
+
+        if (_authStatusLabel != null)
+        {
+            _authStatusLabel.Text = isAuth ? "Авторизован" : "Не авторизован";
+            _authStatusLabel.ForeColor = isAuth ? Color.Green : Color.Red;
+        }
+
+        foreach (var btn in _loadButtons)
+        {
+            btn.Enabled = isAuth;
+        }
+    }
+
     private Panel CreateSettingCard(SourceSettings setting)
     {
         var card = new Panel
@@ -235,6 +334,8 @@ public partial class SourceSettingsForm : Form
         };
 
         loadButton.Click += async (_, _) => await LoadOptionsAsync(setting, comboBox, loadButton);
+
+        _loadButtons.Add(loadButton);
 
         return loadButton;
     }

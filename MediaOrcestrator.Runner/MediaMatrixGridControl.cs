@@ -425,6 +425,11 @@ public partial class MediaMatrixGridControl : UserControl
         updateMetaItem.Click += async (_, _) => await HandleBatchUpdateMetadataAsync(selectedMedia);
         _contextMenu.Items.Add(updateMetaItem);
 
+        var renameItem = new ToolStripMenuItem($"Пакетное переименование ({selectedMedia.Count})...");
+        var capturedMediaForRename = selectedMedia;
+        renameItem.Click += (_, _) => HandleBatchRename(capturedMediaForRename);
+        _contextMenu.Items.Add(renameItem);
+
         _contextMenu.Items.Add(new ToolStripSeparator());
 
         var allSources = _orcestrator.GetSources().Where(s => !s.IsDisable).ToList();
@@ -612,6 +617,17 @@ public partial class MediaMatrixGridControl : UserControl
         finally
         {
             UpdateLoadingIndicator(false);
+            RefreshData();
+        }
+    }
+
+    private void HandleBatchRename(List<Media> selectedMedia)
+    {
+        using var form = new BatchRenameForm(selectedMedia, _orcestrator!);
+        var result = form.ShowDialog(this);
+
+        if (result == DialogResult.OK)
+        {
             RefreshData();
         }
     }

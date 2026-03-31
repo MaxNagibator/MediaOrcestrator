@@ -456,9 +456,10 @@ public partial class SyncTreeControl : UserControl
             _boldFont = new(uiTreeView.Font, FontStyle.Bold);
 
             var intentsByMedia = _rootIntents
-                .OrderBy(x => x.From.TitleFull)
-                .ThenBy(x => x.Sort)
-                .GroupBy(i => i.Media.Id);
+                .GroupBy(i => i.Media.Id)
+                .OrderBy(g => g.Min(i => i.Sort))
+                .ThenBy(g => g.First().Media.Title, NaturalStringComparer.Instance)
+                .Select(g => g.OrderBy(x => x.From.TitleFull, NaturalStringComparer.Instance).ThenBy(x => x.Sort));
 
             foreach (var group in intentsByMedia)
             {

@@ -178,6 +178,11 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
                         Value = video.Author.ChannelTitle,
                         DisplayType = "System.String",
                     },
+                    new()
+                    {
+                        Key = "PreviewUrl",
+                        Value = previewPath,
+                    },
                 };
 
                 yield return new()
@@ -372,6 +377,11 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
                 DisplayName = "Просмотры",
                 Value = video.Engagement.ViewCount.ToString(),
                 DisplayType = "System.Int64",
+            },
+            new()
+            {
+                Key = "PreviewUrl",
+                Value = previewPath,
             },
         };
 

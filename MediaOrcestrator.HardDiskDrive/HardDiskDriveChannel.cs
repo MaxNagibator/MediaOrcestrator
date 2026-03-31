@@ -477,6 +477,11 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
             },
         };
 
+        if (!string.IsNullOrEmpty(previewFullPath))
+        {
+            metadata.Add(new() { Key = "PreviewUrl", Value = previewFullPath });
+        }
+
         if (fileExists)
         {
             var videoInfo = await GetVideoInfoAsync(fullPath, cancellationToken);
