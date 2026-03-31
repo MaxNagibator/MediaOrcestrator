@@ -4,13 +4,19 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace MediaOrcestrator.HardDiskDrive;
 
+// TODO: Костыль Connection=shared
+// TODO: Что-то класс совсем разросся
 // todo разделить ответственность между ISourceDefinition and ISourceManager (а у SourceManager внутри будет Definition св-во)
-public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IToolConsumer
+public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IToolConsumer
 {
+    private string? _h264Encoder;
+
     public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
     public string Name => "HardDiskDrive";
@@ -91,7 +97,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
 
         logger.LogDebug("Открытие базы данных: {DbPath}", dbPath);
 
-        using var db = new LiteDatabase(dbPath);
+        using var db = new LiteDatabase($"Filename={dbPath};Connection=shared");
         var files = db.GetCollection<DriveMedia>("files").FindAll().ToList();
 
         logger.LogInformation("Найдено файлов в базе данных: {Count}", files.Count);
@@ -122,7 +128,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
             return null;
         }
 
-        using var db = new LiteDatabase(dbPath);
+        using var db = new LiteDatabase($"Filename={dbPath};Connection=shared");
         var file = db.GetCollection<DriveMedia>("files").FindById(externalId);
 
         if (file == null)
@@ -149,7 +155,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
 
         logger.LogDebug("Открытие базы данных: {DbPath}", dbPath);
 
-        using var db = new LiteDatabase(dbPath);
+        using var db = new LiteDatabase($"Filename={dbPath};Connection=shared");
         var file = db.GetCollection<DriveMedia>("files").FindById(videoId);
 
         if (file == null)
@@ -240,7 +246,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
 
         try
         {
-            using var db = new LiteDatabase(dbPath);
+            using var db = new LiteDatabase($"Filename={dbPath};Connection=shared");
             var collection = db.GetCollection<DriveMedia>("files");
 
             var existingFile = collection.FindById(hddId);
@@ -304,7 +310,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
             throw new FileNotFoundException("База данных не найдена", dbPath);
         }
 
-        using var db = new LiteDatabase(dbPath);
+        using var db = new LiteDatabase($"Filename={dbPath};Connection=shared");
         var collection = db.GetCollection<DriveMedia>("files");
         var file = collection.FindById(externalId);
 
@@ -354,17 +360,56 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
                 Id = 1,
                 Name = "vp9 to h264",
             },
+            new()
+            {
+                Id = 2,
+                Name = "h264 to vp9",
+            },
         ];
+    }
+
+    public ConvertAvailability CheckConvertAvailability(int typeId, MediaDto media)
+    {
+        var codec = media.Metadata?.FirstOrDefault(x => x.Key == "VideoCodec")?.Value;
+
+        if (string.IsNullOrEmpty(codec))
+        {
+            return new(false, "Кодек не определён. Убедитесь, что ffprobe доступен.");
+        }
+
+        return typeId switch
+        {
+            1 => codec == "vp9"
+                ? new ConvertAvailability(true, null)
+                : new ConvertAvailability(false, $"Кодек '{codec}', конвертация VP9→H264 неприменима"),
+            2 => codec == "h264"
+                ? new ConvertAvailability(true, null)
+                : new ConvertAvailability(false, $"Кодек '{codec}', конвертация H264→VP9 неприменима"),
+            _ => new(false, $"Неизвестный тип конвертации: {typeId}"),
+        };
     }
 
     public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
-        if (typeId == 1)
+        return typeId switch
         {
-            return ConvertationVp9ToH264(externalId, settings, cancellationToken);
-        }
+            1 or 2 => ConvertVideoCodec(externalId, settings, typeId, cancellationToken: cancellationToken),
+            _ => throw new NotImplementedException("type not implemented " + typeId),
+        };
+    }
 
-        throw new NotImplementedException("type not implemented " + typeId);
+    public Task ConvertAsync(
+        int typeId,
+        string externalId,
+        Dictionary<string, string> settings,
+        IProgress<ConvertProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        return typeId switch
+        {
+            1 or 2 => ConvertVideoCodec(externalId, settings, typeId, progress, cancellationToken),
+            _ => throw new NotImplementedException("type not implemented " + typeId),
+        };
     }
 
     private static bool TryParseFraction(string value, out double result)
@@ -383,6 +428,26 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
 
         return double.TryParse(value, CultureInfo.InvariantCulture, out result);
     }
+
+    private static bool TryParseFFmpegTime(string line, out double seconds)
+    {
+        seconds = 0;
+        var match = FFmpegTimeRegex().Match(line);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        seconds = int.Parse(match.Groups[1].Value) * 3600
+                  + int.Parse(match.Groups[2].Value) * 60
+                  + int.Parse(match.Groups[3].Value)
+                  + int.Parse(match.Groups[4].Value) / 100.0;
+
+        return true;
+    }
+
+    [GeneratedRegex(@"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})")]
+    private static partial Regex FFmpegTimeRegex();
 
     private async Task<MediaDto> CreateMediaDtoAsync(DriveMedia file, string basePath, CancellationToken cancellationToken)
     {
@@ -641,9 +706,15 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
         return null;
     }
 
-    private async Task ConvertationVp9ToH264(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    private async Task ConvertVideoCodec(
+        string externalId,
+        Dictionary<string, string> settings,
+        int typeId,
+        IProgress<ConvertProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Конвертация VP9→H264. ID: {ExternalId}", externalId);
+        var label = typeId == 1 ? "VP9→H264" : "H264→VP9";
+        logger.LogInformation("Конвертация {Label}. ID: {ExternalId}", label, externalId);
 
         var m = await GetMediaByIdAsync(externalId, settings, cancellationToken);
         if (m == null)
@@ -652,15 +723,17 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
             return;
         }
 
-        var codec = m.Metadata?.FirstOrDefault(x => x.Key == "VideoCodec")?.Value;
-        if (string.IsNullOrEmpty(codec))
+        var availability = CheckConvertAvailability(typeId, m);
+        if (!availability.IsAvailable)
         {
-            throw new InvalidOperationException($"Не удалось определить видеокодек для медиа {externalId}. Убедитесь, что ffprobe доступен и файл корректен.");
+            throw new InvalidOperationException(availability.Reason ?? "Конвертация недоступна");
         }
 
-        if (codec != "vp9")
+        var durationStr = m.Metadata?.FirstOrDefault(x => x.Key == "Duration")?.Value;
+        var totalDuration = TimeSpan.Zero;
+        if (durationStr != null && TimeSpan.TryParse(durationStr, out var parsed))
         {
-            throw new InvalidOperationException($"Медиа {externalId} имеет кодек '{codec}', конвертация VP9→H264 неприменима.");
+            totalDuration = parsed;
         }
 
         // TODO: Дублирование
@@ -674,7 +747,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
         }
 
         string fullPath;
-        using (var db = new LiteDatabase(dbPath))
+        using (var db = new LiteDatabase($"Filename={dbPath};Connection=shared"))
         {
             var collection = db.GetCollection<DriveMedia>("files");
             var file = collection.FindById(externalId);
@@ -692,13 +765,17 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
             throw new FileNotFoundException("Исходный файл не найден", fullPath);
         }
 
-        var convertPath = fullPath + "_convert.mp4";
+        var outputExt = typeId == 2 ? ".webm" : ".mp4";
+        var convertPath = fullPath + "_convert" + outputExt;
         var backupPath = fullPath + ".bak";
         var conversionSucceeded = false;
 
         try
         {
-            var success = await RunFfmpegConvertAsync(fullPath, convertPath, cancellationToken);
+            var fileName = Path.GetFileName(fullPath);
+            var success = await RunFfmpegConvertAsync(fullPath, convertPath, typeId, totalDuration,
+                progress == null ? null : new Progress<double>(p => progress.Report(new(p, fileName))),
+                cancellationToken);
 
             if (!success)
             {
@@ -758,7 +835,13 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
         }
     }
 
-    private async Task<bool> RunFfmpegConvertAsync(string inputPath, string outputPath, CancellationToken cancellationToken = default)
+    private async Task<bool> RunFfmpegConvertAsync(
+        string inputPath,
+        string outputPath,
+        int typeId,
+        TimeSpan totalDuration,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken = default)
     {
         var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg);
         if (ffmpegPath is null)
@@ -767,12 +850,25 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
             return false;
         }
 
+        string arguments;
+
+        if (typeId == 2)
+        {
+            arguments = $"-i \"{inputPath}\" -c:v libvpx-vp9 -b:v 0 -crf 30 -deadline good -cpu-used 2 -c:a libopus \"{outputPath}\"";
+        }
+        else
+        {
+            var h264Encoder = await GetH264EncoderAsync();
+            var preset = h264Encoder == "h264_nvenc" ? "slow" : "medium";
+            arguments = $"-i \"{inputPath}\" -c:v {h264Encoder} -preset {preset} -c:a copy \"{outputPath}\"";
+        }
+
         try
         {
             var psi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-i \"{inputPath}\" -c:v h264_nvenc -preset slow -c:a copy \"{outputPath}\"",
+                Arguments = arguments,
                 RedirectStandardOutput = false,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -789,9 +885,23 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
 
             await using (cancellationToken.Register(ForceStop))
             {
-                var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+                var totalSeconds = totalDuration.TotalSeconds;
+                var stderrBuilder = new StringBuilder();
+
+                while (await process.StandardError.ReadLineAsync(cancellationToken) is { } line)
+                {
+                    stderrBuilder.AppendLine(line);
+
+                    if (!(totalSeconds > 0) || !TryParseFFmpegTime(line, out var currentSeconds))
+                    {
+                        continue;
+                    }
+
+                    var percent = Math.Min(currentSeconds / totalSeconds * 100, 100);
+                    progress?.Report(percent);
+                }
+
                 await process.WaitForExitAsync(cancellationToken);
-                var stderr = await stderrTask;
 
                 if (process.ExitCode == 0)
                 {
@@ -800,7 +910,7 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
                 }
 
                 logger.LogWarning("ffmpeg завершился с кодом {ExitCode} для файла: {FilePath}. Stderr: {Stderr}",
-                    process.ExitCode, inputPath, stderr);
+                    process.ExitCode, inputPath, stderrBuilder.ToString());
 
                 return false;
             }
@@ -829,6 +939,54 @@ public class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPat
             logger.LogWarning(ex, "Не удалось сконвертировать видео через ffmpeg: {FilePath}", inputPath);
             return false;
         }
+    }
+
+    private async Task<string> GetH264EncoderAsync()
+    {
+        if (_h264Encoder != null)
+        {
+            return _h264Encoder;
+        }
+
+        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg);
+        if (ffmpegPath == null)
+        {
+            _h264Encoder = "libx264";
+            return _h264Encoder;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = "-encoders",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                _h264Encoder = "libx264";
+                return _h264Encoder;
+            }
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            _h264Encoder = output.Contains("h264_nvenc") ? "h264_nvenc" : "libx264";
+            logger.LogInformation("Выбран H264 кодек: {Encoder}", _h264Encoder);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Не удалось определить доступные кодеки, используем libx264");
+            _h264Encoder = "libx264";
+        }
+
+        return _h264Encoder;
     }
 }
 

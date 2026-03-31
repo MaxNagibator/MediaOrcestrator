@@ -137,7 +137,40 @@ namespace MediaOrcestrator.Runner
             uiFilteredCountLabel.Name = "uiFilteredCountLabel";
             uiFilteredCountLabel.Size = new Size(90, 17);
             uiFilteredCountLabel.Text = "Отфильтровано: 0";
-            // 
+            uiConvertCancelMenu = new ContextMenuStrip();
+            uiCancelConvertItem = new ToolStripMenuItem();
+            //
+            // uiConvertProgressBar
+            //
+            uiConvertProgressBar = new ToolStripProgressBar();
+            uiConvertProgressBar.Name = "uiConvertProgressBar";
+            uiConvertProgressBar.Size = new Size(150, 16);
+            uiConvertProgressBar.Minimum = 0;
+            uiConvertProgressBar.Maximum = 100;
+            uiConvertProgressBar.Visible = false;
+            uiConvertProgressBar.MouseDown += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Right)
+                {
+                    uiConvertCancelMenu.Show(Cursor.Position);
+                }
+            };
+            //
+            // uiConvertStatusLabel format :c
+            //
+            uiConvertStatusLabel = new ToolStripStatusLabel();
+            uiConvertStatusLabel.Name = "uiConvertStatusLabel";
+            uiConvertStatusLabel.Size = new Size(200, 17);
+            uiConvertStatusLabel.Text = "";
+            uiConvertStatusLabel.Visible = false;
+            //
+            // uiCancelConvertItem
+            //
+            uiCancelConvertItem.Name = "uiCancelConvertItem";
+            uiCancelConvertItem.Text = "Отменить конвертацию";
+            uiConvertCancelMenu.Items.Add(uiCancelConvertItem);
+            uiStatusStrip.Items.AddRange(new ToolStripItem[] { uiConvertProgressBar, uiConvertStatusLabel });
+            //
             // MediaMatrixGridControl
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -171,5 +204,9 @@ namespace MediaOrcestrator.Runner
         private FilterToolStripControl uiFilterControl;
         private Button uiSelectAllButton;
         private Button uiDeselectAllButton;
+        private ToolStripProgressBar uiConvertProgressBar;
+        private ToolStripStatusLabel uiConvertStatusLabel;
+        private ContextMenuStrip uiConvertCancelMenu;
+        private ToolStripMenuItem uiCancelConvertItem;
     }
 }

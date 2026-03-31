@@ -13,6 +13,21 @@ public interface ISourceType
         return Task.FromResult(new List<SettingOption>());
     }
 
+    Task ConvertAsync(
+        int typeId,
+        string externalId,
+        Dictionary<string, string> settings,
+        IProgress<ConvertProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        return ConvertAsync(typeId, externalId, settings, cancellationToken);
+    }
+
+    ConvertAvailability CheckConvertAvailability(int typeId, MediaDto media)
+    {
+        return new(false, "Конвертация не поддерживается");
+    }
+
     /// <summary>
     /// Самые свежие в самом начале.
     /// </summary>
@@ -38,6 +53,10 @@ public class ConvertType
     public int Id { get; set; }
     public string Name { get; set; }
 }
+
+public record ConvertAvailability(bool IsAvailable, string? Reason);
+
+public record ConvertProgress(double Percent, string FileName);
 
 public enum SettingType
 {
