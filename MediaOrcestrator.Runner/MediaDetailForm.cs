@@ -40,19 +40,45 @@ public partial class MediaDetailForm : Form
         var sourceDict = sources.ToDictionary(s => s.Id);
         TryLoadPreview(media);
         PopulateSources(media, sourceDict);
+
+        uiTitleLabel.ContextMenuStrip = CreateCopyMenu(uiTitleLabel);
+        uiDescriptionLabel.ContextMenuStrip = CreateCopyMenu(uiDescriptionLabel);
+        uiHeaderPanel_Resize(null, EventArgs.Empty);
     }
 
     private void uiHeaderPanel_Resize(object? sender, EventArgs e)
     {
-        var textLeft = uiPreviewBox.Right + 12;
-        var textWidth = Math.Max(100, uiHeaderPanel.ClientSize.Width - textLeft - 12);
-        uiTitleLabel.Location = new(textLeft, uiPreviewBox.Top);
-        uiTitleLabel.Size = new(textWidth, uiHeaderPanel.Height / 3);
-        uiDescriptionLabel.Location = new(textLeft, uiTitleLabel.Bottom + 4);
-        uiDescriptionLabel.Size = new(textWidth, uiHeaderPanel.Height - uiTitleLabel.Bottom - 4 - uiHeaderPanel.Padding.Bottom);
+        if (_titleFont == null)
+        {
+            return;
+        }
+
+        var padding = uiHeaderPanel.Padding;
+        var contentWidth = uiHeaderPanel.ClientSize.Width - padding.Left - padding.Right;
+
+        uiPreviewBox.Location = new(padding.Left, padding.Top);
+        uiPreviewBox.Width = contentWidth;
+
+        if (uiPreviewBox.Image != null)
+        {
+            var aspectRatio = (double)uiPreviewBox.Image.Height / uiPreviewBox.Image.Width;
+            uiPreviewBox.Height = Math.Clamp((int)(contentWidth * aspectRatio), 100, 500);
+        }
+
+        uiTitleLabel.Location = new(padding.Left, uiPreviewBox.Bottom + 8);
+        uiTitleLabel.Size = new(contentWidth, _titleFont.Height + 4);
+
+        uiDescriptionLabel.Location = new(padding.Left, uiTitleLabel.Bottom + 4);
+        uiDescriptionLabel.Size = new(contentWidth, _regularFont.Height * 2);
+
+        var desiredHeight = uiDescriptionLabel.Bottom + padding.Bottom;
+        if (Math.Abs(uiHeaderPanel.Height - desiredHeight) > 1)
+        {
+            uiHeaderPanel.Height = desiredHeight;
+        }
     }
 
-    private static Label CreateLabel(string text, Font font, Color? foreColor = null)
+    private static Label CreateLabel(string text, Font font, Color? foreColor = null, string? copyValue = null)
     {
         var label = new Label
         {
@@ -67,6 +93,7 @@ public partial class MediaDetailForm : Form
             label.ForeColor = foreColor.Value;
         }
 
+        label.ContextMenuStrip = CreateCopyMenu(label, copyValue);
         return label;
     }
 
@@ -80,6 +107,11 @@ public partial class MediaDetailForm : Form
         if (meta.DisplayType == "ByteSize" && long.TryParse(meta.Value, out var bytes))
         {
             return OptimizedMediaGridView.FormatFileSize(bytes);
+        }
+
+        if (meta.DisplayType == "Bitrate" && long.TryParse(meta.Value, out var bitsPerSecond))
+        {
+            return FormatBitrate(bitsPerSecond);
         }
 
         var targetType = Type.GetType(meta.DisplayType);
@@ -106,6 +138,43 @@ public partial class MediaDetailForm : Form
         }
     }
 
+    private static ContextMenuStrip CreateCopyMenu(Control control, string? copyValue = null)
+    {
+        var menu = new ContextMenuStrip();
+
+        if (copyValue != null)
+        {
+            menu.Items.Add("Копировать значение", null, (_, _) => Clipboard.SetText(copyValue));
+            menu.Items.Add("Копировать целиком", null, (_, _) => Clipboard.SetText(control.Text));
+        }
+        else
+        {
+            menu.Items.Add("Копировать", null, (_, _) => Clipboard.SetText(control.Text));
+        }
+
+        return menu;
+    }
+
+    private static string FormatBitrate(long bitsPerSecond)
+    {
+        if (bitsPerSecond < 1000)
+        {
+            return $"{bitsPerSecond} бит/с";
+        }
+
+        if (bitsPerSecond < 1_000_000)
+        {
+            return $"{bitsPerSecond / 1000.0:F0} Кбит/с";
+        }
+
+        return $"{bitsPerSecond / 1_000_000.0:F2} Мбит/с";
+    }
+
+    private void AdjustPreviewSize()
+    {
+        uiHeaderPanel_Resize(null, EventArgs.Empty);
+    }
+
     private void TryLoadPreview(Media media)
     {
         foreach (var meta in media.Metadata.Where(m => m.Key == "PreviewUrl" && !string.IsNullOrEmpty(m.Value)))
@@ -121,6 +190,7 @@ public partial class MediaDetailForm : Form
                     image.Save(ms, new BmpEncoder());
                     ms.Position = 0;
                     uiPreviewBox.Image = new Bitmap(ms);
+                    AdjustPreviewSize();
                     _logger?.LogDebug("Превью загружено: {Path}", path);
                     return;
                 }
@@ -156,6 +226,7 @@ public partial class MediaDetailForm : Form
             if (!IsDisposed)
             {
                 uiPreviewBox.Image = bitmap;
+                AdjustPreviewSize();
                 _logger?.LogDebug("Онлайн превью загружено: {Url}", url);
             }
             else
@@ -235,7 +306,8 @@ public partial class MediaDetailForm : Form
 
             innerFlow.Controls.Add(CreateLabel($"ID: {sourceLink.ExternalId}",
                 _regularFont,
-                Color.FromArgb(100, 100, 100)));
+                Color.FromArgb(100, 100, 100),
+                sourceLink.ExternalId));
 
             var sourceMetadata = media.Metadata
                 .Where(m => m.SourceId == sourceLink.SourceId && m.Key != "PreviewUrl")
@@ -256,7 +328,7 @@ public partial class MediaDetailForm : Form
                     var displayValue = FormatMetadataValue(meta);
 
                     innerFlow.Controls.Add(CreateLabel($"{displayName}: {displayValue}",
-                        _regularFont));
+                        _regularFont, copyValue: displayValue));
                 }
             }
 
