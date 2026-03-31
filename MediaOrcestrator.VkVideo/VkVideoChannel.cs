@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -411,5 +411,15 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
         {
             _serviceLock.Release();
         }
+    }
+
+    public ConvertType[] GetAvailabelConvertTypes()
+    {
+        return [];
+    }
+
+    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 }

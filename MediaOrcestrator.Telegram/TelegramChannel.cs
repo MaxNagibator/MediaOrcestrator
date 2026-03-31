@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Globalization;
@@ -475,6 +475,16 @@ public sealed class TelegramChannel(ILogger<TelegramChannel> logger, ILogger<Tel
             logger.LogWarning(ex, "Не удалось получить информацию о видео через ffprobe: {FilePath}", filePath);
             return new();
         }
+    }
+
+    public ConvertType[] GetAvailabelConvertTypes()
+    {
+        return [];
+    }
+
+    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 }
 

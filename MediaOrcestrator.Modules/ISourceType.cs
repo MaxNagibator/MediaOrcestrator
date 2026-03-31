@@ -46,6 +46,9 @@ public interface ISourceType
     Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
     Task DeleteAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
     Task<UploadResult> Update(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken);
+
+    ConvertType[] GetAvailabelConvertTypes();
+    Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
 }
 
 public interface IAuthUI
@@ -53,9 +56,6 @@ public interface IAuthUI
     Task<string?> PromptInputAsync(string prompt, bool isPassword = false);
     Task<string?> OpenBrowserAsync(string url, string? existingStatePath = null);
     Task ShowMessageAsync(string message);
-
-    ConvertType[] GetAvailabelConvertTypes();
-    Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
 }
 
 public interface IAuthenticatable
