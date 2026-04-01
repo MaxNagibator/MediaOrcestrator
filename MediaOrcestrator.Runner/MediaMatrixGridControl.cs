@@ -1254,4 +1254,12 @@ public partial class MediaMatrixGridControl : UserControl
 
         public bool HasConflicts => Conflicts.Count > 0;
     }
+
+    private void uiConvertProgressBar_MouseDown(object sender, MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Right)
+        {
+            uiConvertCancelMenu.Show(Cursor.Position);
+        }
+    }
 }
