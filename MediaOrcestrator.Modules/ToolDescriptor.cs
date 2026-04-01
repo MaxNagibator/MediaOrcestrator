@@ -1,4 +1,4 @@
-namespace MediaOrcestrator.Modules;
+﻿namespace MediaOrcestrator.Modules;
 
 public record ToolDescriptor
 {
