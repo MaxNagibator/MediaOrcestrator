@@ -6,11 +6,11 @@ namespace MediaOrcestrator.Runner;
 
 public class OptimizedMediaGridView : DataGridView
 {
-    public const int FirstSourceColumnIndex = 2;
-    private const int TitleColumnIndex = 1;
-    private const int CheckboxColumnIndex = 0;
+    private const int TitleColumnIndex = 0;
+    private const int FirstSourceColumnIndex = 1;
     private const int SourceTitleMaxLength = 20;
 
+    private readonly List<int> _selectionOrder = [];
     private Font? _statusFont;
     private Font? _headerFont;
 
@@ -32,6 +32,7 @@ public class OptimizedMediaGridView : DataGridView
 
         CellFormatting += OnCellFormatting;
         SortCompare += OnSortCompare;
+        SelectionChanged += (_, _) => UpdateSelectionOrder();
     }
 
     [Browsable(false)]
@@ -84,20 +85,9 @@ public class OptimizedMediaGridView : DataGridView
         _headerFont ??= new(Font, FontStyle.Bold);
         _statusFont ??= new(Font.FontFamily, 8.25f, FontStyle.Bold);
 
-        var checkColumn = new DataGridViewCheckBoxColumn
-        {
-            Name = "Check",
-            HeaderText = string.Empty,
-            Width = 30,
-            ReadOnly = true,
-            Resizable = DataGridViewTriState.False,
-        };
-
-        Columns.Add(checkColumn);
-
         Columns.Add("Title", "Название");
         //Columns[TitleColumnIndex].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        Columns[TitleColumnIndex].Width = Width - 80 * sources.Count - 100 * selectedMetadataColumns.Count;
+        Columns[TitleColumnIndex].Width = Width - 80 * sources.Count - 100 * selectedMetadataColumns.Count - 30;
 
         Columns[TitleColumnIndex].ReadOnly = true;
         Columns[TitleColumnIndex].HeaderCell.Style.Font = _headerFont;
@@ -161,6 +151,7 @@ public class OptimizedMediaGridView : DataGridView
     public void PopulateGrid(List<Source> sources, List<Media> mediaData, List<MetadataColumnInfo> selectedMetadataColumns)
     {
         CurrentSources = sources;
+        _selectionOrder.Clear();
 
         SuspendLayout();
         CurrentCell = null;
@@ -176,7 +167,6 @@ public class OptimizedMediaGridView : DataGridView
                 var row = Rows[r];
                 row.Tag = media;
 
-                row.Cells[CheckboxColumnIndex].Value = false;
                 row.Cells[TitleColumnIndex].Value = media.Title;
                 row.Cells[TitleColumnIndex].ToolTipText = media.Title;
 
@@ -259,42 +249,6 @@ public class OptimizedMediaGridView : DataGridView
         ResumeLayout();
     }
 
-    public void SelectAllRows()
-    {
-        SuspendLayout();
-        foreach (DataGridViewRow row in Rows)
-        {
-            row.Cells[CheckboxColumnIndex].Value = true;
-        }
-
-        ResumeLayout();
-    }
-
-    public void DeselectAllRows()
-    {
-        SuspendLayout();
-        foreach (DataGridViewRow row in Rows)
-        {
-            row.Cells[CheckboxColumnIndex].Value = false;
-        }
-
-        ResumeLayout();
-    }
-
-    public List<Media> GetCheckedMedia()
-    {
-        var result = new List<Media>();
-        foreach (DataGridViewRow row in Rows)
-        {
-            if (row.Cells[CheckboxColumnIndex].Value is true && row.Tag is Media media)
-            {
-                result.Add(media);
-            }
-        }
-
-        return result;
-    }
-
     public List<Media> GetSelectedMedia()
     {
         var result = new List<Media>();
@@ -309,6 +263,31 @@ public class OptimizedMediaGridView : DataGridView
         return result;
     }
 
+    public List<Media> GetSelectedMediaBySelectionOrder()
+    {
+        var result = new List<Media>();
+        foreach (var idx in _selectionOrder)
+        {
+            if (Rows[idx].Tag is Media media)
+            {
+                result.Add(media);
+            }
+        }
+
+        return result;
+    }
+
+    private void UpdateSelectionOrder()
+    {
+        var selectedIndices = SelectedRows.Cast<DataGridViewRow>().Select(r => r.Index).ToHashSet();
+        _selectionOrder.RemoveAll(i => !selectedIndices.Contains(i));
+
+        foreach (var idx in selectedIndices.Where(i => !_selectionOrder.Contains(i)))
+        {
+            _selectionOrder.Add(idx);
+        }
+    }
+
     public Media? GetMediaAtRow(int rowIndex)
     {
         if (rowIndex < 0 || rowIndex >= Rows.Count)
@@ -317,19 +296,6 @@ public class OptimizedMediaGridView : DataGridView
         }
 
         return Rows[rowIndex].Tag as Media;
-    }
-
-    protected override void OnCellClick(DataGridViewCellEventArgs e)
-    {
-        base.OnCellClick(e);
-
-        if (e is not { RowIndex: >= 0, ColumnIndex: CheckboxColumnIndex })
-        {
-            return;
-        }
-
-        var cell = Rows[e.RowIndex].Cells[CheckboxColumnIndex];
-        cell.Value = !(bool)(cell.Value ?? false);
     }
 
     protected override void Dispose(bool disposing)

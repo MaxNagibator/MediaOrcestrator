@@ -34,8 +34,6 @@ namespace MediaOrcestrator.Runner
             uiTotalCountLabel = new ToolStripStatusLabel();
             uiFilteredCountLabel = new ToolStripStatusLabel();
             uiFilterControl = new FilterToolStripControl();
-            uiSelectAllButton = new Button();
-            uiDeselectAllButton = new Button();
             ((System.ComponentModel.ISupportInitialize)uiMediaGrid).BeginInit();
             uiStatusStrip.SuspendLayout();
             SuspendLayout();
@@ -74,30 +72,10 @@ namespace MediaOrcestrator.Runner
             uiSearchTextBox.Size = new Size(100, 23);
             uiSearchTextBox.TabIndex = 3;
             uiSearchTextBox.Visible = false;
-            // 
-            // uiSelectAllButton
-            // 
-            uiSelectAllButton.Location = new Point(190, 28);
-            uiSelectAllButton.Name = "uiSelectAllButton";
-            uiSelectAllButton.Size = new Size(90, 23);
-            uiSelectAllButton.TabIndex = 8;
-            uiSelectAllButton.Text = "Выбрать все";
-            uiSelectAllButton.UseVisualStyleBackColor = true;
-            uiSelectAllButton.Click += uiSelectAllButton_Click;
-            // 
-            // uiDeselectAllButton
-            // 
-            uiDeselectAllButton.Location = new Point(286, 28);
-            uiDeselectAllButton.Name = "uiDeselectAllButton";
-            uiDeselectAllButton.Size = new Size(110, 23);
-            uiDeselectAllButton.TabIndex = 9;
-            uiDeselectAllButton.Text = "Снять выделение";
-            uiDeselectAllButton.UseVisualStyleBackColor = true;
-            uiDeselectAllButton.Click += uiDeselectAllButton_Click;
-            // 
+            //
             // uiMergerSelectedMediaButton
             // 
-            uiMergerSelectedMediaButton.Location = new Point(453, 28);
+            uiMergerSelectedMediaButton.Location = new Point(190, 28);
             uiMergerSelectedMediaButton.Name = "uiMergerSelectedMediaButton";
             uiMergerSelectedMediaButton.Size = new Size(139, 23);
             uiMergerSelectedMediaButton.TabIndex = 4;
@@ -177,8 +155,6 @@ namespace MediaOrcestrator.Runner
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(uiLoadingLabel);
             Controls.Add(uiMergerSelectedMediaButton);
-            Controls.Add(uiDeselectAllButton);
-            Controls.Add(uiSelectAllButton);
             Controls.Add(uiSearchTextBox);
             Controls.Add(uiRefreshButton);
             Controls.Add(uiMediaGrid);
@@ -202,8 +178,6 @@ namespace MediaOrcestrator.Runner
         private ToolStripStatusLabel uiTotalCountLabel;
         private ToolStripStatusLabel uiFilteredCountLabel;
         private FilterToolStripControl uiFilterControl;
-        private Button uiSelectAllButton;
-        private Button uiDeselectAllButton;
         private ToolStripProgressBar uiConvertProgressBar;
         private ToolStripStatusLabel uiConvertStatusLabel;
         private ContextMenuStrip uiConvertCancelMenu;

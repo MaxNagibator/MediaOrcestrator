@@ -136,19 +136,9 @@ public partial class MediaMatrixGridControl : UserControl
         RefreshData();
     }
 
-    private void uiSelectAllButton_Click(object? sender, EventArgs e)
-    {
-        uiMediaGrid.SelectAllRows();
-    }
-
-    private void uiDeselectAllButton_Click(object? sender, EventArgs e)
-    {
-        uiMediaGrid.DeselectAllRows();
-    }
-
     private void uiMergerSelectedMediaButton_Click(object sender, EventArgs e)
     {
-        var selectedMediaList = uiMediaGrid.GetCheckedMedia();
+        var selectedMediaList = uiMediaGrid.GetSelectedMediaBySelectionOrder();
 
         if (selectedMediaList.Count < 2)
         {
@@ -160,37 +150,34 @@ public partial class MediaMatrixGridControl : UserControl
             return;
         }
 
+        MergeSelectedMedia(selectedMediaList);
+    }
+
+    private void MergeSelectedMedia(List<Media> selectedMediaList)
+    {
         _logger?.LogInformation("Запуск операции объединения медиа. Выбрано элементов: {Count}", selectedMediaList.Count);
 
         try
         {
             var mergePreview = ValidateMergeOperation(selectedMediaList);
+            var allSources = _orcestrator!.GetSources();
 
-            var mediaList = string.Join("\n", mergePreview.SourceMedias.Select(x => $"- {x.Title}"));
-            var conflictsList = mergePreview.HasConflicts
-                ? $"""
-                   ⚠ ВНИМАНИЕ! Обнаружены конфликты:
-                   {string.Join("\n", mergePreview.Conflicts.Select(x => $"- {x}"))}
-
-                   Дублирующиеся источники будут пропущены.
-                   """
+            var mediaList = string.Join("\n", mergePreview.SourceMedias.Select(FormatMedia));
+            var conflictsNote = mergePreview.HasConflicts
+                ? "\n⚠ Дублирующиеся источники будут пропущены."
                 : string.Empty;
 
             var confirmationMessage = $"""
-                                       Вы собираетесь объединить следующие медиа:
+                                       Целевое (сохранится):
+                                       {FormatMedia(mergePreview.TargetMedia)}
 
-                                       Целевое медиа (сохранится):
-                                       - {mergePreview.TargetMedia.Title}
-
-                                       Медиа, которые будут присоединены и удалены:
+                                       Будут присоединены и удалены:
                                        {mediaList}
-
-                                       {conflictsList}
-                                       Это действие нельзя отменить. Продолжить?
+                                       {conflictsNote}
                                        """;
 
             var result = MessageBox.Show(confirmationMessage,
-                "Подтверждение объединения",
+                $"Объединение {selectedMediaList.Count} медиа",
                 MessageBoxButtons.YesNo,
                 mergePreview.HasConflicts ? MessageBoxIcon.Warning : MessageBoxIcon.Question);
 
@@ -213,14 +200,14 @@ public partial class MediaMatrixGridControl : UserControl
 
             _logger?.LogInformation("Объединение медиа успешно завершено. Итоговое количество источников: {TotalSourcesCount}", mergePreview.TotalSourcesCount);
 
-            MessageBox.Show($"""
-                             Медиа успешно объединены.
+            string FormatMedia(Media m)
+            {
+                var sourceNames = m.Sources
+                    .Select(s => allSources.FirstOrDefault(x => x.Id == s.SourceId)?.Title ?? s.SourceId)
+                    .ToList();
 
-                             Итоговое количество источников: {mergePreview.TotalSourcesCount}
-                             """,
-                "Объединение завершено",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+                return $"- {m.Title} [{string.Join(", ", sourceNames)}]";
+            }
         }
         catch (Exception ex)
         {
@@ -431,6 +418,13 @@ public partial class MediaMatrixGridControl : UserControl
         var capturedMediaForRename = selectedMedia;
         renameItem.Click += (_, _) => HandleBatchRename(capturedMediaForRename);
         _contextMenu.Items.Add(renameItem);
+
+        if (selectedMedia.Count >= 2)
+        {
+            var mergeItem = new ToolStripMenuItem($"Объединить ({selectedMedia.Count})");
+            mergeItem.Click += (_, _) => MergeSelectedMedia(uiMediaGrid.GetSelectedMediaBySelectionOrder());
+            _contextMenu.Items.Add(mergeItem);
+        }
 
         _contextMenu.Items.Add(new ToolStripSeparator());
 
