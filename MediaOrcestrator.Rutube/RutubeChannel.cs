@@ -244,7 +244,26 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
     public bool IsAuthenticated(Dictionary<string, string> settings)
     {
         var authStatePath = settings.GetValueOrDefault("auth_state_path");
-        return !string.IsNullOrEmpty(authStatePath) && File.Exists(authStatePath);
+        if (string.IsNullOrEmpty(authStatePath) || !File.Exists(authStatePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(authStatePath);
+            using var doc = JsonDocument.Parse(json);
+            var cookies = doc.RootElement.GetProperty("cookies");
+
+            return cookies.EnumerateArray()
+                .Any(c =>
+                    c.GetProperty("name").GetString() == "csrftoken"
+                    && c.GetProperty("domain").GetString() == "studio.rutube.ru");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)

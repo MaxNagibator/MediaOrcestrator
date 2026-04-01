@@ -386,7 +386,28 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
     public bool IsAuthenticated(Dictionary<string, string> settings)
     {
         var authStatePath = settings.GetValueOrDefault("auth_state_path");
-        return !string.IsNullOrEmpty(authStatePath) && File.Exists(authStatePath);
+        if (string.IsNullOrEmpty(authStatePath) || !File.Exists(authStatePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(authStatePath);
+            using var doc = JsonDocument.Parse(json);
+            var cookies = doc.RootElement.GetProperty("cookies");
+
+            return cookies.EnumerateArray()
+                .Any(c =>
+                {
+                    var domain = c.GetProperty("domain").GetString() ?? "";
+                    return domain.Contains("vkvideo.ru") || domain.Contains("vk.com");
+                });
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)
@@ -398,7 +419,7 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
             return;
         }
 
-        var result = await ui.OpenBrowserAsync("https://vkvideo.ru/", authStatePath);
+        var result = await ui.OpenBrowserAsync("https://cabinet.vkvideo.ru/", authStatePath);
         if (result != null)
         {
             _cachedService?.Dispose();

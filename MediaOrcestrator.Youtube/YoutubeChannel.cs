@@ -1,6 +1,8 @@
 ﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
 using YoutubeExplode;
 using YoutubeExplode.Channels;
 using YoutubeExplode.Common;
@@ -408,7 +410,20 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
     public bool IsAuthenticated(Dictionary<string, string> settings)
     {
         var authStatePath = settings.GetValueOrDefault("auth_state_path");
-        return !string.IsNullOrEmpty(authStatePath) && File.Exists(authStatePath);
+        if (string.IsNullOrEmpty(authStatePath) || !File.Exists(authStatePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var lines = File.ReadLines(authStatePath);
+            return lines.Any(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith('#'));
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)
@@ -420,11 +435,60 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
             return;
         }
 
-        var result = await ui.OpenBrowserAsync("https://www.youtube.com/", authStatePath);
-        if (result != null)
+        var tempJsonPath = authStatePath + ".tmp.json";
+
+        try
         {
-            logger.LogInformation("YouTube: авторизация сохранена в {Path}", result);
+            var result = await ui.OpenBrowserAsync("https://studio.youtube.com/", tempJsonPath);
+            if (result == null)
+            {
+                return;
+            }
+
+            ConvertPlaywrightToNetscape(tempJsonPath, authStatePath);
+            logger.LogInformation("YouTube: авторизация сохранена в {Path}", authStatePath);
             await ui.ShowMessageAsync("Авторизация YouTube сохранена!");
+        }
+        finally
+        {
+            if (File.Exists(tempJsonPath))
+            {
+                File.Delete(tempJsonPath);
+            }
+        }
+    }
+
+    private static void ConvertPlaywrightToNetscape(string playwrightJsonPath, string netscapePath)
+    {
+        var json = File.ReadAllText(playwrightJsonPath);
+        using var doc = JsonDocument.Parse(json);
+        var cookies = doc.RootElement.GetProperty("cookies");
+
+        using var writer = new StreamWriter(netscapePath, false, new UTF8Encoding(false));
+        writer.WriteLine("# Netscape HTTP Cookie File");
+
+        foreach (var cookie in cookies.EnumerateArray())
+        {
+            var domain = cookie.GetProperty("domain").GetString() ?? "";
+            if (string.IsNullOrEmpty(domain))
+            {
+                continue;
+            }
+
+            if (!domain.StartsWith('.'))
+            {
+                domain = "." + domain;
+            }
+
+            var flag = domain.StartsWith('.') ? "TRUE" : "FALSE";
+            var path = cookie.GetProperty("path").GetString() ?? "/";
+            var secure = cookie.GetProperty("secure").GetBoolean() ? "TRUE" : "FALSE";
+            var expires = cookie.GetProperty("expires").GetDouble();
+            var expiry = expires > 0 ? (long)expires : 0;
+            var name = cookie.GetProperty("name").GetString() ?? "";
+            var value = cookie.GetProperty("value").GetString() ?? "";
+
+            writer.WriteLine($"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{name}\t{value}");
         }
     }
 
