@@ -50,6 +50,7 @@ public class GitHubReleaseProvider(IHttpClientFactory httpClientFactory, ILogger
                 AssetName = matchingAsset?.Name,
                 AssetSize = matchingAsset?.Size ?? 0,
                 PublishedAt = release.PublishedAt,
+                Body = release.Body,
             };
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
@@ -114,6 +115,9 @@ public class GitHubReleaseProvider(IHttpClientFactory httpClientFactory, ILogger
 
         [JsonPropertyName("published_at")]
         public DateTime PublishedAt { get; init; }
+
+        [JsonPropertyName("body")]
+        public string? Body { get; init; }
 
         [JsonPropertyName("assets")]
         public List<GithubAsset> Assets { get; init; } = [];

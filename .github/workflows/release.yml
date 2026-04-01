@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore packages
+        run: dotnet restore MediaOrcestrator.sln
+
+      - name: Restore packages
+        run: dotnet restore MediaOrcestrator.sln
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_TAG#v}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_REF_TAG: ${{ github.ref_name }}
+
+      - name: Publish Runner
+        run: >
+          dotnet publish MediaOrcestrator.Runner/MediaOrcestrator.Runner.csproj
+          -c Release
+          -r win-x64
+          --self-contained false
+          /p:Version=${{ steps.version.outputs.VERSION }}
+          /p:UpdateRepo=${{ github.repository }}
+          -o publish/app
+
+      - name: Publish Updater
+        run: >
+          dotnet publish MediaOrcestrator.Updater/MediaOrcestrator.Updater.csproj
+          -c Release
+          -r win-x64
+          --self-contained false
+          /p:Version=${{ steps.version.outputs.VERSION }}
+          -o publish/updater
+
+      - name: Copy Updater to app
+        shell: bash
+        run: |
+          cp publish/updater/Updater.exe publish/app/Updater.exe
+          cp publish/updater/Updater.dll publish/app/Updater.dll
+          cp publish/updater/Updater.runtimeconfig.json publish/app/Updater.runtimeconfig.json
+          cp publish/updater/Updater.deps.json publish/app/Updater.deps.json
+
+      - name: Copy ModuleBuilds
+        shell: bash
+        run: |
+          if [ -d "publish/app/ModuleBuilds" ]; then
+            echo "ModuleBuilds already present from build"
+          else
+            echo "ModuleBuilds not found in publish output, checking build output..."
+            cp -r ModuleBuilds publish/app/ModuleBuilds 2>/dev/null || echo "No ModuleBuilds to copy"
+          fi
+
+      - name: Create zip
+        shell: bash
+        run: |
+          cd publish/app
+          7z a -tzip "../../MediaOrcestrator-v${{ steps.version.outputs.VERSION }}.zip" .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MediaOrcestrator-v${{ steps.version.outputs.VERSION }}.zip
+          generate_release_notes: true

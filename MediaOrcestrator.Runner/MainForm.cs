@@ -11,12 +11,14 @@ public partial class MainForm : Form
     private readonly Orcestrator _orcestrator;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MainForm> _logger;
+    private readonly AppUpdateManager _updateManager;
 
-    public MainForm(Orcestrator orcestrator, IServiceProvider serviceProvider, ILogger<MainForm> logger, RichTextBox logControl)
+    public MainForm(Orcestrator orcestrator, IServiceProvider serviceProvider, ILogger<MainForm> logger, RichTextBox logControl, AppUpdateManager updateManager)
     {
         _orcestrator = orcestrator;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _updateManager = updateManager;
 
         InitializeComponent();
         uiLogsTabPage.Controls.Add(logControl);
@@ -24,6 +26,7 @@ public partial class MainForm : Form
 
     private void MainForm_Load(object sender, EventArgs e)
     {
+        Text = $"Медиа оркестратор v{_updateManager.CurrentVersion.ToString(3)}";
         DrawSources();
         DrawRelations();
         // TODO: SetZalupaV2
@@ -43,6 +46,7 @@ public partial class MainForm : Form
         uiSyncTreeControl.Initialize(planner, _orcestrator, _serviceProvider.GetRequiredService<ILogger<SyncTreeControl>>());
 
         CheckToolUpdatesInBackground();
+        CheckAppUpdateInBackground();
     }
 
     private async void uiSyncButton_Click(object sender, EventArgs e)
@@ -404,6 +408,81 @@ public partial class MainForm : Form
         {
             _logger.LogWarning(ex, "Фоновая проверка обновлений инструментов не удалась");
         }
+    }
+
+    private async void CheckAppUpdateInBackground()
+    {
+        try
+        {
+            var update = await Task.Run(() => _updateManager.CheckForUpdateAsync());
+
+            if (update is null)
+            {
+                return;
+            }
+
+            _logger.LogInformation("Доступно обновление приложения: {Version}", update.Version);
+            ShowUpdateDialog(update);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Фоновая проверка обновлений приложения не удалась");
+        }
+    }
+
+    private async void ShowUpdateDialog(AppUpdateInfo update)
+    {
+        var message = $"""
+                       Доступна новая версия {update.Version}.
+
+                       {update.ReleaseNotes}
+                           
+                       Обновить сейчас?
+                       """;
+
+        var result = MessageBox.Show(message, "Обновление", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+        if (result != DialogResult.Yes)
+        {
+            return;
+        }
+
+        using var progressForm = new UpdateProgressForm();
+        var progress = new Progress<double>(progressForm.UpdateProgress);
+
+        progressForm.Show(this);
+
+        try
+        {
+            var zipPath = await Task.Run(() => _updateManager.DownloadUpdateAsync(update, progress, progressForm.CancellationToken));
+
+            progressForm.Close();
+
+            MessageBox.Show("Обновление скачано. Приложение будет перезапущено.",
+                "Обновление", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            _updateManager.ApplyUpdate(zipPath);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Скачивание обновления отменено пользователем");
+        }
+        catch (Exception ex)
+        {
+            progressForm.Close();
+            _logger.LogError(ex, "Не удалось скачать обновление");
+            MessageBox.Show($"""
+                             Не удалось скачать обновление:
+
+                             {ex.Message}
+                             """,
+                "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void uiCheckUpdatesButton_Click(object? sender, EventArgs e)
+    {
+        CheckAppUpdateInBackground();
     }
 
     private void DrawRelations()

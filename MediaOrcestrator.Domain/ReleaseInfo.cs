@@ -7,4 +7,5 @@ public record ReleaseInfo
     public string? AssetName { get; init; }
     public long AssetSize { get; init; }
     public DateTimeOffset PublishedAt { get; init; }
+    public string? Body { get; init; }
 }

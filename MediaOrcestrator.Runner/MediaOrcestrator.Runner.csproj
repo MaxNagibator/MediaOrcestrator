@@ -33,10 +33,31 @@
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
   </ItemGroup>
 
+  <Target Name="GenerateUpdateRepo" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <UpdateRepo Condition="'$(UpdateRepo)' == ''">MaxNagibator/MediaOrcestrator</UpdateRepo>
+    </PropertyGroup>
+    <ItemGroup>
+      <CompilerVisibleProperty Include="UpdateRepo" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)UpdateRepo.g.cs"
+                     Lines="namespace MediaOrcestrator.Runner%3B&#10;&#10;internal static partial class BuildConstants&#10;{&#10;    public const string DefaultUpdateRepo = &quot;$(UpdateRepo)&quot;%3B&#10;}"
+                     Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)UpdateRepo.g.cs" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="BuildModules" AfterTargets="Build">
-    <MSBuild Projects="..\MediaOrcestrator.Youtube\MediaOrcestrator.Youtube.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
-    <MSBuild Projects="..\MediaOrcestrator.Rutube\MediaOrcestrator.Rutube.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
-    <MSBuild Projects="..\MediaOrcestrator.HardDiskDrive\MediaOrcestrator.HardDiskDrive.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="..\MediaOrcestrator.Youtube\MediaOrcestrator.Youtube.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
+    <MSBuild Projects="..\MediaOrcestrator.Rutube\MediaOrcestrator.Rutube.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
+    <MSBuild Projects="..\MediaOrcestrator.HardDiskDrive\MediaOrcestrator.HardDiskDrive.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
+    <MSBuild Projects="..\MediaOrcestrator.VkVideo\MediaOrcestrator.VkVideo.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
+    <MSBuild Projects="..\MediaOrcestrator.Telegram\MediaOrcestrator.Telegram.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
+    <MSBuild Projects="..\MediaOrcestrator.Updater\MediaOrcestrator.Updater.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
+    <Copy SourceFiles="..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.exe;..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.dll;..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.runtimeconfig.json;..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.deps.json"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

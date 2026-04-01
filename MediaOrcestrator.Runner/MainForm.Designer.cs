@@ -44,6 +44,7 @@
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiAuditTabPage = new TabPage();
+            comboBox1 = new ComboBox();
             button1 = new Button();
             uiClearSpecificTypeButton = new Button();
             uiClearTypeComboBox = new ComboBox();
@@ -63,7 +64,8 @@
             groupBox1 = new GroupBox();
             uiRubuteAuthStatePathTextBox = new TextBox();
             uiRubuteAuthStateOpenBrowserButton = new Button();
-            comboBox1 = new ComboBox();
+            uiManageToolsButton = new Button();
+            uiCheckUpdatesButton = new Button();
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
@@ -93,7 +95,7 @@
             uiMediaMatrixGridControl.Dock = DockStyle.Fill;
             uiMediaMatrixGridControl.Location = new Point(3, 3);
             uiMediaMatrixGridControl.Name = "uiMediaMatrixGridControl";
-            uiMediaMatrixGridControl.Size = new Size(1137, 747);
+            uiMediaMatrixGridControl.Size = new Size(1202, 747);
             uiMediaMatrixGridControl.TabIndex = 2;
             // 
             // uiAddSourceButton
@@ -185,7 +187,7 @@
             uiMainTabControl.Location = new Point(12, 12);
             uiMainTabControl.Name = "uiMainTabControl";
             uiMainTabControl.SelectedIndex = 0;
-            uiMainTabControl.Size = new Size(1151, 781);
+            uiMainTabControl.Size = new Size(1216, 781);
             uiMainTabControl.TabIndex = 6;
             // 
             // uiFilesTabPage
@@ -194,7 +196,7 @@
             uiFilesTabPage.Location = new Point(4, 24);
             uiFilesTabPage.Name = "uiFilesTabPage";
             uiFilesTabPage.Padding = new Padding(3);
-            uiFilesTabPage.Size = new Size(1143, 753);
+            uiFilesTabPage.Size = new Size(1208, 753);
             uiFilesTabPage.TabIndex = 0;
             uiFilesTabPage.Text = "Фаилы";
             uiFilesTabPage.UseVisualStyleBackColor = true;
@@ -242,6 +244,16 @@
             uiAuditTabPage.TabIndex = 3;
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
+            // 
+            // comboBox1
+            // 
+            comboBox1.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboBox1.FormattingEnabled = true;
+            comboBox1.Items.AddRange(new object[] { "medias", "sources", "source_relations" });
+            comboBox1.Location = new Point(51, 201);
+            comboBox1.Name = "comboBox1";
+            comboBox1.Size = new Size(224, 23);
+            comboBox1.TabIndex = 7;
             // 
             // button1
             // 
@@ -340,21 +352,43 @@
             uiToolsTabPage.Controls.Add(groupBox3);
             uiToolsTabPage.Controls.Add(groupBox2);
             uiToolsTabPage.Controls.Add(groupBox1);
-            // uiManageToolsButton
-            uiManageToolsButton = new Button();
-            uiManageToolsButton.Location = new Point(6, 300);
-            uiManageToolsButton.Name = "uiManageToolsButton";
-            uiManageToolsButton.Size = new Size(200, 35);
-            uiManageToolsButton.Text = "Управление инструментами";
-            uiManageToolsButton.UseVisualStyleBackColor = true;
-            uiManageToolsButton.Click += uiManageToolsButton_Click;
             uiToolsTabPage.Controls.Add(uiManageToolsButton);
+            uiToolsTabPage.Controls.Add(uiCheckUpdatesButton);
             uiToolsTabPage.Location = new Point(4, 24);
             uiToolsTabPage.Name = "uiToolsTabPage";
             uiToolsTabPage.Size = new Size(1143, 753);
             uiToolsTabPage.TabIndex = 5;
             uiToolsTabPage.Text = "Вспомогательное";
             uiToolsTabPage.UseVisualStyleBackColor = true;
+            // 
+            // groupBox3
+            // 
+            groupBox3.Controls.Add(uiVkVideoAuthStatePathTextBox);
+            groupBox3.Controls.Add(uiVkVideoAuthStateOpenBrowserButton);
+            groupBox3.Location = new Point(219, 415);
+            groupBox3.Name = "groupBox3";
+            groupBox3.Size = new Size(467, 100);
+            groupBox3.TabIndex = 3;
+            groupBox3.TabStop = false;
+            groupBox3.Text = "VkVideo auth_state";
+            // 
+            // uiVkVideoAuthStatePathTextBox
+            // 
+            uiVkVideoAuthStatePathTextBox.Location = new Point(7, 51);
+            uiVkVideoAuthStatePathTextBox.Name = "uiVkVideoAuthStatePathTextBox";
+            uiVkVideoAuthStatePathTextBox.Size = new Size(454, 23);
+            uiVkVideoAuthStatePathTextBox.TabIndex = 1;
+            uiVkVideoAuthStatePathTextBox.Text = "E:\\bobgroup\\projects\\mediaOrcestrator\\vkvideoAuthState\\auth_state";
+            // 
+            // uiVkVideoAuthStateOpenBrowserButton
+            // 
+            uiVkVideoAuthStateOpenBrowserButton.Location = new Point(6, 22);
+            uiVkVideoAuthStateOpenBrowserButton.Name = "uiVkVideoAuthStateOpenBrowserButton";
+            uiVkVideoAuthStateOpenBrowserButton.Size = new Size(101, 23);
+            uiVkVideoAuthStateOpenBrowserButton.TabIndex = 0;
+            uiVkVideoAuthStateOpenBrowserButton.Text = "открыть брузер";
+            uiVkVideoAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
+            uiVkVideoAuthStateOpenBrowserButton.Click += uiVkVideoAuthStateOpenBrowserButton_Click;
             // 
             // groupBox2
             // 
@@ -384,36 +418,7 @@
             uiYoutubeAuthStateOpenBrowserButton.Text = "открыть брузер";
             uiYoutubeAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
             uiYoutubeAuthStateOpenBrowserButton.Click += uiYoutubeAuthStateOpenBrowserButton_Click;
-            //
-            // groupBox3 прив
-            //
-            groupBox3.Controls.Add(uiVkVideoAuthStatePathTextBox);
-            groupBox3.Controls.Add(uiVkVideoAuthStateOpenBrowserButton);
-            groupBox3.Location = new Point(219, 415);
-            groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(467, 100);
-            groupBox3.TabIndex = 3;
-            groupBox3.TabStop = false;
-            groupBox3.Text = "VkVideo auth_state";
-            //
-            // uiVkVideoAuthStatePathTextBox
-            //
-            uiVkVideoAuthStatePathTextBox.Location = new Point(7, 51);
-            uiVkVideoAuthStatePathTextBox.Name = "uiVkVideoAuthStatePathTextBox";
-            uiVkVideoAuthStatePathTextBox.Size = new Size(454, 23);
-            uiVkVideoAuthStatePathTextBox.TabIndex = 1;
-            uiVkVideoAuthStatePathTextBox.Text = "E:\\bobgroup\\projects\\mediaOrcestrator\\vkvideoAuthState\\auth_state";
-            //
-            // uiVkVideoAuthStateOpenBrowserButton
-            //
-            uiVkVideoAuthStateOpenBrowserButton.Location = new Point(6, 22);
-            uiVkVideoAuthStateOpenBrowserButton.Name = "uiVkVideoAuthStateOpenBrowserButton";
-            uiVkVideoAuthStateOpenBrowserButton.Size = new Size(101, 23);
-            uiVkVideoAuthStateOpenBrowserButton.TabIndex = 0;
-            uiVkVideoAuthStateOpenBrowserButton.Text = "открыть брузер";
-            uiVkVideoAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
-            uiVkVideoAuthStateOpenBrowserButton.Click += uiVkVideoAuthStateOpenBrowserButton_Click;
-            //
+            // 
             // groupBox1
             // 
             groupBox1.Controls.Add(uiRubuteAuthStatePathTextBox);
@@ -442,22 +447,32 @@
             uiRubuteAuthStateOpenBrowserButton.Text = "открыть брузер";
             uiRubuteAuthStateOpenBrowserButton.UseVisualStyleBackColor = true;
             uiRubuteAuthStateOpenBrowserButton.Click += uiRubuteAuthStateOpenBrowserButton_Click;
-            //
-            // comboBox1
-            //
-            comboBox1.DropDownStyle = ComboBoxStyle.DropDownList;
-            comboBox1.FormattingEnabled = true;
-            comboBox1.Items.AddRange(new object[] { "medias", "sources", "source_relations" });
-            comboBox1.Location = new Point(51, 201);
-            comboBox1.Name = "comboBox1";
-            comboBox1.Size = new Size(224, 23);
-            comboBox1.TabIndex = 7;
+            // 
+            // uiManageToolsButton
+            // 
+            uiManageToolsButton.Location = new Point(6, 300);
+            uiManageToolsButton.Name = "uiManageToolsButton";
+            uiManageToolsButton.Size = new Size(200, 35);
+            uiManageToolsButton.TabIndex = 4;
+            uiManageToolsButton.Text = "Управление инструментами";
+            uiManageToolsButton.UseVisualStyleBackColor = true;
+            uiManageToolsButton.Click += uiManageToolsButton_Click;
+            // 
+            // uiCheckUpdatesButton
+            // 
+            uiCheckUpdatesButton.Location = new Point(6, 341);
+            uiCheckUpdatesButton.Name = "uiCheckUpdatesButton";
+            uiCheckUpdatesButton.Size = new Size(200, 35);
+            uiCheckUpdatesButton.TabIndex = 5;
+            uiCheckUpdatesButton.Text = "Проверить обновления";
+            uiCheckUpdatesButton.UseVisualStyleBackColor = true;
+            uiCheckUpdatesButton.Click += uiCheckUpdatesButton_Click;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1175, 805);
+            ClientSize = new Size(1240, 805);
             Controls.Add(uiMainTabControl);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
@@ -471,6 +486,8 @@
             uiAuditTabPage.ResumeLayout(false);
             uiSyncTreeTabPage.ResumeLayout(false);
             uiToolsTabPage.ResumeLayout(false);
+            groupBox3.ResumeLayout(false);
+            groupBox3.PerformLayout();
             groupBox2.ResumeLayout(false);
             groupBox2.PerformLayout();
             groupBox1.ResumeLayout(false);
@@ -516,5 +533,6 @@
         private Button button1;
         private ComboBox comboBox1;
         private Button uiManageToolsButton;
+        private Button uiCheckUpdatesButton;
     }
 }

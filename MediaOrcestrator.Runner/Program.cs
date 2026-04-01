@@ -4,6 +4,7 @@ using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Events;
 using Serilog.Sinks.RichTextBoxForms.Themes;
 using System.Text;
 using ILogger = Serilog.ILogger;
@@ -27,7 +28,7 @@ file static class Program
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
-            .MinimumLevel.Override("Microsoft.Extensions.Http", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.Extensions.Http", LogEventLevel.Warning)
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.Debug()
             .WriteTo.File("logs/log-.txt",
@@ -73,6 +74,7 @@ file static class Program
             }
 
             Log.Information("Приложение запускается...");
+            CheckUpdaterLog();
             var services = new ServiceCollection();
             services.AddSingleton(logControl);
             services.AddSingleton(settingsManager);
@@ -231,6 +233,40 @@ file static class Program
         }
     }
 
+    private static void CheckUpdaterLog()
+    {
+        var logPath = Path.Combine(AppContext.BaseDirectory, "updater.log");
+
+        if (!File.Exists(logPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var content = File.ReadAllText(logPath);
+
+            if (content.Contains("ОШИБКА"))
+            {
+                Log.Warning("Обнаружены ошибки в updater.log:\n{Content}", content);
+                MessageBox.Show("При последнем обновлении возникли ошибки. Подробности в updater.log.",
+                    "Предупреждение",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            else
+            {
+                Log.Information("Обновление прошло успешно (updater.log)");
+            }
+
+            File.Delete(logPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Не удалось прочитать updater.log");
+        }
+    }
+
     private static void ConfigureServices(IServiceCollection services, string databasePath)
     {
         services.AddLogging(builder =>
@@ -244,6 +280,7 @@ file static class Program
             new(sp.GetRequiredService<LiteDatabase>(),
                 databasePath,
                 sp.GetRequiredService<ILogger<DatabaseBackupService>>()));
+
         services.AddSingleton<PluginManager>();
         services.AddHttpClient("GitHub", client =>
         {
@@ -261,7 +298,17 @@ file static class Program
                 sp.GetRequiredService<ToolVersionDetector>(),
                 sp.GetRequiredService<ToolInstaller>(),
                 sp.GetRequiredService<ILogger<ToolManager>>()));
+
         services.AddSingleton<IToolPathProvider>(sp => sp.GetRequiredService<ToolManager>());
+        services.AddSingleton<AppUpdateManager>(sp =>
+        {
+            var settingsManager = sp.GetRequiredService<SettingsManager>();
+            var updateRepo = settingsManager.GetStringValue("update_repo") ?? BuildConstants.DefaultUpdateRepo;
+            return new(sp.GetRequiredService<IReleaseProvider>(),
+                updateRepo,
+                sp.GetRequiredService<ILogger<AppUpdateManager>>());
+        });
+
         services.AddSingleton<Orcestrator>();
         services.AddSingleton<BatchRenameService>();
         services.AddSingleton<SyncPlanner>();
