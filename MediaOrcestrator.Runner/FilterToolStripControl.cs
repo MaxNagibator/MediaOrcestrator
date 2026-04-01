@@ -16,6 +16,19 @@ public partial class FilterToolStripControl : UserControl
     {
         InitializeComponent();
 
+        uiRelationsDropDownButton.DropDown.Closing += (_, e) =>
+        {
+            if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
+            {
+                e.Cancel = true;
+            }
+        };
+
+        uiRelationsDropDownButton.DropDown.Closed += (_, _) =>
+        {
+            OnFilterChanged();
+        };
+
         uiMetadataDropDownButton.DropDown.Closing += (_, e) =>
         {
             if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
@@ -81,8 +94,6 @@ public partial class FilterToolStripControl : UserControl
                         _selectedRelations.Remove(relation);
                     }
                 }
-
-                OnFilterChanged();
             };
 
             uiRelationsDropDownButton.DropDownItems.Add(item);

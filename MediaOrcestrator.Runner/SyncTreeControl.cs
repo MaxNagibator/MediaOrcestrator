@@ -228,14 +228,22 @@ public partial class SyncTreeControl : UserControl
 
     private void uiConstructButton_Click(object sender, EventArgs e)
     {
-        var medias = _orcestrator.GetMedias();
-        var relations = _orcestrator.GetRelations();
-        var intents = _planner.Plan(medias, relations);
-        _rootIntents = intents;
-        uiFilterControl.ShowStatusFilter = false;
-        uiFilterControl.PopulateRelationsFilter(_orcestrator);
-        PopulateTree();
-        LogToUi("Планировщик инициализирован. Готов к работе.");
+        uiConstructButton.Enabled = false;
+        try
+        {
+            var medias = _orcestrator.GetMedias();
+            var relations = _orcestrator.GetRelations();
+            var intents = _planner.Plan(medias, relations);
+            _rootIntents = intents;
+            uiFilterControl.ShowStatusFilter = false;
+            uiFilterControl.PopulateRelationsFilter(_orcestrator);
+            PopulateTree();
+            LogToUi("Планировщик инициализирован. Готов к работе.");
+        }
+        finally
+        {
+            uiConstructButton.Enabled = true;
+        }
     }
 
     private static TreeNode CreateIntentNode(SyncIntent intent, Dictionary<SyncIntent, TreeNode> intentNodeMap, HashSet<(string FromId, string ToId)>? relationFilter = null)
