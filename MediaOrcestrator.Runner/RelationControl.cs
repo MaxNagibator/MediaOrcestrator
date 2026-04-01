@@ -37,13 +37,14 @@ public partial class RelationControl : UserControl
             return;
         }
 
-        var dialogResult = MessageBox.Show("Вы уверены, что хотите удалить эту связь?", "Удаление связи", MessageBoxButtons.YesNo);
-        if (dialogResult != DialogResult.Yes)
-        {
-            return;
-        }
+        uiDeleteButton.Visible = false;
+        uiConfirmDeleteButton.Visible = true;
+        uiCancelDeleteButton.Visible = true;
+    }
 
-        if (Relation.From == null || Relation.To == null)
+    private void uiConfirmDeleteButton_Click(object sender, EventArgs e)
+    {
+        if (Relation?.From == null || Relation?.To == null)
         {
             MessageBox.Show("Источники связи не могут быть пустыми.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
@@ -51,6 +52,13 @@ public partial class RelationControl : UserControl
 
         _orcestrator.RemoveRelation(Relation.From, Relation.To);
         RelationDeleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void uiCancelDeleteButton_Click(object sender, EventArgs e)
+    {
+        uiConfirmDeleteButton.Visible = false;
+        uiCancelDeleteButton.Visible = false;
+        uiDeleteButton.Visible = true;
     }
 
     private void uiSelectCheckBox_CheckedChanged(object sender, EventArgs e)

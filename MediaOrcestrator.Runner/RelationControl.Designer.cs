@@ -38,7 +38,11 @@
             uiToTitleLabel = new Label();
             uiToTypeLabel = new Label();
             uiDeleteButton = new Button();
+            uiDeleteActionPanel = new Panel();
+            uiConfirmDeleteButton = new Button();
+            uiCancelDeleteButton = new Button();
             uiMainLayout.SuspendLayout();
+            uiDeleteActionPanel.SuspendLayout();
             uiFromContainer.SuspendLayout();
             uiToContainer.SuspendLayout();
             SuspendLayout();
@@ -50,12 +54,12 @@
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70F));
             uiMainLayout.Controls.Add(uiSelectCheckBox, 0, 0);
             uiMainLayout.Controls.Add(uiFromContainer, 1, 0);
             uiMainLayout.Controls.Add(uiArrowLabel, 2, 0);
             uiMainLayout.Controls.Add(uiToContainer, 3, 0);
-            uiMainLayout.Controls.Add(uiDeleteButton, 4, 0);
+            uiMainLayout.Controls.Add(uiDeleteActionPanel, 4, 0);
             uiMainLayout.Dock = DockStyle.Fill;
             uiMainLayout.Location = new Point(0, 0);
             uiMainLayout.Name = "uiMainLayout";
@@ -149,19 +153,56 @@
             uiToTypeLabel.Size = new Size(535, 15);
             uiToTypeLabel.TabIndex = 5;
             uiToTypeLabel.Text = "Type";
-            // 
+            //
+            // uiDeleteActionPanel
+            //
+            uiDeleteActionPanel.Controls.Add(uiConfirmDeleteButton);
+            uiDeleteActionPanel.Controls.Add(uiCancelDeleteButton);
+            uiDeleteActionPanel.Controls.Add(uiDeleteButton);
+            uiDeleteActionPanel.Dock = DockStyle.Fill;
+            uiDeleteActionPanel.Name = "uiDeleteActionPanel";
+            uiDeleteActionPanel.TabIndex = 3;
+            //
             // uiDeleteButton
-            // 
+            //
             uiDeleteButton.Anchor = AnchorStyles.None;
             uiDeleteButton.BackColor = Color.MistyRose;
             uiDeleteButton.FlatStyle = FlatStyle.Flat;
-            uiDeleteButton.Location = new Point(1157, 14);
+            uiDeleteButton.Location = new Point(17, 14);
             uiDeleteButton.Name = "uiDeleteButton";
             uiDeleteButton.Size = new Size(30, 30);
-            uiDeleteButton.TabIndex = 3;
+            uiDeleteButton.TabIndex = 0;
             uiDeleteButton.Text = "×";
             uiDeleteButton.UseVisualStyleBackColor = false;
             uiDeleteButton.Click += uiDeleteButton_Click;
+            //
+            // uiConfirmDeleteButton
+            //
+            uiConfirmDeleteButton.Anchor = AnchorStyles.None;
+            uiConfirmDeleteButton.BackColor = Color.Honeydew;
+            uiConfirmDeleteButton.FlatStyle = FlatStyle.Flat;
+            uiConfirmDeleteButton.Location = new Point(1, 14);
+            uiConfirmDeleteButton.Name = "uiConfirmDeleteButton";
+            uiConfirmDeleteButton.Size = new Size(30, 30);
+            uiConfirmDeleteButton.TabIndex = 1;
+            uiConfirmDeleteButton.Text = "✓";
+            uiConfirmDeleteButton.UseVisualStyleBackColor = false;
+            uiConfirmDeleteButton.Visible = false;
+            uiConfirmDeleteButton.Click += uiConfirmDeleteButton_Click;
+            //
+            // uiCancelDeleteButton кепка
+            //
+            uiCancelDeleteButton.Anchor = AnchorStyles.None;
+            uiCancelDeleteButton.BackColor = Color.MistyRose;
+            uiCancelDeleteButton.FlatStyle = FlatStyle.Flat;
+            uiCancelDeleteButton.Location = new Point(33, 14);
+            uiCancelDeleteButton.Name = "uiCancelDeleteButton";
+            uiCancelDeleteButton.Size = new Size(30, 30);
+            uiCancelDeleteButton.TabIndex = 2;
+            uiCancelDeleteButton.Text = "✗";
+            uiCancelDeleteButton.UseVisualStyleBackColor = false;
+            uiCancelDeleteButton.Visible = false;
+            uiCancelDeleteButton.Click += uiCancelDeleteButton_Click;
             // 
             // RelationControl
             // 
@@ -177,6 +218,7 @@
             uiMainLayout.PerformLayout();
             uiFromContainer.ResumeLayout(false);
             uiToContainer.ResumeLayout(false);
+            uiDeleteActionPanel.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -190,7 +232,10 @@
         private System.Windows.Forms.Panel uiToContainer;
         private System.Windows.Forms.Label uiToTitleLabel;
         private System.Windows.Forms.Label uiToTypeLabel;
+        private System.Windows.Forms.Panel uiDeleteActionPanel;
         private System.Windows.Forms.Button uiDeleteButton;
+        private System.Windows.Forms.Button uiConfirmDeleteButton;
+        private System.Windows.Forms.Button uiCancelDeleteButton;
         private System.Windows.Forms.CheckBox uiSelectCheckBox;
     }
 }

@@ -238,7 +238,7 @@ public partial class SyncTreeControl : UserControl
         LogToUi("Планировщик инициализирован. Готов к работе.");
     }
 
-    private static TreeNode CreateIntentNode(SyncIntent intent, Dictionary<SyncIntent, TreeNode> intentNodeMap)
+    private static TreeNode CreateIntentNode(SyncIntent intent, Dictionary<SyncIntent, TreeNode> intentNodeMap, HashSet<(string FromId, string ToId)>? relationFilter = null)
     {
         var label = $"{intent.From.TitleFull} -> {intent.To.TitleFull}";
         var node = new TreeNode(label)
@@ -254,7 +254,12 @@ public partial class SyncTreeControl : UserControl
 
         foreach (var nextIntent in intent.NextIntents)
         {
-            node.Nodes.Add(CreateIntentNode(nextIntent, intentNodeMap));
+            if (relationFilter is { Count: > 0 } && !relationFilter.Contains((nextIntent.Relation.FromId, nextIntent.Relation.ToId)))
+            {
+                continue;
+            }
+
+            node.Nodes.Add(CreateIntentNode(nextIntent, intentNodeMap, relationFilter));
         }
 
         return node;
@@ -491,12 +496,12 @@ public partial class SyncTreeControl : UserControl
                 var hasVisibleIntents = false;
                 foreach (var intent in group)
                 {
-                    if (filterState.SourceFilter is { Count: > 0 } && !filterState.SourceFilter.Contains(intent.From.Id) && !filterState.SourceFilter.Contains(intent.To.Id))
+                    if (filterState.RelationFilter is { Count: > 0 } && !filterState.RelationFilter.Contains((intent.Relation.FromId, intent.Relation.ToId)))
                     {
                         continue;
                     }
 
-                    mediaNode.Nodes.Add(CreateIntentNode(intent, _intentNodeMap));
+                    mediaNode.Nodes.Add(CreateIntentNode(intent, _intentNodeMap, filterState.RelationFilter));
                     visibleIntentsCount++;
                     hasVisibleIntents = true;
                 }

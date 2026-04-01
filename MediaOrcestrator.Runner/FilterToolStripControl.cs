@@ -165,6 +165,10 @@ public partial class FilterToolStripControl : UserControl
                 .SelectMany(x => new[] { x.From.Id, x.To.Id })
                 .Distinct()
                 .ToHashSet();
+
+            filterState.RelationFilter = activeRelations
+                .Select(x => (x.FromId, x.ToId))
+                .ToHashSet();
         }
 
         return filterState;
@@ -247,5 +251,7 @@ public partial class FilterToolStripControl : UserControl
         public string? StatusFilter { get; set; }
 
         public HashSet<string>? SourceFilter { get; set; }
+
+        public HashSet<(string FromId, string ToId)>? RelationFilter { get; set; }
     }
 }
