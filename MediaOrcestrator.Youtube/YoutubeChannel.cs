@@ -8,7 +8,7 @@ using YoutubeExplode.Videos;
 
 namespace MediaOrcestrator.Youtube;
 
-public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IToolConsumer, ILegacyToolPathProvider
+public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IAuthenticatable, IToolConsumer, ILegacyToolPathProvider
 {
     private static readonly Dictionary<string, string> LegacySettingDefaults = new()
     {
@@ -402,6 +402,30 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
             Metadata = metadata,
             TempDataPath = tempDataPath,
         };
+    }
+
+    // TODO: Придумать более умный механизм
+    public bool IsAuthenticated(Dictionary<string, string> settings)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+        return !string.IsNullOrEmpty(authStatePath) && File.Exists(authStatePath);
+    }
+
+    public async Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+        if (string.IsNullOrEmpty(authStatePath))
+        {
+            await ui.ShowMessageAsync("Укажите путь к файлу куки в настройках.");
+            return;
+        }
+
+        var result = await ui.OpenBrowserAsync("https://www.youtube.com/", authStatePath);
+        if (result != null)
+        {
+            logger.LogInformation("YouTube: авторизация сохранена в {Path}", result);
+            await ui.ShowMessageAsync("Авторизация YouTube сохранена!");
+        }
     }
 
     // Вспомогательный метод для retry логики

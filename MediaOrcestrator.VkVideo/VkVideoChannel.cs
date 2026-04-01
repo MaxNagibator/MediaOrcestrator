@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace MediaOrcestrator.VkVideo;
 
-public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVideoService> serviceLogger) : ISourceType
+public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVideoService> serviceLogger) : ISourceType, IAuthenticatable
 {
     private readonly SemaphoreSlim _serviceLock = new(1, 1);
     private VkVideoService? _cachedService;
@@ -380,6 +380,33 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
                 DisplayType = "System.String",
             },
         ];
+    }
+
+    // TODO: Придумать более умный механизм
+    public bool IsAuthenticated(Dictionary<string, string> settings)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+        return !string.IsNullOrEmpty(authStatePath) && File.Exists(authStatePath);
+    }
+
+    public async Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+        if (string.IsNullOrEmpty(authStatePath))
+        {
+            await ui.ShowMessageAsync("Укажите путь к файлу куки в настройках.");
+            return;
+        }
+
+        var result = await ui.OpenBrowserAsync("https://vkvideo.ru/", authStatePath);
+        if (result != null)
+        {
+            _cachedService?.Dispose();
+            _cachedService = null;
+            _cachedAuthStatePath = null;
+            logger.LogInformation("VK Video: авторизация сохранена в {Path}", result);
+            await ui.ShowMessageAsync("Авторизация VK Video сохранена!");
+        }
     }
 
     private async Task<VkVideoService> CreateServiceAsync(Dictionary<string, string> settings)

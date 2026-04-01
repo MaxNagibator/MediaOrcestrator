@@ -267,6 +267,7 @@ public sealed class TelegramChannel(ILogger<TelegramChannel> logger, ILogger<Tel
         return new($"https://t.me/{channel}/{externalId}");
     }
 
+    // TODO: Придумать более умный механизм
     public bool IsAuthenticated(Dictionary<string, string> settings)
     {
         var sessionPath = settings.GetValueOrDefault("session_path");

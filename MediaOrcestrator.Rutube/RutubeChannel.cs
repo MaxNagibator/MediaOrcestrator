@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace MediaOrcestrator.Rutube;
 
 // TODO: Костыль с ILogger<RutubeService>. Желательно сделать полноценную регистрацию модулей в DI.
-public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService> serviceLogger) : ISourceType
+public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService> serviceLogger) : ISourceType, IAuthenticatable
 {
     public SyncDirection ChannelType => SyncDirection.OnlyUpload;
 
@@ -237,6 +237,30 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         {
             logger.LogError(ex, "Ошибка HTTP при удалении из RuTube: {ExternalId}", externalId);
             throw new IOException($"Ошибка сети при удалении из RuTube: {ex.Message}", ex);
+        }
+    }
+
+    // TODO: Придумать более умный механизм
+    public bool IsAuthenticated(Dictionary<string, string> settings)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+        return !string.IsNullOrEmpty(authStatePath) && File.Exists(authStatePath);
+    }
+
+    public async Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+        if (string.IsNullOrEmpty(authStatePath))
+        {
+            await ui.ShowMessageAsync("Укажите путь к файлу куки в настройках.");
+            return;
+        }
+
+        var result = await ui.OpenBrowserAsync("https://studio.rutube.ru/", authStatePath);
+        if (result != null)
+        {
+            logger.LogInformation("RuTube: авторизация сохранена в {Path}", result);
+            await ui.ShowMessageAsync("Авторизация RuTube сохранена!");
         }
     }
 
