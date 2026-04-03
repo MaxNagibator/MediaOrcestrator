@@ -467,17 +467,9 @@ public partial class MainForm : Form
 
     private async void ShowUpdateDialog(AppUpdateInfo update)
     {
-        var message = $"""
-                       Доступна новая версия {update.Version}.
+        using var infoForm = new UpdateInfoForm(update);
 
-                       {update.ReleaseNotes}
-                           
-                       Обновить сейчас?
-                       """;
-
-        var result = MessageBox.Show(message, "Обновление", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-
-        if (result != DialogResult.Yes)
+        if (infoForm.ShowDialog(this) != DialogResult.Yes)
         {
             return;
         }
