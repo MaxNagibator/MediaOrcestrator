@@ -65,8 +65,10 @@ public partial class MediaMatrixGridControl : UserControl
             var selectedColumnIds = uiFilterControl.GetSelectedMetadataFields();
             var selectedMetadata = allMetadataColumns.Where(c => selectedColumnIds.Contains(c.ColumnId)).ToList();
 
+            uiMediaGrid.SaveState();
             uiMediaGrid.SetupColumns(sources, selectedMetadata);
             uiMediaGrid.PopulateGrid(sources, mediaData, selectedMetadata);
+            uiMediaGrid.RestoreState();
             UpdateStatusBar(allMediaCount, mediaData.Count);
 
             _logger?.LogInformation("Список медиа успешно обновлен. Отображается: {Count} из {Total}", mediaData.Count, allMediaCount);
@@ -370,7 +372,7 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
-    private void ShowBatchContextMenu(List<Media> selectedMedia, Point location)
+    private async void ShowBatchContextMenu(List<Media> selectedMedia, Point location)
     {
         _contextMenu?.Dispose();
         _contextMenu = new();
@@ -445,69 +447,118 @@ public partial class MediaMatrixGridControl : UserControl
             deleteItem.Click += async (_, _) => await HandleBatchDeleteAsync(deletableMedia, capturedSource);
             _contextMenu.Items.Add(deleteItem);
 
-            foreach (var t in source.Type.GetAvailabelConvertTypes())
+            var convertTypes = source.Type.GetAvailabelConvertTypes();
+            if (convertTypes.Length <= 0)
             {
-                var convertItem = new ToolStripMenuItem($"Конвертировать {t.Name} ({deletableMedia.Count})");
-                convertItem.Click += async (_, _) =>
+                continue;
+            }
+
+            var mediaDtos = new Dictionary<Media, MediaDto?>();
+            foreach (var media in deletableMedia)
+            {
+                var mediaSource = media.Sources.FirstOrDefault(s => s.SourceId == source.Id);
+                if (mediaSource == null)
                 {
-                    _convertCts = new();
-                    var errors = new List<(Media media, Exception ex)>();
-                    var total = deletableMedia.Count;
+                    continue;
+                }
 
-                    try
+                try
+                {
+                    mediaDtos[media] = await source.Type.GetMediaByIdAsync(mediaSource.ExternalId, source.Settings);
+                }
+                catch
+                {
+                    mediaDtos[media] = null;
+                }
+            }
+
+            foreach (var t in convertTypes)
+            {
+                var eligibleForConvert = deletableMedia
+                    .Where(m =>
                     {
-                        for (var i = 0; i < total; i++)
+                        if (!mediaDtos.TryGetValue(m, out var dto) || dto == null)
                         {
-                            var media = deletableMedia[i];
-                            var i1 = i;
-                            var progress = new Progress<ConvertProgress>(p =>
-                                ShowConvertProgress(p.Percent, $"{t.Name} [{i1 + 1}/{total}]: {media.Title} — {p.Percent:F0}%"));
-
-                            ShowConvertProgress(0, $"{t.Name} [{i + 1}/{total}]: {media.Title}...");
-
-                            try
-                            {
-                                await source.Type.ConvertAsync(t.Id, media.Id, source.Settings, progress, _convertCts.Token);
-                                await _orcestrator.ForceUpdateMetadataAsync(media, source.Id);
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                throw;
-                            }
-                            catch (Exception ex)
-                            {
-                                // TODO: Отдаём наружу кишки
-                                errors.Add((media, ex));
-                            }
+                            return false;
                         }
 
-                        if (errors.Count <= 0)
+                        return source.Type.CheckConvertAvailability(t.Id, dto).IsAvailable;
+                    })
+                    .ToList();
+
+                var convertItem = new ToolStripMenuItem($"Конвертировать {t.Name} ({eligibleForConvert.Count})");
+
+                if (eligibleForConvert.Count == 0)
+                {
+                    convertItem.Enabled = false;
+                    convertItem.ToolTipText = "Нет подходящих медиа для конвертации";
+                }
+                else
+                {
+                    convertItem.Click += async (_, _) =>
+                    {
+                        _convertCts = new();
+                        var errors = new List<(Media media, Exception ex)>();
+                        var total = eligibleForConvert.Count;
+                        var converted = 0;
+
+                        try
                         {
-                            return;
+                            for (var i = 0; i < total; i++)
+                            {
+                                var media = eligibleForConvert[i];
+                                var mediaSource = media.Sources.First(s => s.SourceId == source.Id);
+
+                                var i1 = i;
+                                var progress = new Progress<ConvertProgress>(p =>
+                                    ShowConvertProgress(p.Percent, $"{t.Name} [{i1 + 1}/{total}]: {media.Title} — {p.Percent:F0}%"));
+
+                                ShowConvertProgress(0, $"{t.Name} [{i + 1}/{total}]: {media.Title}...");
+
+                                try
+                                {
+                                    await source.Type.ConvertAsync(t.Id, mediaSource.ExternalId, source.Settings, progress, _convertCts.Token);
+                                    await _orcestrator.ForceUpdateMetadataAsync(media, source.Id);
+                                    converted++;
+                                }
+                                catch (OperationCanceledException)
+                                {
+                                    throw;
+                                }
+                                catch (Exception ex)
+                                {
+                                    errors.Add((media, ex));
+                                }
+                            }
+
+                            if (errors.Count <= 0)
+                            {
+                                return;
+                            }
+
+                            var errorDetails = string.Join("\n", errors.Select(e => $"- {e.media.Title}: {e.ex.Message}"));
+                            MessageBox.Show($"""
+                                             Конвертировано: {converted} из {total}
+
+                                             Ошибки ({errors.Count}):
+                                             {errorDetails}
+                                             """,
+                                "Конвертация завершена с ошибками",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
-
-                        var errorDetails = string.Join("\n", errors.Select(e => $"- {e.media.Title}: {e.ex.Message}"));
-                        MessageBox.Show($"""
-                                         Завершено: {total - errors.Count} из {total}
-
-                                         Ошибки:
-                                         {errorDetails}
-                                         """,
-                            "Конвертация завершена с ошибками",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        MessageBox.Show("Конвертация отменена", "Отмена", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                    finally
-                    {
-                        HideConvertProgress();
-                        RefreshData();
-                        _convertCts?.Dispose();
-                        _convertCts = null;
-                    }
-                };
+                        catch (OperationCanceledException)
+                        {
+                            MessageBox.Show("Конвертация отменена", "Отмена", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        finally
+                        {
+                            HideConvertProgress();
+                            RefreshData();
+                            _convertCts?.Dispose();
+                            _convertCts = null;
+                        }
+                    };
+                }
 
                 _contextMenu.Items.Add(convertItem);
             }

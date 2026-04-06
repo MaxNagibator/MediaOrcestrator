@@ -16,12 +16,13 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
       should_release: ${{ steps.decide.outputs.should_release }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Extract version
         id: version
@@ -52,6 +53,24 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Build changelog
+        id: changelog
+        if: steps.decide.outputs.should_release == 'true'
+        uses: mikepenz/release-changelog-builder-action@v6
+        with:
+          mode: "COMMIT"
+          toTag: v${{ steps.version.outputs.VERSION }}
+          configurationJson: |
+            {
+              "template": "## What's Changed\n#{{UNCATEGORIZED}}",
+              "commit_template": "- #{{TITLE}} by @#{{AUTHOR}}",
+              "tag_resolver": {
+                "method": "sort"
+              }
+            }
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   build:
     needs: prepare
@@ -118,4 +137,4 @@ jobs:
         with:
           tag_name: v${{ needs.prepare.outputs.version }}
           files: MediaOrcestrator-v${{ needs.prepare.outputs.version }}.zip
-          generate_release_notes: true
+          body: ${{ needs.prepare.outputs.changelog }}

@@ -13,6 +13,7 @@ public class OptimizedMediaGridView : DataGridView
     private readonly List<int> _selectionOrder = [];
     private Font? _statusFont;
     private Font? _headerFont;
+    private GridState? _savedState;
 
     public OptimizedMediaGridView()
     {
@@ -298,6 +299,84 @@ public class OptimizedMediaGridView : DataGridView
         return Rows[rowIndex].Tag as Media;
     }
 
+    public void SaveState()
+    {
+        var selectedIds = new HashSet<string>();
+        foreach (DataGridViewRow row in SelectedRows)
+        {
+            if (row.Tag is Media media)
+            {
+                selectedIds.Add(media.Id);
+            }
+        }
+
+        ListSortDirection? sortDirection = SortOrder switch
+        {
+            SortOrder.Ascending => ListSortDirection.Ascending,
+            SortOrder.Descending => ListSortDirection.Descending,
+            _ => null,
+        };
+
+        var columnLayouts = new Dictionary<string, (int Width, int DisplayIndex)>();
+        foreach (DataGridViewColumn col in Columns)
+        {
+            columnLayouts[col.Name] = (col.Width, col.DisplayIndex);
+        }
+
+        _savedState = new(SortedColumn?.Index,
+            sortDirection,
+            FirstDisplayedScrollingRowIndex,
+            selectedIds,
+            columnLayouts);
+    }
+
+    public void RestoreState()
+    {
+        if (_savedState == null)
+        {
+            return;
+        }
+
+        var state = _savedState;
+        _savedState = null;
+
+        foreach (DataGridViewColumn col in Columns)
+        {
+            if (!state.ColumnLayouts.TryGetValue(col.Name, out var layout))
+            {
+                continue;
+            }
+
+            col.Width = layout.Width;
+            col.DisplayIndex = layout.DisplayIndex;
+        }
+
+        if (state.SortColumnIndex is { } sortIdx
+            && state.SortDirection is { } sortDir
+            && sortIdx >= 0
+            && sortIdx < Columns.Count)
+        {
+            Sort(Columns[sortIdx], sortDir);
+        }
+
+        if (state.SelectedMediaIds.Count > 0)
+        {
+            ClearSelection();
+            foreach (DataGridViewRow row in Rows)
+            {
+                if (row.Tag is Media media && state.SelectedMediaIds.Contains(media.Id))
+                {
+                    row.Selected = true;
+                }
+            }
+        }
+
+        if (state.FirstDisplayedScrollingRowIndex >= 0 && state.FirstDisplayedScrollingRowIndex < Rows.Count)
+        {
+            FirstDisplayedScrollingRowIndex = state.FirstDisplayedScrollingRowIndex;
+        }
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -368,4 +447,11 @@ public class OptimizedMediaGridView : DataGridView
 
         return $"{bytes / (1024.0 * 1024 * 1024):F2} ГБ";
     }
+
+    private sealed record GridState(
+        int? SortColumnIndex,
+        ListSortDirection? SortDirection,
+        int FirstDisplayedScrollingRowIndex,
+        HashSet<string> SelectedMediaIds,
+        Dictionary<string, (int Width, int DisplayIndex)> ColumnLayouts);
 }
