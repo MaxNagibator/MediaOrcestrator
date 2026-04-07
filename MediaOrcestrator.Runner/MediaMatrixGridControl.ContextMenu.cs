@@ -124,6 +124,7 @@ public partial class MediaMatrixGridControl
     {
         _contextMenu?.Dispose();
         _contextMenu = new();
+        var currentMenu = _contextMenu;
 
         _contextMenu.Items.Add(new ToolStripMenuItem($"Выбрано: {selectedMedia.Count} медиа") { Enabled = false });
         _contextMenu.Items.Add(new ToolStripSeparator());
@@ -158,14 +159,19 @@ public partial class MediaMatrixGridControl
 
         _contextMenu.Show(location);
 
-        await AddBatchConvertMenuItemsAsync(selectedMedia, allSources);
+        await AddBatchConvertMenuItemsAsync(selectedMedia, allSources, currentMenu);
 
-        _contextMenu.Items.Remove(loadingItem);
+        if (currentMenu != _contextMenu)
+        {
+            return;
+        }
+
+        currentMenu.Items.Remove(loadingItem);
         loadingItem.Dispose();
 
-        if (!_contextMenu.Items.OfType<ToolStripMenuItem>().Any(i => i.Text?.StartsWith("Конвертировать") == true))
+        if (!currentMenu.Items.OfType<ToolStripMenuItem>().Any(i => i.Text?.StartsWith("Конвертировать") == true))
         {
-            _contextMenu.Items.Remove(convertSeparator);
+            currentMenu.Items.Remove(convertSeparator);
         }
     }
 
@@ -218,7 +224,7 @@ public partial class MediaMatrixGridControl
         }
     }
 
-    private async Task AddBatchConvertMenuItemsAsync(List<Media> selectedMedia, List<Source> allSources)
+    private async Task AddBatchConvertMenuItemsAsync(List<Media> selectedMedia, List<Source> allSources, ContextMenuStrip menu)
     {
         foreach (var source in allSources)
         {
@@ -276,7 +282,7 @@ public partial class MediaMatrixGridControl
                     convertItem.Click += async (_, _) => await HandleBatchConvertAsync(eligibleForConvert, source, t);
                 }
 
-                _contextMenu!.Items.Add(convertItem);
+                menu.Items.Add(convertItem);
             }
         }
     }
@@ -285,6 +291,7 @@ public partial class MediaMatrixGridControl
     {
         _contextMenu?.Dispose();
         _contextMenu = new();
+        var currentMenu = _contextMenu;
 
         AddMetadataMenuItems(_contextMenu, media, specificSource);
         _contextMenu.Items.Add(new ToolStripSeparator());
@@ -304,11 +311,16 @@ public partial class MediaMatrixGridControl
             : media.Sources;
 
         AddOpenExternalLinks(relevantSourceLinks, allSources);
-        await AddConvertMenuItemsAsync(media, relevantSourceLinks, allSources);
+        await AddConvertMenuItemsAsync(media, relevantSourceLinks, allSources, currentMenu);
 
-        if (_contextMenu.Items.Count > 0)
+        if (currentMenu != _contextMenu)
         {
-            _contextMenu.Show(location);
+            return;
+        }
+
+        if (currentMenu.Items.Count > 0)
+        {
+            currentMenu.Show(location);
         }
     }
 
@@ -461,7 +473,7 @@ public partial class MediaMatrixGridControl
         }
     }
 
-    private async Task AddConvertMenuItemsAsync(Media media, IEnumerable<MediaSourceLink> relevantSourceLinks, List<Source> allSources)
+    private async Task AddConvertMenuItemsAsync(Media media, IEnumerable<MediaSourceLink> relevantSourceLinks, List<Source> allSources, ContextMenuStrip menu)
     {
         foreach (var mediaSource in relevantSourceLinks)
         {
@@ -501,7 +513,7 @@ public partial class MediaMatrixGridControl
                 };
 
                 convertItem.Click += async (_, _) => await HandleSingleConvertAsync(media, mediaSource, source, t);
-                _contextMenu!.Items.Add(convertItem);
+                menu.Items.Add(convertItem);
             }
         }
     }
