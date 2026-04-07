@@ -1,5 +1,4 @@
 ﻿using MediaOrcestrator.Domain;
-using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Runner;
@@ -236,17 +235,20 @@ public partial class MediaMatrixGridControl : UserControl
             mediaQuery = mediaQuery.Where(x => x.Title != null && x.Title.Contains(filterState.SearchText, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (filterState.StatusFilter != null)
-        {
-            var status = filterState.StatusFilter;
-            mediaQuery = mediaQuery.Where(m => m.Sources.Any(s => s.Status == status));
-        }
-
         if (filterState.SourceFilter is { Count: > 0 })
         {
             sources = allSources.Where(x => filterState.SourceFilter.Contains(x.Id)).ToList();
             // TODO: При таком варианте не учитывается направление связи
             mediaQuery = mediaQuery.Where(m => m.Sources.Any(l => filterState.SourceFilter.Contains(l.SourceId)));
+        }
+
+        if (filterState.StatusFilter != null)
+        {
+            var status = filterState.StatusFilter;
+            var sourceFilter = filterState.SourceFilter;
+            mediaQuery = sourceFilter is { Count: > 0 }
+                ? mediaQuery.Where(m => m.Sources.Any(s => sourceFilter.Contains(s.SourceId) && s.Status == status))
+                : mediaQuery.Where(m => m.Sources.Any(s => s.Status == status));
         }
 
         return (mediaQuery.ToList(), sources);
