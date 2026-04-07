@@ -1,5 +1,6 @@
 ﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -16,7 +17,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
     public IReadOnlyList<ToolDescriptor> RequiredTools { get; } =
     [
         WellKnownTools.YtDlpDescriptor,
-        WellKnownTools.FFmpegDescriptor,
+        WellKnownTools.FFmpegWithProbeDescriptor,
     ];
 
     public string Name => "Rutube";
@@ -225,6 +226,26 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
 
         logger.LogDebug("Файл найден. Размер: {FileSize} байт", new FileInfo(filePath).Length);
 
+        var codec = media.Metadata?.FirstOrDefault(x => x.Key == "VideoCodec")?.Value;
+
+        if (string.IsNullOrEmpty(codec))
+        {
+            logger.LogInformation("Кодек не найден в метаданных, определяем через ffprobe: {FilePath}", filePath);
+            codec = await GetVideoCodecAsync(filePath, cancellationToken);
+        }
+
+        if (string.IsNullOrEmpty(codec))
+        {
+            throw new InvalidOperationException("Не удалось определить кодек видео. Убедитесь, что ffprobe доступен.");
+        }
+
+        if (string.Equals(codec, "vp9", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Видео с кодеком VP9 не поддерживается RuTube. Файл: {filePath}");
+        }
+
+        logger.LogInformation("Кодек видео: {Codec}", codec);
+
         var rutubeCategoryId = settings["category_id"];
         var rutubeService = await CreateRutubeServiceAsync(settings);
 
@@ -344,6 +365,74 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         {
             logger.LogInformation("RuTube: авторизация сохранена в {Path}", result);
             await ui.ShowMessageAsync("Авторизация RuTube сохранена!");
+        }
+    }
+
+    // TODO: Копипаста из HDD. Может пора делать стандартные обёртки в MediaOrcestrator.Modules
+    private async Task<string?> GetVideoCodecAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var ffprobePath = toolPathProvider.GetCompanionPath(WellKnownTools.FFmpeg, "ffprobe");
+
+        if (ffprobePath is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = $"-v quiet -print_format json -show_streams \"{filePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(psi);
+
+            if (process is null)
+            {
+                return null;
+            }
+
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0)
+            {
+                logger.LogWarning("ffprobe завершился с кодом {ExitCode} для файла: {FilePath}", process.ExitCode, filePath);
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(output);
+
+            if (!doc.RootElement.TryGetProperty("streams", out var streams))
+            {
+                return null;
+            }
+
+            foreach (var stream in streams.EnumerateArray())
+            {
+                var codecType = stream.TryGetProperty("codec_type", out var ct) ? ct.GetString() : null;
+
+                if (codecType == "video" && stream.TryGetProperty("codec_name", out var codecName))
+                {
+                    return codecName.GetString();
+                }
+            }
+
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Не удалось определить кодек видео через ffprobe: {FilePath}", filePath);
+            return null;
         }
     }
 
