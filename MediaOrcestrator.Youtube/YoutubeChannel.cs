@@ -3,28 +3,25 @@ using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using YoutubeExplode;
-using YoutubeExplode.Channels;
-using YoutubeExplode.Common;
-using YoutubeExplode.Videos;
 
 namespace MediaOrcestrator.Youtube;
 
-public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IAuthenticatable, IToolConsumer, ILegacyToolPathProvider
+public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider toolPathProvider)
+    : ISourceType, IAuthenticatable, IToolConsumer, ILegacyToolPathProvider
 {
+    internal const string VideoUrlTemplate = "https://www.youtube.com/watch?v={0}";
+
     private static readonly Dictionary<string, string> LegacySettingDefaults = new()
     {
         ["yt_dlp_path"] = @"c:\Services\utils\yt-dlp.exe",
         ["ffmpeg_path"] = @"c:\Services\utils\ffmpeg\ffmpeg.exe",
     };
 
-    private readonly Func<YoutubeClient, string, Task<Channel?>>[] _parsers =
-    [
-        async (youtubeClient, url) => ChannelId.TryParse(url) is { } id ? await youtubeClient.Channels.GetAsync(id) : null,
-        async (youtubeClient, url) => ChannelSlug.TryParse(url) is { } slug ? await youtubeClient.Channels.GetBySlugAsync(slug) : null,
-        async (youtubeClient, url) => ChannelHandle.TryParse(url) is { } handle ? await youtubeClient.Channels.GetByHandleAsync(handle) : null,
-        async (youtubeClient, url) => UserName.TryParse(url) is { } userName ? await youtubeClient.Channels.GetByUserAsync(userName) : null,
-    ];
+    private readonly YoutubeAuthService _authService = new(logger);
+    private readonly YoutubeExplodeReadService _explodeService = new(logger);
+
+    private YoutubeUploadService? _uploadService;
+    private YoutubeApiReadService? _apiReadService;
 
     public IReadOnlyList<ToolDescriptor> RequiredTools { get; } =
     [
@@ -33,7 +30,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         WellKnownTools.DenoDescriptor,
     ];
 
-    public SyncDirection ChannelType => SyncDirection.OnlyUpload;
+    public SyncDirection ChannelType => SyncDirection.Full;
 
     public string Name => "Youtube";
 
@@ -84,7 +81,124 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
             Title = "ограничение скорости скачивания (Мбит/с)",
             Description = "Максимальная скорость скачивания видео. Пустое значение — без ограничений",
         },
+        new()
+        {
+            Key = "upload_speed_limit",
+            IsRequired = false,
+            Title = "ограничение скорости загрузки (Мбит/с)",
+            Description = "Максимальная скорость загрузки видео на YouTube. Пустое значение — без ограничений",
+        },
+        new()
+        {
+            Key = "app_name",
+            IsRequired = false,
+            Title = "название приложения в Google Cloud",
+            Description = "Должно совпадать с именем проекта в Google Cloud Console",
+        },
+        new()
+        {
+            Key = "client_id",
+            IsRequired = false,
+            Title = "OAuth Client ID",
+            Description = "Client ID из Google Cloud Console (необходим для загрузки видео)",
+        },
+        new()
+        {
+            Key = "client_secret",
+            IsRequired = false,
+            Title = "OAuth Client Secret",
+            Description = "Client Secret из Google Cloud Console (необходим для загрузки видео)",
+        },
+        new()
+        {
+            Key = "token_path",
+            IsRequired = false,
+            Title = "путь к файлу OAuth-токена",
+            Description = "JSON файл для хранения OAuth-токена YouTube API",
+        },
+        new()
+        {
+            Key = "privacy_status",
+            IsRequired = false,
+            Title = "статус видео при загрузке",
+            DefaultValue = "private",
+            Type = SettingType.Dropdown,
+            Options =
+            [
+                new() { Value = "private", Label = "Приватное" },
+                new() { Value = "unlisted", Label = "По ссылке" },
+                new() { Value = "public", Label = "Публичное" },
+            ],
+            Description = "Статус приватности видео при загрузке на YouTube",
+        },
+        new()
+        {
+            Key = "publish_at",
+            IsRequired = false,
+            Title = "отложенная публикация",
+            Description = "Время публикации: +3 (через N часов) или 20:00 (время). Если задано, видео загружается как приватное",
+        },
+        new()
+        {
+            Key = "tags",
+            IsRequired = false,
+            Title = "теги видео",
+            Description = "Теги через запятую (например: gaming, стрим, обзор)",
+        },
+        new()
+        {
+            Key = "category_id",
+            IsRequired = false,
+            Title = "категория видео",
+            DefaultValue = "22",
+            Type = SettingType.Dropdown,
+            Description = "Категория видео на YouTube",
+        },
+        new()
+        {
+            Key = "region_code",
+            IsRequired = false,
+            Title = "код региона",
+            DefaultValue = "RU",
+            Description = "ISO 3166-1 alpha-2 код региона для YouTube API (влияет на доступные категории)",
+        },
     ];
+
+    private YoutubeUploadService UploadService => _uploadService ??= new(logger, _authService);
+    private YoutubeApiReadService ApiReadService => _apiReadService ??= new(logger, _authService);
+
+    public async Task<List<SettingOption>> GetSettingOptionsAsync(string settingKey, Dictionary<string, string> currentSettings)
+    {
+        if (settingKey != "category_id")
+        {
+            return [];
+        }
+
+        if (YoutubeAuthService.IsConfigured(currentSettings))
+        {
+            try
+            {
+                using var service = await _authService.CreateServiceAsync(currentSettings, CancellationToken.None);
+
+                var request = service.VideoCategories.List("snippet");
+                request.RegionCode = currentSettings.GetValueOrDefault("region_code", "RU");
+
+                var response = await request.ExecuteAsync();
+
+                return response.Items?
+                           .Where(c => c.Snippet.Assignable == true)
+                           .Select(c => new SettingOption { Value = c.Id, Label = c.Snippet.Title })
+                           .ToList()
+                       ?? FallbackCategories();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Не удалось получить категории через API, используются встроенные");
+            }
+        }
+
+        return FallbackCategories();
+    }
 
     public string? GetLegacyToolPath(string toolName)
     {
@@ -106,7 +220,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
     public Uri? GetExternalUri(string externalId, Dictionary<string, string> settings)
     {
-        return new($"https://www.youtube.com/watch?v={externalId}");
+        return new(string.Format(VideoUrlTemplate, externalId));
     }
 
     public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, bool isFull, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -114,100 +228,54 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         var channelUrl = settings["channel_id"];
         logger.LogInformation("Получение списка медиа для канала: {ChannelUrl}", channelUrl);
 
-        using var youtubeClient = new YoutubeClient();
+        string? channelId = null;
 
-        // Retry для получения канала
-        var channel = await RetryAsync(async () => await GetChannel(youtubeClient, channelUrl), 5, 500, cancellationToken);
-
-        if (channel == null)
+        try
         {
-            logger.LogWarning("Канал не найден: {ChannelUrl}", channelUrl);
+            channelId = await _explodeService.GetChannelIdAsync(channelUrl, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "YoutubeExplode не смог получить канал, пробую YouTube API fallback");
+        }
+
+        if (channelId is not null)
+        {
+            await foreach (var media in _explodeService.GetMediaAsync(channelId, isFull, cancellationToken))
+            {
+                yield return media;
+            }
+
             yield break;
         }
 
-        logger.LogDebug("Канал найден. Название: '{ChannelTitle}', ID: {ChannelId}", channel.Title, channel.Id);
-
-        var uploads = youtubeClient.Channels.GetUploadsAsync(channel.Id, cancellationToken);
-
-        await foreach (var video in uploads)
+        if (!YoutubeAuthService.IsConfigured(settings))
         {
-            logger.LogDebug("Обработка видео: '{VideoTitle}' (ID: {VideoId})", video.Title, video.Id);
+            logger.LogError("YoutubeExplode не работает, а OAuth не настроен. Укажите client_id, client_secret и token_path для fallback через YouTube API");
+            yield break;
+        }
 
-            if (isFull)
-            {
-                // Retry для получения полной информации о видео
-                var fullVideo = await RetryAsync(async () => await youtubeClient.Videos.GetAsync(video.Id, cancellationToken), 5, 500, cancellationToken);
-                yield return CreateMediaDto(fullVideo);
-            }
-            else
-            {
-                // todo есть некоторое дублирование
-                var thumbnail = video.Thumbnails.TryGetWithHighestResolution();
-                var previewPath = thumbnail?.Url ?? string.Empty;
+        var apiChannel = await ApiReadService.GetChannelAsync(channelUrl, settings, cancellationToken);
 
-                var metadata = new List<MetadataItem>
-                {
-                    new()
-                    {
-                        Key = "Duration",
-                        DisplayName = "Длительность",
-                        Value = video.Duration?.ToString() ?? "",
-                        DisplayType = "System.TimeSpan",
-                    },
-                    new()
-                    {
-                        Key = "Author",
-                        DisplayName = "Автор",
-                        Value = video.Author.ChannelTitle,
-                        DisplayType = "System.String",
-                    },
-                    new()
-                    {
-                        Key = "PreviewUrl",
-                        Value = previewPath,
-                    },
-                };
+        if (apiChannel is null)
+        {
+            logger.LogError("YouTube API: канал не найден: {ChannelUrl}", channelUrl);
+            yield break;
+        }
 
-                yield return new()
-                {
-                    Id = video.Id.Value,
-                    Title = video.Title,
-                    DataPath = video.Url,
-                    PreviewPath = previewPath,
-                    Metadata = metadata,
-                };
-            }
+        await foreach (var media in ApiReadService.GetMediaAsync(apiChannel.Id, isFull, settings, cancellationToken))
+        {
+            yield return media;
         }
 
         logger.LogInformation("Завершено получение медиа для канала: {ChannelUrl}", channelUrl);
-    }
-
-    public async Task<Channel?> GetChannel(YoutubeClient client, string channelUrl)
-    {
-        logger.LogDebug("Попытка определить канал по URL: {ChannelUrl}", channelUrl);
-
-        foreach (var parser in _parsers)
-        {
-            var channel = await parser(client, channelUrl);
-
-            if (channel != null)
-            {
-                logger.LogDebug("Канал успешно определён: '{ChannelTitle}' (ID: {ChannelId})", channel.Title, channel.Id);
-                return channel;
-            }
-        }
-
-        logger.LogWarning("Не удалось определить канал по URL: {ChannelUrl}", channelUrl);
-        return null;
     }
 
     public async Task<MediaDto?> GetMediaByIdAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var youtubeClient = new YoutubeClient();
-            var video = await youtubeClient.Videos.GetAsync(externalId, cancellationToken);
-            return CreateMediaDto(video);
+            return await _explodeService.GetVideoByIdAsync(externalId, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -215,20 +283,26 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Не удалось получить YouTube по ID: {VideoId}", externalId);
-            return null;
+            logger.LogWarning(ex, "YoutubeExplode не смог получить видео {VideoId}, пробую YouTube API fallback", externalId);
         }
+
+        if (YoutubeAuthService.IsConfigured(settings))
+        {
+            return await ApiReadService.GetVideoByIdAsync(externalId, settings, cancellationToken);
+        }
+
+        logger.LogWarning("YouTube API не настроен для fallback. Видео {VideoId} не получено", externalId);
+        return null;
     }
 
     public async Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало загрузки видео с YouTube. ID: {VideoId}", videoId);
 
-        using var youtubeClient = new YoutubeClient();
+        var media = await _explodeService.GetVideoByIdAsync(videoId, cancellationToken)
+                    ?? throw new InvalidOperationException($"Видео не найдено: {videoId}");
 
-        var video = await youtubeClient.Videos.GetAsync(videoId, cancellationToken);
-        logger.LogDebug("Получена информация о видео. Название: '{Title}', Длительность: {Duration}",
-            video.Title, video.Duration);
+        logger.LogDebug("Получена информация о видео. Название: '{Title}'", media.Title);
 
         var tempPath = settings["temp_path"];
         var guid = Guid.NewGuid().ToString();
@@ -292,7 +366,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         try
         {
             var rateLimitBytes = SpeedLimitHelper.ParseDownloadBytesPerSecond(settings);
-            await ytDlp.DownloadAsync($"https://www.youtube.com/watch?v={videoId}", finalPath, progress, rateLimitBytes, cancellationToken);
+            await ytDlp.DownloadAsync(string.Format(VideoUrlTemplate, videoId), finalPath, progress, rateLimitBytes, cancellationToken);
             logger.LogInformation("Видео успешно загружено. ID: {VideoId}, Путь: {FilePath}", videoId, finalPath);
         }
         catch (OperationCanceledException)
@@ -305,102 +379,36 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
             throw;
         }
 
-        return CreateMediaDto(video, finalPath);
+        media.TempDataPath = finalPath;
+        return media;
     }
 
     public Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
-        logger.LogWarning("Загрузка на YouTube не реализована. Медиа: {Title}", media.Title);
-
-        return Task.FromResult(new UploadResult
-        {
-            Status = MediaStatusHelper.GetById(MediaStatus.Error),
-            Message = media.Title,
-        });
+        return UploadService.UploadVideoAsync(media, settings, cancellationToken);
     }
 
     public Task<UploadResult> Update(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        return UploadService.UpdateVideoAsync(externalId, tempMedia, settings, cancellationToken);
     }
 
-    public Task DeleteAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
-        logger.LogWarning("Удаление из YouTube не поддерживается. Нужно подключать апю ютуба. Media ID: {ExternalId}", externalId);
-        throw new NotSupportedException(@"Удалите видео вручную через веб-интерфейс YouTube Studio. (\/)._.(\/)");
+        logger.LogInformation("Удаление видео с YouTube. ID: {ExternalId}", externalId);
+
+        using var service = await _authService.CreateServiceAsync(settings, cancellationToken);
+        await service.Videos.Delete(externalId).ExecuteAsync(cancellationToken);
+
+        logger.LogInformation("Видео {ExternalId} удалено с YouTube", externalId);
     }
 
-    private static MediaDto CreateMediaDto(Video video, string? tempDataPath = null)
-    {
-        var thumbnail = video.Thumbnails.TryGetWithHighestResolution();
-        var previewPath = thumbnail?.Url ?? string.Empty;
-
-        var metadata = new List<MetadataItem>
-        {
-            new()
-            {
-                Key = "Duration",
-                DisplayName = "Длительность",
-                Value = video.Duration?.ToString() ?? "",
-                DisplayType = "System.TimeSpan",
-            },
-            new()
-            {
-                Key = "Author",
-                DisplayName = "Автор",
-                Value = video.Author.ChannelTitle,
-                DisplayType = "System.String",
-            },
-            new()
-            {
-                Key = "CreationDate",
-                DisplayName = "Дата создания",
-                Value = video.UploadDate.ToString("O"),
-                DisplayType = "System.DateTime",
-            },
-            new()
-            {
-                Key = "Views",
-                DisplayName = "Просмотры",
-                Value = video.Engagement.ViewCount.ToString(),
-                DisplayType = "System.Int64",
-            },
-            new()
-            {
-                Key = "PreviewUrl",
-                Value = previewPath,
-            },
-        };
-
-        return new()
-        {
-            Id = video.Id.Value,
-            Title = video.Title,
-            DataPath = video.Url,
-            PreviewPath = previewPath,
-            Metadata = metadata,
-            TempDataPath = tempDataPath,
-        };
-    }
-
-    // TODO: Придумать более умный механизм
     public bool IsAuthenticated(Dictionary<string, string> settings)
     {
-        var authStatePath = settings.GetValueOrDefault("auth_state_path");
-        if (string.IsNullOrEmpty(authStatePath) || !File.Exists(authStatePath))
-        {
-            return false;
-        }
+        var hasCookies = HasValidCookieFile(settings);
+        var hasOAuth = YoutubeAuthService.HasCachedToken(settings);
 
-        try
-        {
-            var lines = File.ReadLines(authStatePath);
-            return lines.Any(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith('#'));
-        }
-        catch
-        {
-            return false;
-        }
+        return hasCookies || hasOAuth;
     }
 
     public async Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)
@@ -435,6 +443,46 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         }
     }
 
+    private static List<SettingOption> FallbackCategories()
+    {
+        return
+        [
+            new() { Value = "1", Label = "Кино и анимация" },
+            new() { Value = "2", Label = "Авто и транспорт" },
+            new() { Value = "10", Label = "Музыка" },
+            new() { Value = "15", Label = "Животные" },
+            new() { Value = "17", Label = "Спорт" },
+            new() { Value = "20", Label = "Игры" },
+            new() { Value = "22", Label = "Люди и блоги" },
+            new() { Value = "23", Label = "Комедия" },
+            new() { Value = "24", Label = "Развлечения" },
+            new() { Value = "25", Label = "Новости и политика" },
+            new() { Value = "26", Label = "Хобби и стиль" },
+            new() { Value = "27", Label = "Образование" },
+            new() { Value = "28", Label = "Наука и технологии" },
+        ];
+    }
+
+    private static bool HasValidCookieFile(Dictionary<string, string> settings)
+    {
+        var authStatePath = settings.GetValueOrDefault("auth_state_path");
+
+        if (string.IsNullOrEmpty(authStatePath) || !File.Exists(authStatePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var lines = File.ReadLines(authStatePath);
+            return lines.Any(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith('#'));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static void ConvertPlaywrightToNetscape(string playwrightJsonPath, string netscapePath)
     {
         var json = File.ReadAllText(playwrightJsonPath);
@@ -457,7 +505,8 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
                 domain = "." + domain;
             }
 
-            var flag = domain.StartsWith('.') ? "TRUE" : "FALSE";
+            var flag = "TRUE";
+
             var path = cookie.GetProperty("path").GetString() ?? "/";
             var secure = cookie.GetProperty("secure").GetBoolean() ? "TRUE" : "FALSE";
             var expires = cookie.GetProperty("expires").GetDouble();
@@ -467,42 +516,5 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
             writer.WriteLine($"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{name}\t{value}");
         }
-    }
-
-    // Вспомогательный метод для retry логики
-    private async Task<T> RetryAsync<T>(Func<Task<T>> action, int maxRetries, int delayMs, CancellationToken cancellationToken)
-    {
-        var retryCount = 0;
-
-        while (retryCount < maxRetries)
-        {
-            try
-            {
-                return await action();
-            }
-            catch (Exception ex) when (retryCount < maxRetries - 1)
-            {
-                retryCount++;
-                logger.LogWarning(ex, "Попытка {RetryCount}/{MaxRetries} не удалась. Повтор через {DelayMs}мс", retryCount, maxRetries, delayMs);
-
-                if (delayMs > 0)
-                {
-                    await Task.Delay(delayMs, cancellationToken);
-                }
-            }
-        }
-
-        // Последняя попытка (если все предыдущие провалились)
-        return await action();
-    }
-
-    public ConvertType[] GetAvailabelConvertTypes()
-    {
-        return [];
-    }
-
-    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
     }
 }
