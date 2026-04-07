@@ -14,6 +14,7 @@ public partial class SourceSettingsForm : Form
     private ILogger? _logger;
     private Button? _authButton;
     private Label? _authStatusLabel;
+    private string[]? _docFiles;
 
     public SourceSettingsForm()
     {
@@ -41,6 +42,32 @@ public partial class SourceSettingsForm : Form
         uiSettingsPanel.Controls.Clear();
         _controls.Clear();
         _loadButtons.Clear();
+
+        _docFiles = FindDocFiles();
+
+        if (_docFiles.Length > 0)
+        {
+            var docsPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 40,
+                BackColor = Color.Transparent,
+                Padding = new(10, 5, 10, 5),
+            };
+
+            var uiDocsButton = new Button
+            {
+                Text = "Руководство",
+                Dock = DockStyle.Left,
+                Width = 140,
+                Height = 30,
+                FlatStyle = FlatStyle.System,
+            };
+
+            uiDocsButton.Click += uiDocsButton_Click;
+            docsPanel.Controls.Add(uiDocsButton);
+            uiSettingsPanel.Controls.Add(docsPanel);
+        }
 
         // TODO: Костыль. Можно подумать над перемешением в IStorageType
         var auth = _sourceType as IAuthenticatable;
@@ -90,6 +117,72 @@ public partial class SourceSettingsForm : Form
 
         DialogResult = DialogResult.OK;
         Close();
+    }
+
+    private void uiDocsButton_Click(object? sender, EventArgs e)
+    {
+        if (_docFiles == null || _docFiles.Length == 0)
+        {
+            return;
+        }
+
+        var selectedFile = _docFiles[0];
+
+        if (_docFiles.Length > 1)
+        {
+            var names = _docFiles.Select(Path.GetFileNameWithoutExtension).ToArray();
+
+            using var selectForm = new Form
+            {
+                Text = "Выберите руководство",
+                Size = new(350, 200),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+            };
+
+            var listBox = new ListBox
+            {
+                Dock = DockStyle.Fill,
+                Font = new("Segoe UI", 10F),
+            };
+
+            listBox.Items.AddRange(names!);
+            listBox.SelectedIndex = 0;
+
+            listBox.DoubleClick += (_, _) =>
+            {
+                selectForm.DialogResult = DialogResult.OK;
+                selectForm.Close();
+            };
+
+            var okButton = new Button
+            {
+                Text = "Открыть",
+                Dock = DockStyle.Bottom,
+                Height = 35,
+                DialogResult = DialogResult.OK,
+            };
+
+            selectForm.Controls.Add(listBox);
+            selectForm.Controls.Add(okButton);
+            selectForm.AcceptButton = okButton;
+
+            if (selectForm.ShowDialog(this) != DialogResult.OK || listBox.SelectedIndex < 0)
+            {
+                return;
+            }
+
+            selectedFile = _docFiles[listBox.SelectedIndex];
+        }
+
+        var markdown = File.ReadAllText(selectedFile);
+        var title = Path.GetFileNameWithoutExtension(selectedFile);
+        var basePath = Path.GetDirectoryName(selectedFile)!;
+
+        var docForm = new DocumentationForm(title, markdown, basePath);
+        docForm.Show(this);
     }
 
     private static Label CreateLabel(string text)
@@ -387,6 +480,27 @@ public partial class SourceSettingsForm : Form
         }
 
         return settings;
+    }
+
+    private string[] FindDocFiles()
+    {
+        if (_sourceType == null)
+        {
+            return [];
+        }
+
+        var assemblyDir = Path.GetDirectoryName(_sourceType.GetType().Assembly.Location);
+
+        if (assemblyDir == null)
+        {
+            return [];
+        }
+
+        var docsDir = Path.Combine(assemblyDir, "docs");
+
+        return Directory.Exists(docsDir)
+            ? Directory.GetFiles(docsDir, "*.md")
+            : [];
     }
 }
 

@@ -28,6 +28,10 @@
     </ItemGroup>
     <MakeDir Directories="$(TargetFolder)" Condition="!Exists('$(TargetFolder)')" />
     <Copy SourceFiles="@(AllBuildFiles)" DestinationFolder="$(TargetFolder)%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <DocFiles Include="..\MediaOrcestrator.Youtube\docs\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DocFiles)" DestinationFolder="$(TargetFolder)docs\%(RecursiveDir)" SkipUnchangedFiles="true" Condition="@(DocFiles->Count()) > 0" />
     <Message Text="✅ Все файлы сборки $(AssemblyName) скопированы в $(TargetFolder)" Importance="high" />
   </Target>
 
