@@ -200,7 +200,7 @@ public partial class MainForm : Form
                 var source = media.Sources.First();
 
                 var sadasd = _orcestrator.GetRelations().First();
-                await sadasd.From.Type.Download(source.ExternalId, sadasd.From.Settings);
+                await sadasd.From.Type.DownloadAsync(source.ExternalId, sadasd.From.Settings);
             }
             catch (Exception exception)
             {

@@ -7,15 +7,9 @@ using System.Text.Json;
 namespace MediaOrcestrator.Youtube;
 
 public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider toolPathProvider)
-    : ISourceType, IAuthenticatable, IToolConsumer, ILegacyToolPathProvider
+    : ISourceType, IAuthenticatable, IToolConsumer
 {
     internal const string VideoUrlTemplate = "https://www.youtube.com/watch?v={0}";
-
-    private static readonly Dictionary<string, string> LegacySettingDefaults = new()
-    {
-        ["yt_dlp_path"] = @"c:\Services\utils\yt-dlp.exe",
-        ["ffmpeg_path"] = @"c:\Services\utils\ffmpeg\ffmpeg.exe",
-    };
 
     private readonly YoutubeAuthService _authService = new(logger);
     private readonly YoutubeExplodeReadService _explodeService = new(logger);
@@ -200,23 +194,6 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         return FallbackCategories();
     }
 
-    public string? GetLegacyToolPath(string toolName)
-    {
-        var key = toolName switch
-        {
-            WellKnownTools.YtDlp => "yt_dlp_path",
-            WellKnownTools.FFmpeg => "ffmpeg_path",
-            _ => null,
-        };
-
-        if (key is null)
-        {
-            return null;
-        }
-
-        var legacyDefault = LegacySettingDefaults.GetValueOrDefault(key);
-        return legacyDefault is not null && File.Exists(legacyDefault) ? legacyDefault : null;
-    }
 
     public Uri? GetExternalUri(string externalId, Dictionary<string, string> settings)
     {
@@ -295,7 +272,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         return null;
     }
 
-    public async Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public async Task<MediaDto> DownloadAsync(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало загрузки видео с YouTube. ID: {VideoId}", videoId);
 
@@ -383,12 +360,12 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         return media;
     }
 
-    public Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public Task<UploadResult> UploadAsync(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         return UploadService.UploadVideoAsync(media, settings, cancellationToken);
     }
 
-    public Task<UploadResult> Update(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
+    public Task<UploadResult> UpdateAsync(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
     {
         return UploadService.UpdateVideoAsync(externalId, tempMedia, settings, cancellationToken);
     }

@@ -466,16 +466,16 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, ILogger<O
         }
         else
         {
-            var tempMedia = await rel.From.Type.Download(fromMediaSource.ExternalId, rel.From.Settings, cancellationToken);
+            var tempMedia = await rel.From.Type.DownloadAsync(fromMediaSource.ExternalId, rel.From.Settings, cancellationToken);
             tempMedia.Id = media.Id;
             if (toMediaSource?.Status == MediaStatus.PartialOk)
             {
                 var externalId = toMediaSource.ExternalId;
-                uploadResult = await rel.To.Type.Update(externalId, tempMedia, rel.To.Settings, cancellationToken);
+                uploadResult = await rel.To.Type.UpdateAsync(externalId, tempMedia, rel.To.Settings, cancellationToken);
             }
             else
             {
-                uploadResult = await rel.To.Type.Upload(tempMedia, rel.To.Settings, cancellationToken);
+                uploadResult = await rel.To.Type.UploadAsync(tempMedia, rel.To.Settings, cancellationToken);
             }
         }
 

@@ -59,7 +59,7 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
                 try
                 {
                     var tempMedia = new MediaDto { Title = newTitle, Description = media.Description };
-                    await source.Type.Update(sourceLink.ExternalId, tempMedia, source.Settings, cancellationToken);
+                    await source.Type.UpdateAsync(sourceLink.ExternalId, tempMedia, source.Settings, cancellationToken);
                     updatedSources.Add(sourceLink);
                 }
                 catch (Exception ex) when (ex is NotImplementedException or NotSupportedException)
@@ -88,7 +88,7 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
                     try
                     {
                         var rollbackMedia = new MediaDto { Title = oldTitle, Description = media.Description };
-                        await source.Type.Update(sourceLink.ExternalId, rollbackMedia, source.Settings, cancellationToken);
+                        await source.Type.UpdateAsync(sourceLink.ExternalId, rollbackMedia, source.Settings, cancellationToken);
                     }
                     catch (Exception ex)
                     {

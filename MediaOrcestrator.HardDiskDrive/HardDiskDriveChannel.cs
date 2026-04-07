@@ -17,7 +17,7 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
 {
     private string? _h264Encoder;
 
-    public SyncDirection ChannelType => SyncDirection.OnlyUpload;
+    public SyncDirection ChannelType => SyncDirection.Full;
 
     public string Name => "HardDiskDrive";
 
@@ -128,7 +128,7 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
         return await CreateMediaDtoAsync(file, basePath, cancellationToken);
     }
 
-    public Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public Task<MediaDto> DownloadAsync(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Получение информации о файле с жёсткого диска. ID: {VideoId}", videoId);
 
@@ -180,7 +180,7 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
         });
     }
 
-    public async Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public async Task<UploadResult> UploadAsync(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало сохранения файла на жёсткий диск. Название: '{Title}'", media.Title);
 
@@ -279,7 +279,7 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
         };
     }
 
-    public Task<UploadResult> Update(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
+    public Task<UploadResult> UpdateAsync(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }
@@ -340,7 +340,7 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
         return Task.CompletedTask;
     }
 
-    public ConvertType[] GetAvailabelConvertTypes()
+    public ConvertType[] GetAvailableConvertTypes()
     {
         return
         [
@@ -378,20 +378,11 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
         };
     }
 
-    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
-    {
-        return typeId switch
-        {
-            1 or 2 => ConvertVideoCodec(externalId, settings, typeId, cancellationToken: cancellationToken),
-            _ => throw new NotImplementedException("type not implemented " + typeId),
-        };
-    }
-
     public Task ConvertAsync(
         int typeId,
         string externalId,
         Dictionary<string, string> settings,
-        IProgress<ConvertProgress>? progress,
+        IProgress<ConvertProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         return typeId switch

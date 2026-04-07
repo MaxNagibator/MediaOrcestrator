@@ -222,7 +222,7 @@ public partial class MediaMatrixGridControl
     {
         foreach (var source in allSources)
         {
-            var convertTypes = source.Type.GetAvailabelConvertTypes();
+            var convertTypes = source.Type.GetAvailableConvertTypes();
             if (convertTypes.Length == 0)
             {
                 continue;
@@ -471,7 +471,7 @@ public partial class MediaMatrixGridControl
                 continue;
             }
 
-            var convertTypes = source.Type.GetAvailabelConvertTypes();
+            var convertTypes = source.Type.GetAvailableConvertTypes();
             if (convertTypes.Length == 0)
             {
                 continue;

@@ -124,7 +124,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
     }
 
     // TODO: Дублирование с Youtube
-    public async Task<MediaDto> Download(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public async Task<MediaDto> DownloadAsync(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало скачивания видео с RuTube. ID: {VideoId}", videoId);
 
@@ -213,7 +213,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         return media;
     }
 
-    public async Task<UploadResult> Upload(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public async Task<UploadResult> UploadAsync(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало загрузки видео на RuTube. Название: '{Title}'", media.Title);
 
@@ -285,7 +285,7 @@ public class RutubeChannel(ILogger<RutubeChannel> logger, ILogger<RutubeService>
         }
     }
 
-    public async Task<UploadResult> Update(string externalId, MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    public async Task<UploadResult> UpdateAsync(string externalId, MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало обновление данных видео на RuTube. Название: '{Title}'", media.Title);
 

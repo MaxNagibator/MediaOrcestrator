@@ -20,10 +20,14 @@ public class ToolManager(
     private readonly ConcurrentDictionary<string, ToolStatus> _cachedStatuses = new();
 
     public string? GetToolPath(string toolName)
-        => _resolvedPaths.GetValueOrDefault(toolName);
+    {
+        return _resolvedPaths.GetValueOrDefault(toolName);
+    }
 
     public string? GetCompanionPath(string toolName, string companionName)
-        => _companionPaths.GetValueOrDefault($"{toolName}:{companionName}");
+    {
+        return _companionPaths.GetValueOrDefault($"{toolName}:{companionName}");
+    }
 
     public void RegisterTools(IEnumerable<IToolConsumer> consumers)
     {
@@ -76,8 +80,7 @@ public class ToolManager(
         foreach (var (name, descriptor) in _registry)
         {
             var toolDir = Path.Combine(toolsRoot, name);
-            var resolvedPath = ToolInstaller.FindExecutableInToolDir(toolDir, descriptor)
-                               ?? TryMigrateFromLegacy(name, descriptor);
+            var resolvedPath = ToolInstaller.FindExecutableInToolDir(toolDir, descriptor);
 
             _resolvedPaths[name] = resolvedPath;
             ResolveCompanions(name, descriptor, resolvedPath);
@@ -157,7 +160,32 @@ public class ToolManager(
     }
 
     public IReadOnlyDictionary<string, ToolDescriptor> GetRegistry()
-        => _registry;
+    {
+        return _registry;
+    }
+
+    private static void ValidateDescriptor(ToolDescriptor tool)
+    {
+        if (string.IsNullOrWhiteSpace(tool.Name))
+        {
+            throw new ArgumentException("ToolDescriptor.Name обязателен");
+        }
+
+        if (string.IsNullOrWhiteSpace(tool.GitHubRepo))
+        {
+            throw new ArgumentException($"ToolDescriptor.GitHubRepo обязателен для '{tool.Name}'");
+        }
+
+        if (string.IsNullOrWhiteSpace(tool.AssetPattern))
+        {
+            throw new ArgumentException($"ToolDescriptor.AssetPattern обязателен для '{tool.Name}'");
+        }
+
+        if (string.IsNullOrWhiteSpace(tool.VersionCommand))
+        {
+            throw new ArgumentException($"ToolDescriptor.VersionCommand обязателен для '{tool.Name}'");
+        }
+    }
 
     private void ResolveCompanions(string toolName, ToolDescriptor descriptor, string? mainPath)
     {
@@ -188,70 +216,6 @@ public class ToolManager(
                 logger.LogWarning("Companion '{Companion}' для '{Tool}' не найден в {Dir}",
                     companion, toolName, dir);
             }
-        }
-    }
-
-    private string? TryMigrateFromLegacy(string toolName, ToolDescriptor descriptor)
-    {
-        if (!_consumers.TryGetValue(toolName, out var consumers))
-        {
-            return null;
-        }
-
-        var toolDir = Path.Combine(toolsRoot, toolName);
-
-        if (Directory.Exists(toolDir) && Directory.EnumerateFileSystemEntries(toolDir).Any())
-        {
-            return null;
-        }
-
-        foreach (var consumer in consumers)
-        {
-            if (consumer is not ILegacyToolPathProvider legacyProvider)
-            {
-                continue;
-            }
-
-            var legacyPath = legacyProvider.GetLegacyToolPath(toolName);
-
-            if (legacyPath is null || !File.Exists(legacyPath))
-            {
-                continue;
-            }
-
-            logger.LogInformation("Миграция '{Name}' из старого пути: {Path}", toolName, legacyPath);
-
-            Directory.CreateDirectory(toolDir);
-
-            var destFile = Path.Combine(toolDir, Path.GetFileName(legacyPath));
-            File.Copy(legacyPath, destFile, true);
-
-            return ToolInstaller.FindExecutableInToolDir(toolDir, descriptor) ?? destFile;
-        }
-
-        return null;
-    }
-
-    private static void ValidateDescriptor(ToolDescriptor tool)
-    {
-        if (string.IsNullOrWhiteSpace(tool.Name))
-        {
-            throw new ArgumentException("ToolDescriptor.Name обязателен");
-        }
-
-        if (string.IsNullOrWhiteSpace(tool.GitHubRepo))
-        {
-            throw new ArgumentException($"ToolDescriptor.GitHubRepo обязателен для '{tool.Name}'");
-        }
-
-        if (string.IsNullOrWhiteSpace(tool.AssetPattern))
-        {
-            throw new ArgumentException($"ToolDescriptor.AssetPattern обязателен для '{tool.Name}'");
-        }
-
-        if (string.IsNullOrWhiteSpace(tool.VersionCommand))
-        {
-            throw new ArgumentException($"ToolDescriptor.VersionCommand обязателен для '{tool.Name}'");
         }
     }
 }
