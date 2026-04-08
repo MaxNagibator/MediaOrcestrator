@@ -14,7 +14,12 @@ public sealed class YoutubeExplodeReadService(ILogger logger)
     private const int RetryCount = 5;
     private const int RetryDelayMs = 500;
 
-    private readonly YoutubeClient _client = new();
+    private static readonly HttpClient SharedHttpClient = new(new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+    });
+
+    private readonly YoutubeClient _client = new(SharedHttpClient);
 
     public async Task<string?> GetChannelIdAsync(string channelUrl, CancellationToken cancellationToken)
     {
@@ -64,8 +69,10 @@ public sealed class YoutubeExplodeReadService(ILogger logger)
 
     public async Task<MediaDto?> GetVideoByIdAsync(string videoId, CancellationToken cancellationToken)
     {
-        var video = await _client.Videos.GetAsync(videoId, cancellationToken);
-        return CreateFullMediaDto(video);
+        var video = await RetryHelper.ExecuteAsync(async () => await _client.Videos.GetAsync(videoId, cancellationToken),
+            RetryCount, RetryDelayMs, logger, cancellationToken);
+
+        return video is not null ? CreateFullMediaDto(video) : null;
     }
 
     private static MediaDto CreateFullMediaDto(Video video, string? tempDataPath = null)

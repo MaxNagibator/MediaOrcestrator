@@ -186,7 +186,6 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         return FallbackCategories();
     }
 
-
     public Uri? GetExternalUri(string externalId, Dictionary<string, string> settings)
     {
         return new(string.Format(VideoUrlTemplate, externalId));
@@ -268,7 +267,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
     {
         logger.LogInformation("Начало загрузки видео с YouTube. ID: {VideoId}", videoId);
 
-        var media = await _explodeService.GetVideoByIdAsync(videoId, cancellationToken)
+        var media = await GetMediaByIdAsync(videoId, settings, cancellationToken)
                     ?? throw new InvalidOperationException($"Видео не найдено: {videoId}");
 
         logger.LogDebug("Получена информация о видео. Название: '{Title}'", media.Title);
