@@ -44,8 +44,8 @@
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiAuditTabPage = new TabPage();
-            comboBox1 = new ComboBox();
-            button1 = new Button();
+            uiSyncSourcePanel = new FlowLayoutPanel();
+            uiQuickSyncButton = new Button();
             uiClearSpecificTypeButton = new Button();
             uiClearTypeComboBox = new ComboBox();
             uiClearDatabaseButton = new Button();
@@ -66,7 +66,8 @@
             uiRubuteAuthStateOpenBrowserButton = new Button();
             uiManageToolsButton = new Button();
             uiCheckUpdatesButton = new Button();
-            button2 = new Button();
+            uiSyncNewButton = new Button();
+            uiAuditToolTip = new ToolTip();
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
@@ -232,9 +233,9 @@
             // 
             // uiAuditTabPage
             // 
-            uiAuditTabPage.Controls.Add(button2);
-            uiAuditTabPage.Controls.Add(comboBox1);
-            uiAuditTabPage.Controls.Add(button1);
+            uiAuditTabPage.Controls.Add(uiSyncNewButton);
+            uiAuditTabPage.Controls.Add(uiSyncSourcePanel);
+            uiAuditTabPage.Controls.Add(uiQuickSyncButton);
             uiAuditTabPage.Controls.Add(uiClearSpecificTypeButton);
             uiAuditTabPage.Controls.Add(uiClearTypeComboBox);
             uiAuditTabPage.Controls.Add(uiClearDatabaseButton);
@@ -246,27 +247,27 @@
             uiAuditTabPage.TabIndex = 3;
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
+            //
+            // uiSyncSourcePanel
+            //
+            uiSyncSourcePanel.AutoSize = true;
+            uiSyncSourcePanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            uiSyncSourcePanel.FlowDirection = FlowDirection.TopDown;
+            uiSyncSourcePanel.Location = new Point(6, 157);
+            uiSyncSourcePanel.Name = "uiSyncSourcePanel";
+            uiSyncSourcePanel.Size = new Size(269, 110);
+            uiSyncSourcePanel.TabIndex = 7;
             // 
-            // comboBox1
+            // uiQuickSyncButton
             // 
-            comboBox1.DropDownStyle = ComboBoxStyle.DropDownList;
-            comboBox1.FormattingEnabled = true;
-            comboBox1.Items.AddRange(new object[] { "medias", "sources", "source_relations" });
-            comboBox1.Location = new Point(51, 201);
-            comboBox1.Name = "comboBox1";
-            comboBox1.Size = new Size(224, 23);
-            comboBox1.TabIndex = 7;
-            // 
-            // button1
-            // 
-            button1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            button1.Location = new Point(281, 195);
-            button1.Name = "button1";
-            button1.Size = new Size(348, 32);
-            button1.TabIndex = 6;
-            button1.Text = "Быстрый полный синхронизировать";
-            button1.UseVisualStyleBackColor = true;
-            button1.Click += button1_Click;
+            uiQuickSyncButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiQuickSyncButton.Location = new Point(281, 195);
+            uiQuickSyncButton.Name = "uiQuickSyncButton";
+            uiQuickSyncButton.Size = new Size(348, 32);
+            uiQuickSyncButton.TabIndex = 6;
+            uiQuickSyncButton.Text = "Быстрая синхронизация";
+            uiQuickSyncButton.UseVisualStyleBackColor = true;
+            uiQuickSyncButton.Click += uiQuickSyncButton_Click;
             // 
             // uiClearSpecificTypeButton
             // 
@@ -317,10 +318,20 @@
             uiSyncButton.Name = "uiSyncButton";
             uiSyncButton.Size = new Size(348, 32);
             uiSyncButton.TabIndex = 1;
-            uiSyncButton.Text = "Полностью синхронизировать";
+            uiSyncButton.Text = "Полная синхронизация";
             uiSyncButton.UseVisualStyleBackColor = true;
             uiSyncButton.Click += uiSyncButton_Click;
-            // 
+            //
+            // uiAuditToolTip
+            //
+            uiAuditToolTip.SetToolTip(uiSyncButton, "Полное перечитывание всех медиа из всех источников");
+            uiAuditToolTip.SetToolTip(uiQuickSyncButton, "Загружает список медиа без метаданных.\nМожно выбрать конкретный источник кнопкой слева.");
+            uiAuditToolTip.SetToolTip(uiSyncNewButton, "Синхронизирует до первого уже известного медиа.\nМожно выбрать конкретный источник кнопкой слева.");
+            uiAuditToolTip.SetToolTip(uiSyncSourcePanel, "Выберите источник для синхронизации.\nЕсли ничего не выбрано — синхронизируются все.");
+            uiAuditToolTip.SetToolTip(uiClearDatabaseButton, "Удаляет все данные из базы. Операция необратима!");
+            uiAuditToolTip.SetToolTip(uiClearSpecificTypeButton, "Удаляет все записи выбранного типа коллекции из базы данных");
+            uiAuditToolTip.SetToolTip(uiForceScanButton, "Отладочная функция принудительного сканирования");
+            //
             // uiSyncTreeTabPage
             // 
             uiSyncTreeTabPage.Controls.Add(uiSyncTreeControl);
@@ -470,16 +481,16 @@
             uiCheckUpdatesButton.UseVisualStyleBackColor = true;
             uiCheckUpdatesButton.Click += uiCheckUpdatesButton_Click;
             // 
-            // button2
+            // uiSyncNewButton
             // 
-            button2.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            button2.Location = new Point(281, 233);
-            button2.Name = "button2";
-            button2.Size = new Size(348, 32);
-            button2.TabIndex = 8;
-            button2.Text = "До первого загруженного синхронизировать";
-            button2.UseVisualStyleBackColor = true;
-            button2.Click += button2_Click;
+            uiSyncNewButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiSyncNewButton.Location = new Point(281, 233);
+            uiSyncNewButton.Name = "uiSyncNewButton";
+            uiSyncNewButton.Size = new Size(348, 32);
+            uiSyncNewButton.TabIndex = 8;
+            uiSyncNewButton.Text = "Синхронизация новых";
+            uiSyncNewButton.UseVisualStyleBackColor = true;
+            uiSyncNewButton.Click += uiSyncNewButton_Click;
             // 
             // MainForm
             // 
@@ -543,10 +554,11 @@
         private GroupBox groupBox3;
         private TextBox uiVkVideoAuthStatePathTextBox;
         private Button uiVkVideoAuthStateOpenBrowserButton;
-        private Button button1;
-        private ComboBox comboBox1;
+        private Button uiQuickSyncButton;
+        private FlowLayoutPanel uiSyncSourcePanel;
         private Button uiManageToolsButton;
         private Button uiCheckUpdatesButton;
-        private Button button2;
+        private Button uiSyncNewButton;
+        private ToolTip uiAuditToolTip;
     }
 }

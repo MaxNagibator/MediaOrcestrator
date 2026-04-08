@@ -70,7 +70,7 @@ public sealed partial class RutubeService
             videoId = session.VideoId;
         }
 
-        var errorMessage = "";
+        string? errorMessage = null;
         if (!string.IsNullOrEmpty(thumbnailPath) && File.Exists(thumbnailPath))
         {
             try
@@ -158,7 +158,7 @@ public sealed partial class RutubeService
             }
         }
 
-        if (errorMessage == null)
+        if (string.IsNullOrEmpty(errorMessage))
         {
             return new()
             {

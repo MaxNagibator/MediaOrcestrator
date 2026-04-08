@@ -47,35 +47,54 @@ public partial class SourceSettingsForm : Form
 
         if (_docFiles.Length > 0)
         {
-            var docsPanel = new Panel
+            var bottomPanel = new Panel
             {
-                Dock = DockStyle.Top,
-                Height = 40,
-                BackColor = Color.Transparent,
-                Padding = new(10, 5, 10, 5),
+                Dock = DockStyle.Fill,
+                Padding = new(0, 5, 0, 5),
             };
 
             var uiDocsButton = new Button
             {
                 Text = "Руководство",
-                Dock = DockStyle.Left,
                 Width = 140,
-                Height = 30,
+                Dock = DockStyle.Left,
                 FlatStyle = FlatStyle.System,
             };
 
             uiDocsButton.Click += uiDocsButton_Click;
-            docsPanel.Controls.Add(uiDocsButton);
-            uiSettingsPanel.Controls.Add(docsPanel);
+
+            uiMainLayout.Controls.Remove(uiCreateButton);
+            uiCreateButton.Dock = DockStyle.Right;
+
+            bottomPanel.Controls.Add(uiCreateButton);
+            bottomPanel.Controls.Add(uiDocsButton);
+            uiMainLayout.Controls.Add(bottomPanel, 0, 3);
         }
 
         // TODO: Костыль. Можно подумать над перемешением в IStorageType
-        var auth = _sourceType as IAuthenticatable;
-
-        if (auth != null && _logger != null)
+        if (_sourceType is IAuthenticatable auth && _logger != null)
         {
             var authPanel = CreateAuthPanel(auth);
-            uiSettingsPanel.Controls.Add(authPanel);
+            authPanel.Dock = DockStyle.Fill;
+
+            var bottomControl = uiMainLayout.GetControlFromPosition(0, 3);
+            uiMainLayout.RowCount = 5;
+
+            if (bottomControl != null)
+            {
+                uiMainLayout.SetRow(bottomControl, 4);
+            }
+
+            uiMainLayout.SetRow(uiSettingsPanel, 3);
+            uiMainLayout.Controls.Add(authPanel, 0, 2);
+
+            uiMainLayout.RowStyles.Clear();
+            uiMainLayout.RowStyles.Add(new(SizeType.AutoSize));
+            uiMainLayout.RowStyles.Add(new(SizeType.AutoSize));
+            uiMainLayout.RowStyles.Add(new(SizeType.Absolute, 45F));
+            uiMainLayout.RowStyles.Add(new(SizeType.Percent, 100F));
+            uiMainLayout.RowStyles.Add(new(SizeType.Absolute, 45F));
+
         }
 
         var settingsTable = CreateSettingsTable();
@@ -93,9 +112,9 @@ public partial class SourceSettingsForm : Form
             settingsTable.Controls.Add(card, 0, settingsTable.RowCount++);
         }
 
-        if (auth != null && _logger != null)
+        if (_sourceType is IAuthenticatable authForStatus && _logger != null)
         {
-            UpdateAuthStatus(auth);
+            UpdateAuthStatus(authForStatus);
         }
     }
 
@@ -194,7 +213,7 @@ public partial class SourceSettingsForm : Form
             AutoSize = true,
             Font = new("Segoe UI Semibold", 9F),
             ForeColor = Color.FromArgb(64, 64, 64),
-            Padding = new(0, 0, 0, 8),
+            Padding = new(0, 0, 0, 4),
         };
     }
 
@@ -207,7 +226,7 @@ public partial class SourceSettingsForm : Form
             AutoSize = false,
             Font = new("Segoe UI", 8F),
             ForeColor = Color.FromArgb(128, 128, 128),
-            Padding = new(0, 5, 0, 2),
+            Padding = new(0, 3, 0, 1),
         };
 
         descriptionLabel.SizeChanged += (s, _) =>
@@ -250,7 +269,7 @@ public partial class SourceSettingsForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             BackColor = Color.Transparent,
-            Padding = new(0, 5, 0, 5),
+            Padding = new(0, 2, 0, 2),
         };
 
         table.ColumnStyles.Add(new(SizeType.Percent, 100F));
@@ -265,7 +284,7 @@ public partial class SourceSettingsForm : Form
             Height = 45,
             BackColor = Color.White,
             Padding = new(10, 8, 10, 8),
-            Margin = new(10, 5, 10, 5),
+            Margin = new(5, 3, 5, 3),
             BorderStyle = BorderStyle.FixedSingle,
         };
 
@@ -342,12 +361,13 @@ public partial class SourceSettingsForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             BackColor = Color.White,
-            Padding = new(15, 10, 15, 10),
-            Margin = new(10, 5, 10, 5),
+            Padding = new(10, 8, 10, 8),
+            Margin = new(5, 3, 5, 3),
             BorderStyle = BorderStyle.FixedSingle,
         };
 
-        var label = CreateLabel(setting.Title);
+        var labelText = setting.IsRequired ? $"{setting.Title} *" : setting.Title;
+        var label = CreateLabel(labelText);
         var inputControl = CreateInputControl(setting);
 
         _controls.Add(setting.Key, inputControl);
@@ -359,16 +379,12 @@ public partial class SourceSettingsForm : Form
 
         if (setting.Type == SettingType.Dropdown)
         {
+            var comboBox = (ComboBox)inputControl;
+            PopulateComboBox(setting, comboBox);
+
             if (setting.Options == null)
             {
-                card.Controls.Add(CreateLoadButton(setting, (ComboBox)inputControl));
-            }
-            else
-            {
-                foreach (var option in setting.Options)
-                {
-                    ((ComboBox)inputControl).Items.Add(new ComboBoxItem { Value = option.Value, Label = option.Label });
-                }
+                card.Controls.Add(CreateLoadButton(setting, comboBox));
             }
         }
 
@@ -381,27 +397,53 @@ public partial class SourceSettingsForm : Form
     private Control CreateInputControl(SourceSettings setting)
     {
         return setting.Type == SettingType.Dropdown
-            ? CreateComboBox(setting)
+            ? CreateComboBox()
             : CreateTextBox(setting);
     }
 
-    private ComboBox CreateComboBox(SourceSettings setting)
+    private static ComboBox CreateComboBox()
     {
-        var comboBox = new ComboBox
+        return new()
         {
             Dock = DockStyle.Top,
             DropDownStyle = ComboBoxStyle.DropDownList,
             Font = new("Segoe UI", 10F),
         };
+    }
 
+    private void PopulateComboBox(SourceSettings setting, ComboBox comboBox)
+    {
         var savedValue = _editSource?.Settings.GetValueOrDefault(setting.Key) ?? setting.DefaultValue;
-        if (!string.IsNullOrEmpty(savedValue))
+
+        if (setting.Options == null)
         {
-            comboBox.Items.Add(new ComboBoxItem { Value = savedValue, Label = $"ID: {savedValue}" });
+            if (string.IsNullOrEmpty(savedValue))
+            {
+                return;
+            }
+
+            comboBox.Items.Add(new ComboBoxItem { Value = savedValue, Label = savedValue });
             comboBox.SelectedIndex = 0;
+
+            return;
         }
 
-        return comboBox;
+        foreach (var option in setting.Options)
+        {
+            comboBox.Items.Add(new ComboBoxItem { Value = option.Value, Label = option.Label });
+        }
+
+        if (string.IsNullOrEmpty(savedValue))
+        {
+            return;
+        }
+
+        var index = setting.Options.FindIndex(o => o.Value == savedValue);
+
+        if (index >= 0)
+        {
+            comboBox.SelectedIndex = index;
+        }
     }
 
     private TextBox CreateTextBox(SourceSettings setting)
@@ -421,9 +463,8 @@ public partial class SourceSettingsForm : Form
         {
             Text = "Загрузить",
             Dock = DockStyle.Top,
-            Height = 50,
-            AutoSize = true,
-            Margin = new(0, 5, 0, 0),
+            Height = 28,
+            Margin = new(0, 3, 0, 0),
         };
 
         loadButton.Click += async (_, _) => await LoadOptionsAsync(setting, comboBox, loadButton);
@@ -504,7 +545,7 @@ public partial class SourceSettingsForm : Form
     }
 }
 
-internal class ComboBoxItem
+file sealed class ComboBoxItem
 {
     public required string Value { get; set; }
     public required string Label { get; set; }

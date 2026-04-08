@@ -26,7 +26,7 @@ public partial class MainForm : Form
 
     private void MainForm_Load(object sender, EventArgs e)
     {
-        Text = $"Медиа оркестратор v{_updateManager.CurrentVersion.ToString(3)}";
+        Text = $"Медиа оркестратор v{_updateManager.CurrentVersion}";
         DrawSources();
         DrawRelations();
         // TODO: SetZalupaV2
@@ -51,94 +51,17 @@ public partial class MainForm : Form
 
     private async void uiSyncButton_Click(object sender, EventArgs e)
     {
-        _logger.LogInformation("Пользователь нажал кнопку синхронизации полной.");
-        uiSyncButton.Enabled = false;
-        try
-        {
-            await _orcestrator.GetStorageFullInfo(true);
-            _logger.LogInformation("Синхронизация через UI завершена.");
-            DrawSources();
-            uiMediaMatrixGridControl.RefreshData();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Ошибка при синхронизации через UI.");
-            MessageBox.Show($"Ошибка при синхронизации: {ex.Message}");
-        }
-        finally
-        {
-            uiSyncButton.Enabled = true;
-        }
+        await RunSyncAsync("Пользователь нажал кнопку полной синхронизации.", true);
     }
 
-    private async void button1_Click(object sender, EventArgs e)
+    private async void uiQuickSyncButton_Click(object sender, EventArgs e)
     {
-        Source? syncSource = null;
-        if (comboBox1.SelectedItem != null)
-        {
-            if (comboBox1.SelectedItem is not Source value)
-            {
-                MessageBox.Show("Пожалуйста, выберите источник для связи.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            syncSource = value;
-        }
-
-        // todo дубрирование ебейшее
-        _logger.LogInformation("Пользователь нажал кнопку синхронизации быстрой.");
-        uiSyncButton.Enabled = false;
-        try
-        {
-            await _orcestrator.GetStorageFullInfo(false, syncSource);
-            _logger.LogInformation("Синхронизация через UI завершена.");
-            DrawSources();
-            uiMediaMatrixGridControl.RefreshData();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Ошибка при синхронизации через UI.");
-            MessageBox.Show($"Ошибка при синхронизации: {ex.Message}");
-        }
-        finally
-        {
-            uiSyncButton.Enabled = true;
-        }
+        await RunSyncAsync("Пользователь нажал кнопку быстрой синхронизации.", false, GetSelectedSyncSource());
     }
 
-    private async void button2_Click(object sender, EventArgs e)
+    private async void uiSyncNewButton_Click(object sender, EventArgs e)
     {
-        Source? syncSource = null;
-        if (comboBox1.SelectedItem != null)
-        {
-            if (comboBox1.SelectedItem is not Source value)
-            {
-                MessageBox.Show("Пожалуйста, выберите источник для связи.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            syncSource = value;
-        }
-
-        // todo дубрирование ебейшее
-        _logger.LogInformation("Пользователь нажал кнопку синхронизации быстрой.");
-        uiSyncButton.Enabled = false;
-        try
-        {
-            await _orcestrator.GetStorageFullInfo(false, syncSource, true);
-            _logger.LogInformation("Синхронизация через UI завершена.");
-            DrawSources();
-            uiMediaMatrixGridControl.RefreshData();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Ошибка при синхронизации через UI.");
-            MessageBox.Show($"Ошибка при синхронизации: {ex.Message}");
-        }
-        finally
-        {
-            uiSyncButton.Enabled = true;
-        }
+        await RunSyncAsync("Пользователь нажал кнопку синхронизации новых.", false, GetSelectedSyncSource(), true);
     }
 
     private void uiAddSourceButton_Click(object sender, EventArgs e)
@@ -303,6 +226,46 @@ public partial class MainForm : Form
         form.ShowDialog(this);
     }
 
+    private void uiCheckUpdatesButton_Click(object? sender, EventArgs e)
+    {
+        CheckAppUpdateInBackground();
+    }
+
+    private Source? GetSelectedSyncSource()
+    {
+        foreach (var control in uiSyncSourcePanel.Controls)
+        {
+            if (control is CheckBox { Checked: true, Tag: Source source })
+            {
+                return source;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task RunSyncAsync(string logMessage, bool isFull, Source? filterSource = null, bool onlyNew = false)
+    {
+        _logger.LogInformation(logMessage);
+        uiSyncButton.Enabled = false;
+        try
+        {
+            await _orcestrator.GetStorageFullInfo(isFull, filterSource, onlyNew);
+            _logger.LogInformation("Синхронизация через UI завершена.");
+            DrawSources();
+            uiMediaMatrixGridControl.RefreshData();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при синхронизации через UI.");
+            MessageBox.Show($"Ошибка при синхронизации: {ex.Message}");
+        }
+        finally
+        {
+            uiSyncButton.Enabled = true;
+        }
+    }
+
     private void GetCookie(string openPage, TextBox pathTextbox, bool transformCookie)
     {
         var jsonPath = transformCookie ? pathTextbox.Text + ".tmp.json" : pathTextbox.Text;
@@ -378,10 +341,9 @@ public partial class MainForm : Form
     {
         uiRelationFromComboBox.Items.Clear();
         uiRelationToComboBox.Items.Clear();
-        comboBox1.Items.Clear();
+        uiSyncSourcePanel.Controls.Clear();
         uiRelationFromComboBox.DisplayMember = "TitleFull";
         uiRelationToComboBox.DisplayMember = "TitleFull";
-        comboBox1.DisplayMember = "TitleFull";
 
         uiSourcesComboBox.Items.Clear();
         uiSourcesComboBox.DisplayMember = "Name";
@@ -417,7 +379,32 @@ public partial class MainForm : Form
 
             uiRelationFromComboBox.Items.Add(source);
             uiRelationToComboBox.Items.Add(source);
-            comboBox1.Items.Add(source);
+
+            var toggle = new CheckBox
+            {
+                Text = source.TitleFull,
+                Tag = source,
+                Appearance = Appearance.Button,
+                AutoSize = true,
+                MinimumSize = new(120, 28),
+                TextAlign = ContentAlignment.MiddleCenter,
+            };
+
+            toggle.CheckedChanged += (s, _) =>
+            {
+                if (s is CheckBox { Checked: true } clicked)
+                {
+                    foreach (var other in uiSyncSourcePanel.Controls.OfType<CheckBox>())
+                    {
+                        if (other != clicked)
+                        {
+                            other.Checked = false;
+                        }
+                    }
+                }
+            };
+
+            uiSyncSourcePanel.Controls.Add(toggle);
         }
 
         DrawRelations();
@@ -505,11 +492,6 @@ public partial class MainForm : Form
                              """,
                 "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-    }
-
-    private void uiCheckUpdatesButton_Click(object? sender, EventArgs e)
-    {
-        CheckAppUpdateInBackground();
     }
 
     private void DrawRelations()

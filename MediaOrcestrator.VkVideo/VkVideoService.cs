@@ -199,10 +199,18 @@ public sealed class VkVideoService : IDisposable
     {
         _logger.LogInformation("Удаление видео {OwnerId}_{VideoId}", ownerId, videoId);
 
-        await CallApiAsync<int>("video.delete", new()
+        // TODO: https://github.com/MaxNagibator/MediaOrcestrator/issues/37#issuecomment-4205897816
+        // await CallApiAsync<int>("video.delete", new()
+        // {
+        //     [OwnerIdKey] = ownerId.ToString(),
+        //     [VideoIdKey] = videoId.ToString(),
+        // });
+
+        await CallApiAsync<JsonElement>("video.bulkEdit", new()
         {
+            ["video_ids"] = $"{ownerId}_{videoId}",
             [OwnerIdKey] = ownerId.ToString(),
-            [VideoIdKey] = videoId.ToString(),
+            ["action"] = "delete",
         });
 
         _logger.LogInformation("Видео {OwnerId}_{VideoId} удалено", ownerId, videoId);
