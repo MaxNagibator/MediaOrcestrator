@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using MediaOrcestrator.Modules;
+using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Domain;
 
@@ -44,7 +45,7 @@ public class SyncPlanner(ILogger<SyncPlanner> logger)
         var fromSource = media.Sources.FirstOrDefault(x => x.SourceId == relation.FromId);
         var toSource = media.Sources.FirstOrDefault(x => x.SourceId == relation.ToId);
 
-        return fromSource != null && toSource == null;
+        return fromSource is { Status: MediaStatus.Ok } && toSource == null;
     }
 
     private SyncIntent CreateIntent(Media media, SourceSyncRelation relation, List<SourceSyncRelation> allRelations)
