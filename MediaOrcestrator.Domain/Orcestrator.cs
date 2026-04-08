@@ -161,14 +161,21 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
 
             if (!onlyNew)
             {
-                var existsVideos = cache.GetMedia(mediaSource.Id);
-                foreach (var existsVideo in existsVideos)
+                if (foundIds.Count > 0)
                 {
-                    if (!foundIds.Contains(existsVideo.ExternalId))
+                    var existsVideos = cache.GetMedia(mediaSource.Id);
+                    foreach (var existsVideo in existsVideos)
                     {
-                        existsVideo.Status = MediaStatus.Missing;
-                        mediaCol.Update(existsVideo.Media);
+                        if (!foundIds.Contains(existsVideo.ExternalId))
+                        {
+                            existsVideo.Status = MediaStatus.Missing;
+                            mediaCol.Update(existsVideo.Media);
+                        }
                     }
+                }
+                else
+                {
+                    logger.LogWarning("Пропуск пометки «пропало» для источника {Source}: список полученных элементов пуст", mediaSource.TitleFull);
                 }
             }
         });
