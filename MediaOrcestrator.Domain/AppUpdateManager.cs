@@ -103,7 +103,7 @@ public sealed class AppUpdateManager(
         }
 
         var pid = Environment.ProcessId;
-        var currentVersion = CurrentVersion.ToString(3);
+        var currentVersion = CurrentVersion.ToString();
 
         var args = $"--zip \"{zipPath}\" --target \"{appDir}\" --pid {pid} --restart MediaOrcestrator.Runner.exe --current-version {currentVersion}";
 

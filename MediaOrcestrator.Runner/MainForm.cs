@@ -26,7 +26,7 @@ public partial class MainForm : Form
 
     private void MainForm_Load(object sender, EventArgs e)
     {
-        Text = $"Медиа оркестратор v{_updateManager.CurrentVersion.ToString(3)}";
+        Text = $"Медиа оркестратор v{_updateManager.CurrentVersion}";
         DrawSources();
         DrawRelations();
         // TODO: SetZalupaV2
