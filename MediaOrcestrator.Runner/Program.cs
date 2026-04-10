@@ -329,6 +329,7 @@ file static class Program
                 sp.GetRequiredService<ILogger<ToolManager>>()));
 
         services.AddSingleton<IToolPathProvider>(sp => sp.GetRequiredService<ToolManager>());
+        services.AddSingleton<VideoTranscoder>();
         services.AddSingleton<AppUpdateManager>(sp =>
         {
             var settingsManager = sp.GetRequiredService<SettingsManager>();

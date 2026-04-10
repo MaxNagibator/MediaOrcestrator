@@ -1,4 +1,5 @@
 ﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Runner;
@@ -366,6 +367,11 @@ public partial class SyncTreeControl : UserControl
 
                 LogToUi($"[Успех] {intent.Media.Title} передан в {intent.To.Title}", Color.LightGreen);
                 return;
+            }
+            catch (NonRetriableException ex)
+            {
+                LogToUi($"[Не ретраим] {intent.Media.Title}: {ex.Message}", Color.Red);
+                throw;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
