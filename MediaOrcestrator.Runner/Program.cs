@@ -341,6 +341,7 @@ file static class Program
 
         services.AddSingleton<Orcestrator>();
         services.AddSingleton<BatchRenameService>();
+        services.AddSingleton<CoverGenerator>();
         services.AddSingleton<BatchPreviewService>();
         services.AddSingleton<SyncPlanner>();
         services.AddTransient<MainForm>();

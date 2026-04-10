@@ -6,13 +6,17 @@ public class BatchPreviewForm : Form
 {
     private readonly List<Media> _medias;
     private readonly BatchPreviewService _service;
+    private readonly CoverGenerator _coverGenerator;
     private bool _hasSuccess;
 
     private readonly RadioButton _uiFromSourceRadio;
     private readonly RadioButton _uiFromFileRadio;
+    private readonly RadioButton _uiFromTemplateRadio;
     private readonly ComboBox _uiDonorComboBox;
     private readonly TextBox _uiFilePathTextBox;
     private readonly Button _uiBrowseButton;
+    private readonly Button _uiTemplateButton;
+    private readonly Label _uiTemplateStateLabel;
     private readonly CheckedListBox _uiTargetsListBox;
     private readonly DataGridView _uiResultGrid;
     private readonly Button _uiApplyButton;
@@ -20,11 +24,13 @@ public class BatchPreviewForm : Form
 
     private List<Source> _donors = [];
     private List<Source> _targets = [];
+    private CoverTemplate? _coverTemplate;
 
-    public BatchPreviewForm(List<Media> medias, BatchPreviewService service)
+    public BatchPreviewForm(List<Media> medias, BatchPreviewService service, CoverGenerator coverGenerator)
     {
         _medias = medias;
         _service = service;
+        _coverGenerator = coverGenerator;
 
         Text = $"Обновление превью ({medias.Count} видео)";
         Size = new(750, 550);
@@ -68,7 +74,7 @@ public class BatchPreviewForm : Form
             Dock = DockStyle.Fill,
             AutoSize = true,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
         };
 
         var donorLayout = new FlowLayoutPanel
@@ -127,8 +133,44 @@ public class BatchPreviewForm : Form
         fileLayout.Controls.Add(_uiFilePathTextBox);
         fileLayout.Controls.Add(_uiBrowseButton);
 
+        var templateLayout = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+        };
+
+        _uiFromTemplateRadio = new()
+        {
+            Text = "Из шаблона:",
+            AutoSize = true,
+        };
+
+        _uiTemplateButton = new()
+        {
+            Text = "Настроить...",
+            AutoSize = true,
+        };
+
+        _uiTemplateButton.Click += (_, _) => OpenTemplateEditor();
+
+        _uiTemplateStateLabel = new()
+        {
+            Text = "не настроен",
+            AutoSize = true,
+            ForeColor = Color.Gray,
+            Anchor = AnchorStyles.Left,
+            Margin = new(6, 6, 0, 0),
+        };
+
+        templateLayout.Controls.Add(_uiFromTemplateRadio);
+        templateLayout.Controls.Add(_uiTemplateButton);
+        templateLayout.Controls.Add(_uiTemplateStateLabel);
+
         sourcePanelLayout.Controls.Add(donorLayout, 0, 0);
         sourcePanelLayout.Controls.Add(fileLayout, 0, 1);
+        sourcePanelLayout.Controls.Add(templateLayout, 0, 2);
         sourcePanel.Controls.Add(sourcePanelLayout);
 
         topLayout.Controls.Add(sourcePanel, 0, 0);
@@ -218,21 +260,37 @@ public class BatchPreviewForm : Form
 
         _uiFromSourceRadio.CheckedChanged += (_, _) =>
         {
-            if (_uiFromSourceRadio.Checked)
+            if (!_uiFromSourceRadio.Checked)
             {
-                _uiFromFileRadio.Checked = false;
+                return;
             }
 
+            _uiFromFileRadio.Checked = false;
+            _uiFromTemplateRadio.Checked = false;
             OnModeChanged();
         };
 
         _uiFromFileRadio.CheckedChanged += (_, _) =>
         {
-            if (_uiFromFileRadio.Checked)
+            if (!_uiFromFileRadio.Checked)
             {
-                _uiFromSourceRadio.Checked = false;
+                return;
             }
 
+            _uiFromSourceRadio.Checked = false;
+            _uiFromTemplateRadio.Checked = false;
+            OnModeChanged();
+        };
+
+        _uiFromTemplateRadio.CheckedChanged += (_, _) =>
+        {
+            if (!_uiFromTemplateRadio.Checked)
+            {
+                return;
+            }
+
+            _uiFromSourceRadio.Checked = false;
+            _uiFromFileRadio.Checked = false;
             OnModeChanged();
         };
 
@@ -303,14 +361,27 @@ public class BatchPreviewForm : Form
             }
         }
 
-        var hasSource = _uiFromSourceRadio.Checked
-            ? _uiDonorComboBox.SelectedIndex >= 0
-            : !string.IsNullOrEmpty(_uiFilePathTextBox.Text);
+        var hasSource = HasSelectedSource();
 
         _uiApplyButton.Enabled = hasSource && _uiResultGrid.Rows.Count > 0;
         _uiStatusLabel.Text = _uiResultGrid.Rows.Count > 0
             ? $"Запланировано: {_uiResultGrid.Rows.Count}"
             : "";
+    }
+
+    private bool HasSelectedSource()
+    {
+        if (_uiFromSourceRadio.Checked)
+        {
+            return _uiDonorComboBox.SelectedIndex >= 0;
+        }
+
+        if (_uiFromFileRadio.Checked)
+        {
+            return !string.IsNullOrEmpty(_uiFilePathTextBox.Text);
+        }
+
+        return _uiFromTemplateRadio.Checked && _coverTemplate != null;
     }
 
     private static string RowKey(string mediaId, string sourceId)
@@ -355,6 +426,8 @@ public class BatchPreviewForm : Form
         _uiFilePathTextBox.Enabled = _uiFromFileRadio.Checked;
         _uiBrowseButton.Enabled = _uiFromFileRadio.Checked;
 
+        _uiTemplateButton.Enabled = _uiFromTemplateRadio.Checked;
+
         if (_uiFromSourceRadio.Checked)
         {
             OnDonorChanged();
@@ -363,6 +436,21 @@ public class BatchPreviewForm : Form
         {
             PopulateTargets(null);
         }
+    }
+
+    private void OpenTemplateEditor()
+    {
+        using var form = new CoverTemplateForm(_coverGenerator, _coverTemplate);
+
+        if (form.ShowDialog(this) != DialogResult.OK || form.Result == null)
+        {
+            return;
+        }
+
+        _coverTemplate = form.Result;
+        _uiTemplateStateLabel.Text = $"OK (стартовый № {_coverTemplate.StartNumber})";
+        _uiTemplateStateLabel.ForeColor = Color.DarkGreen;
+        UpdatePreview();
     }
 
     private void OnDonorChanged()
@@ -411,14 +499,17 @@ public class BatchPreviewForm : Form
     {
         var donor = _uiFromSourceRadio.Checked ? GetSelectedDonor() : null;
         var localFilePath = _uiFromFileRadio.Checked ? _uiFilePathTextBox.Text : null;
+        var coverTemplate = _uiFromTemplateRadio.Checked ? _coverTemplate : null;
         var targets = GetSelectedTargets();
 
         _uiApplyButton.Enabled = false;
         _uiFromSourceRadio.Enabled = false;
         _uiFromFileRadio.Enabled = false;
+        _uiFromTemplateRadio.Enabled = false;
         _uiDonorComboBox.Enabled = false;
         _uiFilePathTextBox.Enabled = false;
         _uiBrowseButton.Enabled = false;
+        _uiTemplateButton.Enabled = false;
         _uiTargetsListBox.Enabled = false;
         _uiStatusLabel.Text = "Обновление превью...";
 
@@ -427,7 +518,7 @@ public class BatchPreviewForm : Form
             var progress = new Progress<BatchPreviewResult>(OnProgressReport);
 
             var results = await Task.Run(() =>
-                _service.ApplyAsync(_medias, donor, targets, localFilePath, progress, CancellationToken.None));
+                _service.ApplyAsync(_medias, donor, targets, localFilePath, coverTemplate, progress, CancellationToken.None));
 
             var successCount = results.Count(r => r.Success);
             var failCount = results.Count - successCount;
@@ -443,10 +534,12 @@ public class BatchPreviewForm : Form
         {
             _uiFromSourceRadio.Enabled = true;
             _uiFromFileRadio.Enabled = true;
+            _uiFromTemplateRadio.Enabled = true;
             _uiTargetsListBox.Enabled = true;
             _uiDonorComboBox.Enabled = _uiFromSourceRadio.Checked;
             _uiFilePathTextBox.Enabled = _uiFromFileRadio.Checked;
             _uiBrowseButton.Enabled = _uiFromFileRadio.Checked;
+            _uiTemplateButton.Enabled = _uiFromTemplateRadio.Checked;
             _uiApplyButton.Enabled = true;
         }
     }

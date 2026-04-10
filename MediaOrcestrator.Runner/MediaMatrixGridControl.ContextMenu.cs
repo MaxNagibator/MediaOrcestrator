@@ -581,7 +581,7 @@ public partial class MediaMatrixGridControl
 
     private void HandleBatchPreview(List<Media> selectedMedia)
     {
-        using var form = new BatchPreviewForm(selectedMedia, _batchPreviewService!);
+        using var form = new BatchPreviewForm(selectedMedia, _batchPreviewService!, _coverGenerator!);
 
         if (form.ShowDialog(this) == DialogResult.OK)
         {

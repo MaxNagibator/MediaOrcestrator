@@ -40,7 +40,8 @@ public partial class MainForm : Form
             _serviceProvider.GetRequiredService<ILogger<MediaMatrixGridControl>>(),
             _serviceProvider.GetRequiredService<SettingsManager>(),
             _serviceProvider.GetRequiredService<BatchRenameService>(),
-            _serviceProvider.GetRequiredService<BatchPreviewService>());
+            _serviceProvider.GetRequiredService<BatchPreviewService>(),
+            _serviceProvider.GetRequiredService<CoverGenerator>());
 
         uiMediaMatrixGridControl.RefreshData();
 

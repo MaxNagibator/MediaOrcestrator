@@ -5,7 +5,12 @@ namespace MediaOrcestrator.Domain;
 
 public sealed record BatchPreviewResult(Media Media, Source Target, bool Success, string? ErrorMessage = null);
 
-public sealed class BatchPreviewService(Orcestrator orcestrator, TempManager tempManager, ILogger<BatchPreviewService> logger, IHttpClientFactory httpClientFactory)
+public sealed class BatchPreviewService(
+    Orcestrator orcestrator,
+    TempManager tempManager,
+    ILogger<BatchPreviewService> logger,
+    IHttpClientFactory httpClientFactory,
+    CoverGenerator coverGenerator)
 {
     public List<Source> GetAvailableDonors(List<Media> medias)
     {
@@ -57,18 +62,21 @@ public sealed class BatchPreviewService(Orcestrator orcestrator, TempManager tem
         Source? donor,
         List<Source> targets,
         string? localFilePath,
+        CoverTemplate? coverTemplate,
         IProgress<BatchPreviewResult>? progress,
         CancellationToken cancellationToken)
     {
         var results = new List<BatchPreviewResult>();
         var tempFiles = new List<string>();
 
+        var context = new BatchContext(donor, targets, localFilePath, coverTemplate, tempFiles, results, progress);
+
         try
         {
-            foreach (var media in medias)
+            for (var i = 0; i < medias.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await ProcessMediaAsync(media, donor, targets, localFilePath, tempFiles, results, progress, cancellationToken);
+                await ProcessMediaAsync(medias[i], i, context, cancellationToken);
             }
         }
         finally
@@ -87,31 +95,31 @@ public sealed class BatchPreviewService(Orcestrator orcestrator, TempManager tem
 
     private async Task ProcessMediaAsync(
         Media media,
-        Source? donor,
-        List<Source> targets,
-        string? localFilePath,
-        List<string> tempFiles,
-        List<BatchPreviewResult> results,
-        IProgress<BatchPreviewResult>? progress,
+        int index,
+        BatchContext context,
         CancellationToken cancellationToken)
     {
         string? previewPath;
 
-        if (localFilePath != null)
+        if (context.CoverTemplate != null)
         {
-            previewPath = localFilePath;
+            previewPath = GenerateCoverPath(context.CoverTemplate, index, context.TempFiles);
         }
-        else if (donor != null)
+        else if (context.LocalFilePath != null)
         {
-            previewPath = await DownloadPreviewFromDonorAsync(media, donor, tempFiles, cancellationToken);
+            previewPath = context.LocalFilePath;
+        }
+        else if (context.Donor != null)
+        {
+            previewPath = await DownloadPreviewFromDonorAsync(media, context.Donor, context.TempFiles, cancellationToken);
 
             if (previewPath == null)
             {
-                foreach (var target in targets)
+                foreach (var target in context.Targets)
                 {
                     var failure = new BatchPreviewResult(media, target, false, "Превью не найдено в источнике-доноре");
-                    results.Add(failure);
-                    progress?.Report(failure);
+                    context.Results.Add(failure);
+                    context.Progress?.Report(failure);
                 }
 
                 return;
@@ -122,12 +130,22 @@ public sealed class BatchPreviewService(Orcestrator orcestrator, TempManager tem
             return;
         }
 
-        foreach (var target in targets)
+        foreach (var target in context.Targets)
         {
             var result = await UploadPreviewToTargetAsync(media, target, previewPath, cancellationToken);
-            results.Add(result);
-            progress?.Report(result);
+            context.Results.Add(result);
+            context.Progress?.Report(result);
         }
+    }
+
+    private string GenerateCoverPath(CoverTemplate template, int index, List<string> tempFiles)
+    {
+        var number = template.StartNumber + index;
+        var tempDir = Path.Combine(tempManager.TempPath, Guid.NewGuid().ToString());
+        var coverPath = coverGenerator.Generate(template, number, tempDir);
+        tempFiles.Add(tempDir);
+        tempFiles.Add(coverPath);
+        return coverPath;
     }
 
     private void CleanupTempFiles(List<string> tempFiles)
@@ -256,4 +274,13 @@ public sealed class BatchPreviewService(Orcestrator orcestrator, TempManager tem
             return new(media, target, false, ex.Message);
         }
     }
+
+    private sealed record BatchContext(
+        Source? Donor,
+        List<Source> Targets,
+        string? LocalFilePath,
+        CoverTemplate? CoverTemplate,
+        List<string> TempFiles,
+        List<BatchPreviewResult> Results,
+        IProgress<BatchPreviewResult>? Progress);
 }
