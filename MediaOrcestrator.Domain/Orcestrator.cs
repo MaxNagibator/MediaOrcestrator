@@ -17,9 +17,10 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
         var sources = GetSourceTypes();
     }
 
-    public async Task GetStorageFullInfo(bool isFull, Source? filterSource = null, bool onlyNew = false)
+    public async Task GetStorageFullInfo(bool isFull, Source? filterSource = null, bool onlyNew = false, IProgress<string>? progress = null)
     {
         logger.LogInformation("Запуск процесса синхронизации {Source}...", filterSource?.TitleFull);
+        progress?.Report(filterSource != null ? $"Запуск синхронизации «{filterSource.TitleFull}»" : "Запуск полной синхронизации");
 
         var mediaCol = db.GetCollection<Media>("medias");
         //mediaCol.DeleteAll();
@@ -45,6 +46,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
         }
 
         logger.LogInformation("Обнаружено {Count} элементов медиа в локальном кэше.", mediaAll.Count);
+        progress?.Report($"Загружено {mediaAll.Count} медиа из кэша");
 
         var sourceTypes = GetSourceTypes();
         var sources = GetSources();
@@ -61,15 +63,22 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
             if (plugin == null)
             {
                 logger.LogError("Плагин для типа {TypeId} не найден.", mediaSource.TypeId);
+                progress?.Report($"Плагин для {mediaSource.TypeId} не найден");
                 return;
             }
 
+            progress?.Report($"Сбор медиа из «{mediaSource.TitleFull}»...");
             var syncMedia = plugin.GetMedia(mediaSource.Settings, isFull, cancellationToken);
             var mediaList = new List<MediaDto>();
             var foundIds = new List<string>();
             await foreach (var s in syncMedia)
             {
                 foundIds.Add(s.Id);
+                if (foundIds.Count % 25 == 0)
+                {
+                    progress?.Report($"«{mediaSource.TitleFull}»: получено {foundIds.Count}");
+                }
+
                 var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.ExternalId == s.Id);
                 if (foundMediaSource == null)
                 {
@@ -93,6 +102,7 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
                         providedKeys.Add(item.Key);
                         var existing = foundMediaSource.Media.Metadata
                             .FirstOrDefault(m => m.Key == item.Key && m.SourceId == mediaSource.Id);
+
                         if (existing != null)
                         {
                             existing.Value = item.Value;
@@ -108,14 +118,16 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
 
                     foundMediaSource.Media.Metadata
                         .RemoveAll(m => m.SourceId == mediaSource.Id && !providedKeys.Contains(m.Key));
+
                     hasChange = true;
                 }
-                if (foundMediaSource.Status == MediaStatus.Missing
-                    || foundMediaSource.Status == MediaStatus.Error)
+
+                if (foundMediaSource.Status is MediaStatus.Missing or MediaStatus.Error)
                 {
                     foundMediaSource.Status = MediaStatus.Ok;
                     hasChange = true;
                 }
+
                 if (hasChange)
                 {
                     mediaCol.Update(foundMediaSource!.Media);
@@ -178,9 +190,18 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
                     logger.LogWarning("Пропуск пометки «пропало» для источника {Source}: список полученных элементов пуст", mediaSource.TitleFull);
                 }
             }
+
+            var sourcesCol = db.GetCollection<Source>("sources");
+            var dbSource = sourcesCol.FindById(mediaSource.Id);
+            if (dbSource != null)
+            {
+                dbSource.LastSyncedAt = DateTime.UtcNow;
+                sourcesCol.Update(dbSource);
+            }
         });
 
         logger.LogInformation("Синхронизация успешно завершена.");
+        progress?.Report("Синхронизация завершена");
     }
 
     public List<Media> GetMedias()

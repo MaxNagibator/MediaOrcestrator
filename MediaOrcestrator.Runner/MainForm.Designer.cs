@@ -44,13 +44,19 @@
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiAuditTabPage = new TabPage();
-            uiSyncSourcePanel = new FlowLayoutPanel();
+            uiAuditSyncHeaderLabel = new Label();
+            uiAuditBulkPanel = new Panel();
+            uiBulkSourcesLabel = new Label();
+            uiSyncButton = new Button();
             uiQuickSyncButton = new Button();
+            uiSyncNewButton = new Button();
+            uiBulkProgressLabel = new Label();
+            uiAuditSourcesPanel = new FlowLayoutPanel();
+            uiAuditMaintenanceHeaderLabel = new Label();
             uiClearSpecificTypeButton = new Button();
             uiClearTypeComboBox = new ComboBox();
             uiClearDatabaseButton = new Button();
             uiForceScanButton = new Button();
-            uiSyncButton = new Button();
             uiSyncTreeTabPage = new TabPage();
             uiSyncTreeControl = new SyncTreeControl();
             uiLogsTabPage = new TabPage();
@@ -66,13 +72,13 @@
             uiRubuteAuthStateOpenBrowserButton = new Button();
             uiManageToolsButton = new Button();
             uiCheckUpdatesButton = new Button();
-            uiSyncNewButton = new Button();
             uiAuditToolTip = new ToolTip();
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
             uiRelationsTabPage.SuspendLayout();
             uiAuditTabPage.SuspendLayout();
+            uiAuditBulkPanel.SuspendLayout();
             uiSyncTreeTabPage.SuspendLayout();
             uiToolsTabPage.SuspendLayout();
             groupBox3.SuspendLayout();
@@ -230,17 +236,17 @@
             uiRelationsTabPage.TabIndex = 2;
             uiRelationsTabPage.Text = "Связи";
             uiRelationsTabPage.UseVisualStyleBackColor = true;
-            // 
+            //
             // uiAuditTabPage
-            // 
-            uiAuditTabPage.Controls.Add(uiSyncNewButton);
-            uiAuditTabPage.Controls.Add(uiSyncSourcePanel);
-            uiAuditTabPage.Controls.Add(uiQuickSyncButton);
-            uiAuditTabPage.Controls.Add(uiClearSpecificTypeButton);
-            uiAuditTabPage.Controls.Add(uiClearTypeComboBox);
+            //
+            uiAuditTabPage.Controls.Add(uiAuditSyncHeaderLabel);
+            uiAuditTabPage.Controls.Add(uiAuditBulkPanel);
+            uiAuditTabPage.Controls.Add(uiAuditSourcesPanel);
+            uiAuditTabPage.Controls.Add(uiAuditMaintenanceHeaderLabel);
             uiAuditTabPage.Controls.Add(uiClearDatabaseButton);
+            uiAuditTabPage.Controls.Add(uiClearTypeComboBox);
+            uiAuditTabPage.Controls.Add(uiClearSpecificTypeButton);
             uiAuditTabPage.Controls.Add(uiForceScanButton);
-            uiAuditTabPage.Controls.Add(uiSyncButton);
             uiAuditTabPage.Location = new Point(4, 24);
             uiAuditTabPage.Name = "uiAuditTabPage";
             uiAuditTabPage.Size = new Size(1208, 753);
@@ -248,86 +254,150 @@
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
             //
-            // uiSyncSourcePanel
+            // uiAuditSyncHeaderLabel
             //
-            uiSyncSourcePanel.AutoSize = true;
-            uiSyncSourcePanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            uiSyncSourcePanel.FlowDirection = FlowDirection.TopDown;
-            uiSyncSourcePanel.Location = new Point(6, 157);
-            uiSyncSourcePanel.Name = "uiSyncSourcePanel";
-            uiSyncSourcePanel.Size = new Size(269, 110);
-            uiSyncSourcePanel.TabIndex = 7;
-            // 
-            // uiQuickSyncButton
-            // 
-            uiQuickSyncButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiQuickSyncButton.Location = new Point(281, 195);
-            uiQuickSyncButton.Name = "uiQuickSyncButton";
-            uiQuickSyncButton.Size = new Size(348, 32);
-            uiQuickSyncButton.TabIndex = 6;
-            uiQuickSyncButton.Text = "Быстрая синхронизация";
-            uiQuickSyncButton.UseVisualStyleBackColor = true;
-            uiQuickSyncButton.Click += uiQuickSyncButton_Click;
-            // 
-            // uiClearSpecificTypeButton
-            // 
-            uiClearSpecificTypeButton.Location = new Point(511, 354);
-            uiClearSpecificTypeButton.Name = "uiClearSpecificTypeButton";
-            uiClearSpecificTypeButton.Size = new Size(118, 23);
-            uiClearSpecificTypeButton.TabIndex = 5;
-            uiClearSpecificTypeButton.Text = "Очистить тип";
-            uiClearSpecificTypeButton.UseVisualStyleBackColor = true;
-            uiClearSpecificTypeButton.Click += uiClearSpecificTypeButton_Click;
-            // 
-            // uiClearTypeComboBox
-            // 
-            uiClearTypeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            uiClearTypeComboBox.FormattingEnabled = true;
-            uiClearTypeComboBox.Items.AddRange(new object[] { "medias", "sources", "source_relations" });
-            uiClearTypeComboBox.Location = new Point(281, 354);
-            uiClearTypeComboBox.Name = "uiClearTypeComboBox";
-            uiClearTypeComboBox.Size = new Size(224, 23);
-            uiClearTypeComboBox.TabIndex = 4;
-            // 
-            // uiClearDatabaseButton
-            // 
-            uiClearDatabaseButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiClearDatabaseButton.Location = new Point(281, 305);
-            uiClearDatabaseButton.Name = "uiClearDatabaseButton";
-            uiClearDatabaseButton.Size = new Size(348, 32);
-            uiClearDatabaseButton.TabIndex = 3;
-            uiClearDatabaseButton.Text = "Очистить базу данных";
-            uiClearDatabaseButton.UseVisualStyleBackColor = true;
-            uiClearDatabaseButton.Click += uiClearDatabaseButton_Click;
-            // 
-            // uiForceScanButton
-            // 
-            uiForceScanButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiForceScanButton.Location = new Point(265, 473);
-            uiForceScanButton.Name = "uiForceScanButton";
-            uiForceScanButton.Size = new Size(348, 32);
-            uiForceScanButton.TabIndex = 2;
-            uiForceScanButton.Text = "Принудительное сканирование";
-            uiForceScanButton.UseVisualStyleBackColor = true;
-            uiForceScanButton.Click += uiForceScanButton_Click;
-            // 
+            uiAuditSyncHeaderLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiAuditSyncHeaderLabel.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            uiAuditSyncHeaderLabel.Location = new Point(6, 6);
+            uiAuditSyncHeaderLabel.Name = "uiAuditSyncHeaderLabel";
+            uiAuditSyncHeaderLabel.Size = new Size(1196, 20);
+            uiAuditSyncHeaderLabel.TabIndex = 0;
+            uiAuditSyncHeaderLabel.Text = "Синхронизация по источникам";
+            //
+            // uiAuditBulkPanel привет что делал до того как я написал
+            //
+            uiAuditBulkPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiAuditBulkPanel.Controls.Add(uiBulkSourcesLabel);
+            uiAuditBulkPanel.Controls.Add(uiSyncButton);
+            uiAuditBulkPanel.Controls.Add(uiQuickSyncButton);
+            uiAuditBulkPanel.Controls.Add(uiSyncNewButton);
+            uiAuditBulkPanel.Controls.Add(uiBulkProgressLabel);
+            uiAuditBulkPanel.Location = new Point(6, 30);
+            uiAuditBulkPanel.Name = "uiAuditBulkPanel";
+            uiAuditBulkPanel.Size = new Size(1196, 40);
+            uiAuditBulkPanel.TabIndex = 1;
+            //
+            // uiBulkSourcesLabel
+            //
+            uiBulkSourcesLabel.AutoSize = true;
+            uiBulkSourcesLabel.Location = new Point(6, 11);
+            uiBulkSourcesLabel.Name = "uiBulkSourcesLabel";
+            uiBulkSourcesLabel.Size = new Size(95, 15);
+            uiBulkSourcesLabel.TabIndex = 0;
+            uiBulkSourcesLabel.Text = "Все источники:";
+            //
             // uiSyncButton
-            // 
-            uiSyncButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiSyncButton.Location = new Point(281, 157);
+            //
+            uiSyncButton.Location = new Point(110, 6);
             uiSyncButton.Name = "uiSyncButton";
-            uiSyncButton.Size = new Size(348, 32);
+            uiSyncButton.Size = new Size(130, 28);
             uiSyncButton.TabIndex = 1;
-            uiSyncButton.Text = "Полная синхронизация";
+            uiSyncButton.Text = "Полная";
             uiSyncButton.UseVisualStyleBackColor = true;
             uiSyncButton.Click += uiSyncButton_Click;
             //
+            // uiQuickSyncButton
+            //
+            uiQuickSyncButton.Location = new Point(244, 6);
+            uiQuickSyncButton.Name = "uiQuickSyncButton";
+            uiQuickSyncButton.Size = new Size(130, 28);
+            uiQuickSyncButton.TabIndex = 2;
+            uiQuickSyncButton.Text = "Быстрая";
+            uiQuickSyncButton.UseVisualStyleBackColor = true;
+            uiQuickSyncButton.Click += uiQuickSyncButton_Click;
+            //
+            // uiSyncNewButton
+            //
+            uiSyncNewButton.Location = new Point(378, 6);
+            uiSyncNewButton.Name = "uiSyncNewButton";
+            uiSyncNewButton.Size = new Size(130, 28);
+            uiSyncNewButton.TabIndex = 3;
+            uiSyncNewButton.Text = "Новые";
+            uiSyncNewButton.UseVisualStyleBackColor = true;
+            uiSyncNewButton.Click += uiSyncNewButton_Click;
+            //
+            // uiBulkProgressLabel
+            //
+            uiBulkProgressLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiBulkProgressLabel.AutoEllipsis = true;
+            uiBulkProgressLabel.ForeColor = Color.DimGray;
+            uiBulkProgressLabel.Location = new Point(514, 11);
+            uiBulkProgressLabel.Name = "uiBulkProgressLabel";
+            uiBulkProgressLabel.Size = new Size(676, 18);
+            uiBulkProgressLabel.TabIndex = 4;
+            uiBulkProgressLabel.Text = "—";
+            //
+            // uiAuditSourcesPanel
+            //
+            uiAuditSourcesPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            uiAuditSourcesPanel.AutoScroll = true;
+            uiAuditSourcesPanel.BorderStyle = BorderStyle.FixedSingle;
+            uiAuditSourcesPanel.FlowDirection = FlowDirection.TopDown;
+            uiAuditSourcesPanel.Location = new Point(6, 76);
+            uiAuditSourcesPanel.Name = "uiAuditSourcesPanel";
+            uiAuditSourcesPanel.Size = new Size(1196, 466);
+            uiAuditSourcesPanel.TabIndex = 2;
+            uiAuditSourcesPanel.WrapContents = false;
+            //
+            // uiAuditMaintenanceHeaderLabel
+            //
+            uiAuditMaintenanceHeaderLabel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            uiAuditMaintenanceHeaderLabel.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
+            uiAuditMaintenanceHeaderLabel.Location = new Point(6, 552);
+            uiAuditMaintenanceHeaderLabel.Name = "uiAuditMaintenanceHeaderLabel";
+            uiAuditMaintenanceHeaderLabel.Size = new Size(1196, 20);
+            uiAuditMaintenanceHeaderLabel.TabIndex = 3;
+            uiAuditMaintenanceHeaderLabel.Text = "Обслуживание";
+            //
+            // uiClearDatabaseButton
+            //
+            uiClearDatabaseButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            uiClearDatabaseButton.Location = new Point(6, 576);
+            uiClearDatabaseButton.Name = "uiClearDatabaseButton";
+            uiClearDatabaseButton.Size = new Size(220, 30);
+            uiClearDatabaseButton.TabIndex = 4;
+            uiClearDatabaseButton.Text = "Очистить базу данных";
+            uiClearDatabaseButton.UseVisualStyleBackColor = true;
+            uiClearDatabaseButton.Click += uiClearDatabaseButton_Click;
+            //
+            // uiClearTypeComboBox
+            //
+            uiClearTypeComboBox.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            uiClearTypeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiClearTypeComboBox.FormattingEnabled = true;
+            uiClearTypeComboBox.Items.AddRange(new object[] { "medias", "sources", "source_relations" });
+            uiClearTypeComboBox.Location = new Point(232, 580);
+            uiClearTypeComboBox.Name = "uiClearTypeComboBox";
+            uiClearTypeComboBox.Size = new Size(180, 23);
+            uiClearTypeComboBox.TabIndex = 5;
+            //
+            // uiClearSpecificTypeButton
+            //
+            uiClearSpecificTypeButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            uiClearSpecificTypeButton.Location = new Point(418, 576);
+            uiClearSpecificTypeButton.Name = "uiClearSpecificTypeButton";
+            uiClearSpecificTypeButton.Size = new Size(140, 30);
+            uiClearSpecificTypeButton.TabIndex = 6;
+            uiClearSpecificTypeButton.Text = "Очистить тип";
+            uiClearSpecificTypeButton.UseVisualStyleBackColor = true;
+            uiClearSpecificTypeButton.Click += uiClearSpecificTypeButton_Click;
+            //
+            // uiForceScanButton
+            //
+            uiForceScanButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            uiForceScanButton.Location = new Point(564, 576);
+            uiForceScanButton.Name = "uiForceScanButton";
+            uiForceScanButton.Size = new Size(220, 30);
+            uiForceScanButton.TabIndex = 7;
+            uiForceScanButton.Text = "Принудительное сканирование";
+            uiForceScanButton.UseVisualStyleBackColor = true;
+            uiForceScanButton.Click += uiForceScanButton_Click;
+            //
             // uiAuditToolTip
             //
-            uiAuditToolTip.SetToolTip(uiSyncButton, "Полное перечитывание всех медиа из всех источников");
-            uiAuditToolTip.SetToolTip(uiQuickSyncButton, "Загружает список медиа без метаданных.\nМожно выбрать конкретный источник кнопкой слева.");
-            uiAuditToolTip.SetToolTip(uiSyncNewButton, "Синхронизирует до первого уже известного медиа.\nМожно выбрать конкретный источник кнопкой слева.");
-            uiAuditToolTip.SetToolTip(uiSyncSourcePanel, "Выберите источник для синхронизации.\nЕсли ничего не выбрано — синхронизируются все.");
+            uiAuditToolTip.SetToolTip(uiSyncButton, "Полная синхронизация по всем источникам");
+            uiAuditToolTip.SetToolTip(uiQuickSyncButton, "Загружает список медиа без метаданных по всем источникам");
+            uiAuditToolTip.SetToolTip(uiSyncNewButton, "Синхронизирует до первого уже известного медиа по всем источникам");
             uiAuditToolTip.SetToolTip(uiClearDatabaseButton, "Удаляет все данные из базы. Операция необратима!");
             uiAuditToolTip.SetToolTip(uiClearSpecificTypeButton, "Удаляет все записи выбранного типа коллекции из базы данных");
             uiAuditToolTip.SetToolTip(uiForceScanButton, "Отладочная функция принудительного сканирования");
@@ -480,20 +550,9 @@
             uiCheckUpdatesButton.Text = "Проверить обновления";
             uiCheckUpdatesButton.UseVisualStyleBackColor = true;
             uiCheckUpdatesButton.Click += uiCheckUpdatesButton_Click;
-            // 
-            // uiSyncNewButton
-            // 
-            uiSyncNewButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiSyncNewButton.Location = new Point(281, 233);
-            uiSyncNewButton.Name = "uiSyncNewButton";
-            uiSyncNewButton.Size = new Size(348, 32);
-            uiSyncNewButton.TabIndex = 8;
-            uiSyncNewButton.Text = "Синхронизация новых";
-            uiSyncNewButton.UseVisualStyleBackColor = true;
-            uiSyncNewButton.Click += uiSyncNewButton_Click;
-            // 
+            //
             // MainForm
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1240, 805);
@@ -508,6 +567,8 @@
             uiRelationsTabPage.ResumeLayout(false);
             uiRelationsTabPage.PerformLayout();
             uiAuditTabPage.ResumeLayout(false);
+            uiAuditBulkPanel.ResumeLayout(false);
+            uiAuditBulkPanel.PerformLayout();
             uiSyncTreeTabPage.ResumeLayout(false);
             uiToolsTabPage.ResumeLayout(false);
             groupBox3.ResumeLayout(false);
@@ -555,7 +616,12 @@
         private TextBox uiVkVideoAuthStatePathTextBox;
         private Button uiVkVideoAuthStateOpenBrowserButton;
         private Button uiQuickSyncButton;
-        private FlowLayoutPanel uiSyncSourcePanel;
+        private FlowLayoutPanel uiAuditSourcesPanel;
+        private Panel uiAuditBulkPanel;
+        private Label uiAuditSyncHeaderLabel;
+        private Label uiAuditMaintenanceHeaderLabel;
+        private Label uiBulkSourcesLabel;
+        private Label uiBulkProgressLabel;
         private Button uiManageToolsButton;
         private Button uiCheckUpdatesButton;
         private Button uiSyncNewButton;

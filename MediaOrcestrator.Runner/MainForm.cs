@@ -12,6 +12,8 @@ public partial class MainForm : Form
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MainForm> _logger;
     private readonly AppUpdateManager _updateManager;
+    private readonly Dictionary<string, AuditSourceRow> _auditRows = new();
+    private bool _isSyncRunning;
 
     public MainForm(Orcestrator orcestrator, IServiceProvider serviceProvider, ILogger<MainForm> logger, RichTextBox logControl, AppUpdateManager updateManager)
     {
@@ -27,6 +29,7 @@ public partial class MainForm : Form
     private void MainForm_Load(object sender, EventArgs e)
     {
         Text = $"Медиа оркестратор v{_updateManager.CurrentVersion}";
+        uiAuditSourcesPanel.SizeChanged += (_, _) => ResizeAuditRows();
         DrawSources();
         DrawRelations();
         // TODO: SetZalupaV2
@@ -52,17 +55,22 @@ public partial class MainForm : Form
 
     private async void uiSyncButton_Click(object sender, EventArgs e)
     {
-        await RunSyncAsync("Пользователь нажал кнопку полной синхронизации.", true);
+        await RunSyncAsync(null, AuditSyncMode.Full);
     }
 
     private async void uiQuickSyncButton_Click(object sender, EventArgs e)
     {
-        await RunSyncAsync("Пользователь нажал кнопку быстрой синхронизации.", false, GetSelectedSyncSource());
+        await RunSyncAsync(null, AuditSyncMode.Quick);
     }
 
     private async void uiSyncNewButton_Click(object sender, EventArgs e)
     {
-        await RunSyncAsync("Пользователь нажал кнопку синхронизации новых.", false, GetSelectedSyncSource(), true);
+        await RunSyncAsync(null, AuditSyncMode.New);
+    }
+
+    private async void OnAuditRowSyncRequested(object? sender, AuditSyncRequestedEventArgs e)
+    {
+        await RunSyncAsync(e.Source, e.Mode);
     }
 
     private void uiAddSourceButton_Click(object sender, EventArgs e)
@@ -232,38 +240,105 @@ public partial class MainForm : Form
         CheckAppUpdateInBackground();
     }
 
-    private Source? GetSelectedSyncSource()
+    private async Task RunSyncAsync(Source? filterSource, AuditSyncMode mode)
     {
-        foreach (var control in uiSyncSourcePanel.Controls)
+        if (_isSyncRunning)
         {
-            if (control is CheckBox { Checked: true, Tag: Source source })
-            {
-                return source;
-            }
+            return;
         }
 
-        return null;
-    }
+        var (isFull, onlyNew) = mode switch
+        {
+            AuditSyncMode.Full => (true, false),
+            AuditSyncMode.Quick => (false, false),
+            AuditSyncMode.New => (false, true),
+            _ => (false, false),
+        };
 
-    private async Task RunSyncAsync(string logMessage, bool isFull, Source? filterSource = null, bool onlyNew = false)
-    {
-        _logger.LogInformation(logMessage);
-        uiSyncButton.Enabled = false;
+        var modeName = mode switch
+        {
+            AuditSyncMode.Full => "полной",
+            AuditSyncMode.Quick => "быстрой",
+            AuditSyncMode.New => "новых",
+            _ => "",
+        };
+
+        var scope = filterSource != null ? $"источника «{filterSource.TitleFull}»" : "всех источников";
+        _logger.LogInformation("Запуск {Mode} синхронизации {Scope}.", modeName, scope);
+
+        _isSyncRunning = true;
+        SetAllSyncControlsBusy(true);
+
+        var targetRow = filterSource != null && _auditRows.TryGetValue(filterSource.Id, out var row) ? row : null;
+        targetRow?.ReportProgress("Старт...");
+        if (targetRow == null)
+        {
+            uiBulkProgressLabel.Text = "Старт...";
+        }
+
+        var progress = new Progress<string>(message =>
+        {
+            if (targetRow != null)
+            {
+                targetRow.ReportProgress(message);
+            }
+            else
+            {
+                uiBulkProgressLabel.Text = message;
+            }
+        });
+
         try
         {
-            await _orcestrator.GetStorageFullInfo(isFull, filterSource, onlyNew);
+            await _orcestrator.GetStorageFullInfo(isFull, filterSource, onlyNew, progress);
             _logger.LogInformation("Синхронизация через UI завершена.");
-            DrawSources();
             uiMediaMatrixGridControl.RefreshData();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Ошибка при синхронизации через UI.");
+            if (targetRow != null)
+            {
+                targetRow.ReportProgress($"Ошибка: {ex.Message}");
+            }
+            else
+            {
+                uiBulkProgressLabel.Text = $"Ошибка: {ex.Message}";
+            }
+
             MessageBox.Show($"Ошибка при синхронизации: {ex.Message}");
         }
         finally
         {
-            uiSyncButton.Enabled = true;
+            _isSyncRunning = false;
+            SetAllSyncControlsBusy(false);
+            DrawSources();
+        }
+    }
+
+    private void SetAllSyncControlsBusy(bool busy)
+    {
+        uiSyncButton.Enabled = !busy;
+        uiQuickSyncButton.Enabled = !busy;
+        uiSyncNewButton.Enabled = !busy;
+
+        foreach (var row in _auditRows.Values)
+        {
+            row.SetBusy(busy);
+        }
+    }
+
+    private void ResizeAuditRows()
+    {
+        var width = uiAuditSourcesPanel.ClientSize.Width - 6;
+        if (width <= 0)
+        {
+            return;
+        }
+
+        foreach (var row in _auditRows.Values)
+        {
+            row.Width = width;
         }
     }
 
@@ -342,7 +417,8 @@ public partial class MainForm : Form
     {
         uiRelationFromComboBox.Items.Clear();
         uiRelationToComboBox.Items.Clear();
-        uiSyncSourcePanel.Controls.Clear();
+        uiAuditSourcesPanel.Controls.Clear();
+        _auditRows.Clear();
         uiRelationFromComboBox.DisplayMember = "TitleFull";
         uiRelationToComboBox.DisplayMember = "TitleFull";
 
@@ -381,31 +457,18 @@ public partial class MainForm : Form
             uiRelationFromComboBox.Items.Add(source);
             uiRelationToComboBox.Items.Add(source);
 
-            var toggle = new CheckBox
+            var row = new AuditSourceRow
             {
-                Text = source.TitleFull,
-                Tag = source,
-                //Appearance = Appearance.Button,
-                AutoSize = true,
-                MinimumSize = new(120, 28),
-                TextAlign = ContentAlignment.MiddleCenter,
+                Width = uiAuditSourcesPanel.ClientSize.Width - 6,
+                Margin = new(3),
             };
 
-            toggle.CheckedChanged += (s, _) =>
-            {
-                if (s is CheckBox { Checked: true } clicked)
-                {
-                    foreach (var other in uiSyncSourcePanel.Controls.OfType<CheckBox>())
-                    {
-                        if (other != clicked)
-                        {
-                            other.Checked = false;
-                        }
-                    }
-                }
-            };
+            row.SetSource(source);
+            row.SetBusy(_isSyncRunning);
+            row.SyncRequested += OnAuditRowSyncRequested;
 
-            uiSyncSourcePanel.Controls.Add(toggle);
+            uiAuditSourcesPanel.Controls.Add(row);
+            _auditRows[source.Id] = row;
         }
 
         DrawRelations();

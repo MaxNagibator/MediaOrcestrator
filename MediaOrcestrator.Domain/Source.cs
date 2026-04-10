@@ -12,6 +12,8 @@ public class Source
     public string TypeId { get; set; }
     public Dictionary<string, string> Settings { get; set; }
 
+    public DateTime? LastSyncedAt { get; set; }
+
     public string Title => Settings.GetValueOrDefault("_system_name", "<noname>");
 
     public string TitleFull => Title + " (" + TypeId + ")";
