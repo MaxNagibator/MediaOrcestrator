@@ -385,7 +385,7 @@ public partial class MainForm : Form
             {
                 Text = source.TitleFull,
                 Tag = source,
-                Appearance = Appearance.Button,
+                //Appearance = Appearance.Button,
                 AutoSize = true,
                 MinimumSize = new(120, 28),
                 TextAlign = ContentAlignment.MiddleCenter,

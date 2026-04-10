@@ -1,12 +1,17 @@
 ﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace MediaOrcestrator.VkVideo;
 
-public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVideoService> serviceLogger) : ISourceType, IAuthenticatable
+public sealed class VkVideoChannel(
+    ILogger<VkVideoChannel> logger,
+    ILogger<VkVideoService> serviceLogger,
+    IToolPathProvider toolPathProvider)
+    : ISourceType, IAuthenticatable
 {
     private readonly SemaphoreSlim _serviceLock = new(1, 1);
     private VkVideoService? _cachedService;
@@ -66,60 +71,62 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
         return new($"https://vkvideo.ru/video{externalId}");
     }
 
-    // public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, bool isFull, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    // {
-    //     logger.LogInformation("Получение списка медиа для VkVideo");
-    //     var service = await CreateServiceAsync(settings);
-    //     var groupId = long.Parse(settings["group_id"]);
-    //
-    //     var (videos, sectionId, nextFrom) = await service.GetCatalogFirstPageAsync(groupId);
-    //
-    //     foreach (var video in videos)
-    //     {
-    //         yield return CreateMediaDto(video);
-    //     }
-    //
-    //     while (sectionId != null && nextFrom != null)
-    //     {
-    //         cancellationToken.ThrowIfCancellationRequested();
-    //
-    //         var (nextVideos, newNextFrom) = await service.GetCatalogNextPageAsync(sectionId, nextFrom);
-    //
-    //         foreach (var video in nextVideos)
-    //         {
-    //             yield return CreateMediaDto(video);
-    //         }
-    //
-    //         nextFrom = newNextFrom;
-    //     }
-    // }
-
-    // TODO: Альтернативный вариант. У меня оба вроде работают
     public async IAsyncEnumerable<MediaDto> GetMedia(Dictionary<string, string> settings, bool isFull, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        logger.LogInformation("Получение списка медиа для VkVideo");
-        var service = await CreateServiceAsync(settings);
-        var ownerId = -long.Parse(settings["group_id"]);
-
-        const int PageSize = 200;
-        var offset = 0;
-
-        while (true)
+        if (false)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            logger.LogInformation("Получение списка медиа для VkVideo");
+            var service = await CreateServiceAsync(settings);
+            var groupId = long.Parse(settings["group_id"]);
 
-            var response = await service.GetVideosAsync(ownerId, PageSize, offset);
+            var (videos, sectionId, nextFrom) = await service.GetCatalogFirstPageAsync(groupId);
 
-            foreach (var video in response.Items)
+            foreach (var video in videos)
             {
                 yield return CreateMediaDto(video);
             }
 
-            offset += response.Items.Count;
-
-            if (response.Items.Count < PageSize || offset >= response.Count)
+            while (sectionId != null && nextFrom != null)
             {
-                break;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var (nextVideos, newNextFrom) = await service.GetCatalogNextPageAsync(sectionId, nextFrom);
+
+                foreach (var video in nextVideos)
+                {
+                    yield return CreateMediaDto(video);
+                }
+
+                nextFrom = newNextFrom;
+            }
+        }
+        else
+        {
+            // TODO: Альтернативный вариант. У меня оба вроде работают
+            logger.LogInformation("Получение списка медиа для VkVideo");
+            var service = await CreateServiceAsync(settings);
+            var ownerId = -long.Parse(settings["group_id"]);
+
+            const int PageSize = 200;
+            var offset = 0;
+
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var response = await service.GetVideosAsync(ownerId, PageSize, offset);
+
+                foreach (var video in response.Items)
+                {
+                    yield return CreateMediaDto(video);
+                }
+
+                offset += response.Items.Count;
+
+                if (response.Items.Count < PageSize || offset >= response.Count)
+                {
+                    break;
+                }
             }
         }
     }
@@ -216,6 +223,12 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
             throw new FileNotFoundException("Файл видео не найден", filePath);
         }
 
+        var size = await GetVideoFrameSizeAsync(filePath, cancellationToken);
+        if (size == null)
+        {
+            throw new Exception("Не удалось определить размер кадра видео");
+        }
+
         var service = await CreateServiceAsync(settings);
         var groupId = long.Parse(settings["group_id"]);
         var fileExt = Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant();
@@ -246,9 +259,11 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
 
         try
         {
+            // todo поидее ещё и размер фаила надо проверять, но после первого инцидента будем
+            var isShorts = size.Width < size.Height;
             var uploadBytesPerSecond = SpeedLimitHelper.ParseUploadBytesPerSecond(settings);
-            var result = await service.UploadVideoAsync(groupId, filePath, media.Title, media.Description,
-                fileExt, publishAtUnix, uploadBytesPerSecond, cancellationToken);
+            var result = await service.UploadVideoAsync(isShorts, groupId, filePath, media.Title, media.Description,
+                fileExt, media.TempPreviewPath, publishAtUnix, uploadBytesPerSecond, cancellationToken);
 
             var externalId = $"{result.OwnerId}_{result.Id}";
             logger.LogInformation("Видео загружено на VK Video. ID: {ExternalId}", externalId);
@@ -270,6 +285,67 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
         }
     }
 
+    private async Task<Size?> GetVideoFrameSizeAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var ffprobePath = toolPathProvider.GetCompanionPath(WellKnownTools.FFmpeg, "ffprobe");
+
+        if (ffprobePath is null)
+        {
+            logger.LogWarning("Отсутствуе ffprobe для определения размера кадра");
+            return null;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = $"-v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 \"{filePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(psi);
+
+            if (process is null)
+            {
+                return null;
+            }
+
+            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0)
+            {
+                logger.LogWarning("ffprobe завершился с кодом {ExitCode} для файла: {FilePath}", process.ExitCode, filePath);
+                return null;
+            }
+
+            var split = output.Split('x');
+
+            var width = int.Parse(split[0]);
+            var heigth = int.Parse(split[1]);
+            return new Size { Width = width, Height = heigth };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Не удалось определить размер кадра видео через ffprobe: {FilePath}", filePath);
+            return null;
+        }
+    }
+
+    private class Size
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+
     public async Task<UploadResult> UpdateAsync(string externalId, MediaDto tempMedia, Dictionary<string, string> settings, CancellationToken cancellationToken)
     {
         logger.LogInformation("Обновление видео {ExternalId} на VK Video", externalId);
@@ -277,6 +353,11 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
         var service = await CreateServiceAsync(settings);
         var (ownerId, videoId) = ParseExternalId(externalId);
 
+        var size = await GetVideoFrameSizeAsync(tempMedia.DataPath, cancellationToken);
+        if (size == null)
+        {
+            throw new Exception("Не удалось определить размер кадра видео");
+        }
         var errorMessage = "";
 
         try
@@ -293,7 +374,8 @@ public sealed class VkVideoChannel(ILogger<VkVideoChannel> logger, ILogger<VkVid
         {
             try
             {
-                await service.UploadThumbnailAsync(ownerId, videoId, tempMedia.TempPreviewPath);
+                var isShorts = size.Width < size.Height;
+                await service.UploadThumbnailAsync(isShorts, ownerId, videoId, tempMedia.TempPreviewPath);
             }
             catch (Exception ex)
             {
