@@ -408,19 +408,51 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
 
     public void AddRelation(Source from, Source to)
     {
+        AddRelation(from.Id, to.Id);
+    }
+
+    public void AddRelation(string fromId, string toId)
+    {
         db.GetCollection<SourceSyncRelation>("source_relations")
             .Insert(new SourceSyncRelation
             {
-                FromId = from.Id,
-                ToId = to.Id,
+                FromId = fromId,
+                ToId = toId,
             });
     }
 
     public void RemoveRelation(Source from, Source to)
     {
-        // TODO: Подумать
+        RemoveRelation(from.Id, to.Id);
+    }
+
+    public void RemoveRelation(string fromId, string toId)
+    {
         db.GetCollection<SourceSyncRelation>("source_relations")
-            .DeleteMany(x => x.FromId == from.Id && x.ToId == to.Id);
+            .DeleteMany(x => x.FromId == fromId && x.ToId == toId);
+    }
+
+    public void InvertRelation(string fromId, string toId)
+    {
+        db.BeginTrans();
+
+        try
+        {
+            var collection = db.GetCollection<SourceSyncRelation>("source_relations");
+            collection.DeleteMany(x => x.FromId == fromId && x.ToId == toId);
+            collection.Insert(new SourceSyncRelation
+            {
+                FromId = toId,
+                ToId = fromId,
+            });
+
+            db.Commit();
+        }
+        catch
+        {
+            db.Rollback();
+            throw;
+        }
     }
 
     public void ClearCollection(string collectionName)

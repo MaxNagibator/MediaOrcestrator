@@ -43,6 +43,8 @@
             uiFilesTabPage = new TabPage();
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
+            uiRelationsGraphTabPage = new TabPage();
+            uiRelationsGraphControl = new RelationsGraphControl();
             uiAuditTabPage = new TabPage();
             uiAuditSyncHeaderLabel = new Label();
             uiAuditBulkPanel = new Panel();
@@ -77,6 +79,7 @@
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
             uiRelationsTabPage.SuspendLayout();
+            uiRelationsGraphTabPage.SuspendLayout();
             uiAuditTabPage.SuspendLayout();
             uiAuditBulkPanel.SuspendLayout();
             uiSyncTreeTabPage.SuspendLayout();
@@ -188,6 +191,7 @@
             uiMainTabControl.Controls.Add(uiFilesTabPage);
             uiMainTabControl.Controls.Add(uiStorageTabPage);
             uiMainTabControl.Controls.Add(uiRelationsTabPage);
+            uiMainTabControl.Controls.Add(uiRelationsGraphTabPage);
             uiMainTabControl.Controls.Add(uiAuditTabPage);
             uiMainTabControl.Controls.Add(uiSyncTreeTabPage);
             uiMainTabControl.Controls.Add(uiLogsTabPage);
@@ -236,6 +240,24 @@
             uiRelationsTabPage.TabIndex = 2;
             uiRelationsTabPage.Text = "Связи";
             uiRelationsTabPage.UseVisualStyleBackColor = true;
+            //
+            // uiRelationsGraphTabPage
+            //
+            uiRelationsGraphTabPage.Controls.Add(uiRelationsGraphControl);
+            uiRelationsGraphTabPage.Location = new Point(4, 24);
+            uiRelationsGraphTabPage.Name = "uiRelationsGraphTabPage";
+            uiRelationsGraphTabPage.Size = new Size(1208, 753);
+            uiRelationsGraphTabPage.TabIndex = 7;
+            uiRelationsGraphTabPage.Text = "Граф связей";
+            uiRelationsGraphTabPage.UseVisualStyleBackColor = true;
+            //
+            // uiRelationsGraphControl
+            //
+            uiRelationsGraphControl.Dock = DockStyle.Fill;
+            uiRelationsGraphControl.Location = new Point(0, 0);
+            uiRelationsGraphControl.Name = "uiRelationsGraphControl";
+            uiRelationsGraphControl.Size = new Size(1208, 753);
+            uiRelationsGraphControl.TabIndex = 0;
             //
             // uiAuditTabPage
             //
@@ -566,6 +588,7 @@
             uiStorageTabPage.ResumeLayout(false);
             uiRelationsTabPage.ResumeLayout(false);
             uiRelationsTabPage.PerformLayout();
+            uiRelationsGraphTabPage.ResumeLayout(false);
             uiAuditTabPage.ResumeLayout(false);
             uiAuditBulkPanel.ResumeLayout(false);
             uiAuditBulkPanel.PerformLayout();
@@ -596,6 +619,8 @@
         private TabPage uiFilesTabPage;
         private TabPage uiStorageTabPage;
         private TabPage uiRelationsTabPage;
+        private TabPage uiRelationsGraphTabPage;
+        private RelationsGraphControl uiRelationsGraphControl;
         private TabPage uiAuditTabPage;
         private TabPage uiSyncTreeTabPage;
         private SyncTreeControl uiSyncTreeControl;

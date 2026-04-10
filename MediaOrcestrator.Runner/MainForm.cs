@@ -30,6 +30,9 @@ public partial class MainForm : Form
     {
         Text = $"Медиа оркестратор v{_updateManager.CurrentVersion}";
         uiAuditSourcesPanel.SizeChanged += (_, _) => ResizeAuditRows();
+        uiRelationsGraphControl.InvertRequested += OnGraphInvertRequested;
+        uiRelationsGraphControl.DeleteRequested += OnGraphDeleteRequested;
+        uiRelationsGraphControl.CreateRequested += OnGraphCreateRequested;
         DrawSources();
         DrawRelations();
         // TODO: SetZalupaV2
@@ -238,6 +241,34 @@ public partial class MainForm : Form
     private void uiCheckUpdatesButton_Click(object? sender, EventArgs e)
     {
         CheckAppUpdateInBackground();
+    }
+
+    private void OnGraphInvertRequested(object? sender, RelationGraphEdgeEventArgs e)
+    {
+        _orcestrator.InvertRelation(e.FromSourceId, e.ToSourceId);
+        DrawRelations();
+    }
+
+    private void OnGraphCreateRequested(object? sender, RelationGraphEdgeEventArgs e)
+    {
+        _orcestrator.AddRelation(e.FromSourceId, e.ToSourceId);
+        DrawRelations();
+    }
+
+    private void OnGraphDeleteRequested(object? sender, RelationGraphEdgeEventArgs e)
+    {
+        var confirm = MessageBox.Show("Удалить выбранную связь?",
+            "Подтверждение",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Question);
+
+        if (confirm != DialogResult.OK)
+        {
+            return;
+        }
+
+        _orcestrator.RemoveRelation(e.FromSourceId, e.ToSourceId);
+        DrawRelations();
     }
 
     private async Task RunSyncAsync(Source? filterSource, AuditSyncMode mode)
@@ -575,6 +606,7 @@ public partial class MainForm : Form
             control.SendToBack();
         }
 
+        uiRelationsGraphControl.SetRelations(relations);
         uiMediaMatrixGridControl.PopulateRelationsFilter();
     }
 }
