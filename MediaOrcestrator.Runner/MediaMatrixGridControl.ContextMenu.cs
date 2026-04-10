@@ -18,6 +18,7 @@ public partial class MediaMatrixGridControl
     private static Bitmap? _convertIcon;
     private static Bitmap? _infoIcon;
     private static Bitmap? _openIcon;
+    private static Bitmap? _previewIcon;
 
     private static Bitmap? SyncIcon => _syncIcon ??= CreateTextIcon("→", Color.Blue);
     private static Bitmap? CopyIcon => _copyIcon ??= CreateTextIcon("📋", Color.DarkGray);
@@ -27,6 +28,7 @@ public partial class MediaMatrixGridControl
     private static Bitmap? ConvertIcon => _convertIcon ??= CreateTextIcon("↻", Color.Teal);
     private static Bitmap? InfoIcon => _infoIcon ??= CreateTextIcon("🔍", Color.SteelBlue);
     private static Bitmap? OpenIcon => _openIcon ??= CreateTextIcon("↗", Color.DodgerBlue);
+    private static Bitmap? PreviewIcon => _previewIcon ??= CreateTextIcon("🖼", Color.MediumOrchid);
 
     private static Bitmap? CreateTextIcon(string text, Color color)
     {
@@ -139,6 +141,10 @@ public partial class MediaMatrixGridControl
         var renameItem = new ToolStripMenuItem($"Пакетное переименование ({selectedMedia.Count})...", RenameIcon);
         renameItem.Click += (_, _) => HandleBatchRename(selectedMedia);
         _contextMenu.Items.Add(renameItem);
+
+        var previewItem = new ToolStripMenuItem($"Обновить превью ({selectedMedia.Count})...", PreviewIcon);
+        previewItem.Click += (_, _) => HandleBatchPreview(selectedMedia);
+        _contextMenu.Items.Add(previewItem);
 
         if (selectedMedia.Count >= 2)
         {
@@ -566,6 +572,16 @@ public partial class MediaMatrixGridControl
     private void HandleBatchRename(List<Media> selectedMedia)
     {
         using var form = new BatchRenameForm(selectedMedia, _batchRenameService!);
+
+        if (form.ShowDialog(this) == DialogResult.OK)
+        {
+            RefreshData();
+        }
+    }
+
+    private void HandleBatchPreview(List<Media> selectedMedia)
+    {
+        using var form = new BatchPreviewForm(selectedMedia, _batchPreviewService!);
 
         if (form.ShowDialog(this) == DialogResult.OK)
         {

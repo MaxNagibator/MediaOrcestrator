@@ -311,6 +311,12 @@ file static class Program
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
+        services.AddHttpClient("Preview", client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("MediaOrcestrator/1.0");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
         services.AddSingleton<GitHubReleaseProvider>();
         services.AddSingleton<IReleaseProvider>(sp => sp.GetRequiredService<GitHubReleaseProvider>());
         services.AddSingleton<ToolVersionDetector>();
@@ -323,6 +329,7 @@ file static class Program
                 sp.GetRequiredService<ILogger<ToolManager>>()));
 
         services.AddSingleton<IToolPathProvider>(sp => sp.GetRequiredService<ToolManager>());
+        services.AddSingleton<VideoTranscoder>();
         services.AddSingleton<AppUpdateManager>(sp =>
         {
             var settingsManager = sp.GetRequiredService<SettingsManager>();
@@ -334,6 +341,7 @@ file static class Program
 
         services.AddSingleton<Orcestrator>();
         services.AddSingleton<BatchRenameService>();
+        services.AddSingleton<BatchPreviewService>();
         services.AddSingleton<SyncPlanner>();
         services.AddTransient<MainForm>();
 

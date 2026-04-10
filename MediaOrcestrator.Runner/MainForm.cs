@@ -33,7 +33,8 @@ public partial class MainForm : Form
         uiMediaMatrixGridControl.Initialize(_orcestrator,
             _serviceProvider.GetRequiredService<ILogger<MediaMatrixGridControl>>(),
             _serviceProvider.GetRequiredService<SettingsManager>(),
-            _serviceProvider.GetRequiredService<BatchRenameService>());
+            _serviceProvider.GetRequiredService<BatchRenameService>(),
+            _serviceProvider.GetRequiredService<BatchPreviewService>());
 
         uiMediaMatrixGridControl.RefreshData();
 

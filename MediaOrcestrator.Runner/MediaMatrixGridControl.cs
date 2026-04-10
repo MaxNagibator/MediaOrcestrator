@@ -8,6 +8,7 @@ public partial class MediaMatrixGridControl : UserControl
     private Orcestrator? _orcestrator;
     private ILogger<MediaMatrixGridControl>? _logger;
     private BatchRenameService? _batchRenameService;
+    private BatchPreviewService? _batchPreviewService;
     private CancellationTokenSource? _convertCts;
 
     public MediaMatrixGridControl()
@@ -17,11 +18,12 @@ public partial class MediaMatrixGridControl : UserControl
         uiCancelConvertItem.Click += (_, _) => _convertCts?.Cancel();
     }
 
-    public void Initialize(Orcestrator orcestrator, ILogger<MediaMatrixGridControl> logger, SettingsManager settingsManager, BatchRenameService batchRenameService)
+    public void Initialize(Orcestrator orcestrator, ILogger<MediaMatrixGridControl> logger, SettingsManager settingsManager, BatchRenameService batchRenameService, BatchPreviewService batchPreviewService)
     {
         _orcestrator = orcestrator;
         _logger = logger;
         _batchRenameService = batchRenameService;
+        _batchPreviewService = batchPreviewService;
         uiFilterControl.SetSettingsManager(settingsManager);
         uiFilterControl.PopulateRelationsFilter(orcestrator);
     }

@@ -4,19 +4,18 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace MediaOrcestrator.HardDiskDrive;
 
 // TODO: Костыль Connection=shared
 // TODO: Что-то класс совсем разросся
 // todo разделить ответственность между ISourceDefinition and ISourceManager (а у SourceManager внутри будет Definition св-во)
-public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, IToolPathProvider toolPathProvider) : ISourceType, IToolConsumer
+public class HardDiskDriveChannel(
+    ILogger<HardDiskDriveChannel> logger,
+    IToolPathProvider toolPathProvider,
+    VideoTranscoder videoTranscoder) : ISourceType, IToolConsumer
 {
-    private string? _h264Encoder;
-
     public SyncDirection ChannelType => SyncDirection.Full;
 
     public string Name => "HardDiskDrive";
@@ -410,26 +409,6 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
         return double.TryParse(value, CultureInfo.InvariantCulture, out result);
     }
 
-    private static bool TryParseFFmpegTime(string line, out double seconds)
-    {
-        seconds = 0;
-        var match = FFmpegTimeRegex().Match(line);
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        seconds = int.Parse(match.Groups[1].Value) * 3600
-                  + int.Parse(match.Groups[2].Value) * 60
-                  + int.Parse(match.Groups[3].Value)
-                  + int.Parse(match.Groups[4].Value) / 100.0;
-
-        return true;
-    }
-
-    [GeneratedRegex(@"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})")]
-    private static partial Regex FFmpegTimeRegex();
-
     private async Task<MediaDto> CreateMediaDtoAsync(DriveMedia file, string basePath, CancellationToken cancellationToken)
     {
         var fullPath = Path.Combine(basePath, file.Id, file.Path);
@@ -759,9 +738,13 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
         try
         {
             var fileName = Path.GetFileName(fullPath);
-            var success = await RunFfmpegConvertAsync(fullPath, convertPath, typeId, totalDuration,
-                progress == null ? null : new Progress<double>(p => progress.Report(new(p, fileName))),
-                cancellationToken);
+            IProgress<double>? wrappedProgress = progress == null
+                ? null
+                : new Progress<double>(p => progress.Report(new(p, fileName)));
+
+            var success = typeId == 1
+                ? await videoTranscoder.TranscodeVp9ToH264Async(fullPath, convertPath, totalDuration, wrappedProgress, cancellationToken)
+                : await videoTranscoder.TranscodeH264ToVp9Async(fullPath, convertPath, totalDuration, wrappedProgress, cancellationToken);
 
             if (!success)
             {
@@ -819,160 +802,6 @@ public partial class HardDiskDriveChannel(ILogger<HardDiskDriveChannel> logger, 
                 }
             }
         }
-    }
-
-    private async Task<bool> RunFfmpegConvertAsync(
-        string inputPath,
-        string outputPath,
-        int typeId,
-        TimeSpan totalDuration,
-        IProgress<double>? progress,
-        CancellationToken cancellationToken = default)
-    {
-        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg);
-        if (ffmpegPath is null)
-        {
-            logger.LogError("ffmpeg не найден, конвертация невозможна");
-            return false;
-        }
-
-        string arguments;
-
-        if (typeId == 2)
-        {
-            arguments = $"-i \"{inputPath}\" -c:v libvpx-vp9 -b:v 0 -crf 30 -deadline good -cpu-used 2 -c:a libopus \"{outputPath}\"";
-        }
-        else
-        {
-            var h264Encoder = await GetH264EncoderAsync();
-            var preset = h264Encoder == "h264_nvenc" ? "slow" : "medium";
-            arguments = $"-i \"{inputPath}\" -c:v {h264Encoder} -preset {preset} -c:a copy \"{outputPath}\"";
-        }
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = arguments,
-                RedirectStandardOutput = false,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-
-            using var process = Process.Start(psi);
-
-            if (process is null)
-            {
-                logger.LogError("Не удалось запустить ffmpeg процесс");
-                return false;
-            }
-
-            await using (cancellationToken.Register(ForceStop))
-            {
-                var totalSeconds = totalDuration.TotalSeconds;
-                var stderrBuilder = new StringBuilder();
-
-                while (await process.StandardError.ReadLineAsync(cancellationToken) is { } line)
-                {
-                    stderrBuilder.AppendLine(line);
-
-                    if (!(totalSeconds > 0) || !TryParseFFmpegTime(line, out var currentSeconds))
-                    {
-                        continue;
-                    }
-
-                    var percent = Math.Min(currentSeconds / totalSeconds * 100, 100);
-                    progress?.Report(percent);
-                }
-
-                await process.WaitForExitAsync(cancellationToken);
-
-                if (process.ExitCode == 0)
-                {
-                    logger.LogInformation("ffmpeg конвертация завершена успешно: {OutputPath}", outputPath);
-                    return true;
-                }
-
-                logger.LogWarning("ffmpeg завершился с кодом {ExitCode} для файла: {FilePath}. Stderr: {Stderr}",
-                    process.ExitCode, inputPath, stderrBuilder.ToString());
-
-                return false;
-            }
-
-            // TODO: Костыль
-            void ForceStop()
-            {
-                try
-                {
-                    if (!process.HasExited)
-                    {
-                        process.Kill();
-                    }
-                }
-                catch
-                {
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Не удалось сконвертировать видео через ffmpeg: {FilePath}", inputPath);
-            return false;
-        }
-    }
-
-    private async Task<string> GetH264EncoderAsync()
-    {
-        if (_h264Encoder != null)
-        {
-            return _h264Encoder;
-        }
-
-        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg);
-        if (ffmpegPath == null)
-        {
-            _h264Encoder = "libx264";
-            return _h264Encoder;
-        }
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = "-encoders",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-
-            using var process = Process.Start(psi);
-            if (process == null)
-            {
-                _h264Encoder = "libx264";
-                return _h264Encoder;
-            }
-
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
-            _h264Encoder = output.Contains("h264_nvenc") ? "h264_nvenc" : "libx264";
-            logger.LogInformation("Выбран H264 кодек: {Encoder}", _h264Encoder);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Не удалось определить доступные кодеки, используем libx264");
-            _h264Encoder = "libx264";
-        }
-
-        return _h264Encoder;
     }
 }
 

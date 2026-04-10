@@ -478,14 +478,28 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
         {
             tempMedia = await rel.From.Type.DownloadAsync(fromMediaSource.ExternalId, rel.From.Settings, cancellationToken);
             tempMedia.Id = media.Id;
-            if (toMediaSource?.Status == MediaStatus.PartialOk)
+            try
             {
-                var externalId = toMediaSource.ExternalId;
-                uploadResult = await rel.To.Type.UpdateAsync(externalId, tempMedia, rel.To.Settings, cancellationToken);
+                if (toMediaSource?.Status == MediaStatus.PartialOk)
+                {
+                    var externalId = toMediaSource.ExternalId;
+                    uploadResult = await rel.To.Type.UpdateAsync(externalId, tempMedia, rel.To.Settings, cancellationToken);
+                }
+                else
+                {
+                    uploadResult = await rel.To.Type.UploadAsync(tempMedia, rel.To.Settings, cancellationToken);
+                }
             }
-            else
+            catch (OperationCanceledException)
             {
-                uploadResult = await rel.To.Type.UploadAsync(tempMedia, rel.To.Settings, cancellationToken);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // TODO: Слегка жидкая тема
+                logger.LogError(ex, "Загрузка медиа {Media} в {ToSource} завершилась ошибкой, проставляется статус Error", media, rel.To);
+                MarkUploadFailure(media, rel.To.Id, ex.Message);
+                throw;
             }
         }
 
@@ -523,6 +537,27 @@ public class Orcestrator(PluginManager pluginManager, LiteDatabase db, TempManag
         {
             throw new("Провал синхронизации: " + uploadResult.Status.Text + " " + uploadResult.Message);
         }
+    }
+
+    private void MarkUploadFailure(Media media, string toSourceId, string errorMessage)
+    {
+        var link = media.Sources.FirstOrDefault(x => x.SourceId == toSourceId);
+        if (link == null)
+        {
+            link = new()
+            {
+                MediaId = media.Id,
+                Media = media,
+                SourceId = toSourceId,
+                ExternalId = string.Empty,
+            };
+
+            media.Sources.Add(link);
+        }
+
+        link.Status = MediaStatus.Error;
+        UpdateMedia(media);
+        logger.LogInformation("Для медиа {MediaId}/{ToSourceId} проставлен статус Error: {Message}", media.Id, toSourceId, errorMessage);
     }
 
     public async Task DeleteMediaFromSourceAsync(Media media, Source source, CancellationToken cancellationToken = default)
