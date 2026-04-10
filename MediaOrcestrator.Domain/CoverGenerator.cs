@@ -31,25 +31,36 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger)
                      ?? throw new InvalidOperationException($"Не удалось декодировать шаблон: {template.TemplatePath}");
 
         using var canvas = new SKCanvas(bitmap);
-        DrawNumber(canvas, bitmap.Width, bitmap.Height, template, number);
-        logger.LogTrace("Отрисована обложка №{Number} ({Width}×{Height})", number, bitmap.Width, bitmap.Height);
+
+        foreach (var layer in template.Layers)
+        {
+            DrawLayer(canvas, bitmap.Width, bitmap.Height, layer, number);
+        }
+
+        logger.LogTrace("Отрисована обложка №{Number} ({Width}×{Height}, слоёв: {Layers})", number, bitmap.Width, bitmap.Height, template.Layers.Count);
         return bitmap;
     }
 
-    private static void DrawNumber(SKCanvas canvas, int width, int height, CoverTemplate template, int number)
+    private static void DrawLayer(SKCanvas canvas, int width, int height, CoverTextLayer layer, int number)
     {
-        var text = number.ToString();
-        var fontSize = height * template.FontSizeRatio;
-        var strokeWidth = height * template.StrokeWidthRatio;
+        var text = ResolveText(layer.TextTemplate, number);
 
-        var ownedTypeface = SKTypeface.FromFamilyName(template.FontFamily, SKFontStyle.Bold);
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        var fontSize = height * layer.FontSizeRatio;
+        var strokeWidth = height * layer.StrokeWidthRatio;
+
+        var ownedTypeface = SKTypeface.FromFamilyName(layer.FontFamily, SKFontStyle.Bold);
         var typeface = ownedTypeface ?? SKTypeface.Default;
 
         try
         {
             using var fillPaint = new SKPaint
             {
-                Color = template.FillColor,
+                Color = layer.FillColor,
                 IsAntialias = true,
                 Typeface = typeface,
                 TextSize = fontSize,
@@ -57,28 +68,37 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger)
                 Style = SKPaintStyle.Fill,
             };
 
-            using var strokePaint = new SKPaint
-            {
-                Color = template.StrokeColor,
-                IsAntialias = true,
-                Typeface = typeface,
-                TextSize = fontSize,
-                TextAlign = SKTextAlign.Center,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = strokeWidth,
-                StrokeJoin = SKStrokeJoin.Round,
-            };
-
-            var x = width * template.TextX;
+            var x = width * layer.TextX;
             var metrics = fillPaint.FontMetrics;
-            var y = height * template.TextY - (metrics.Ascent + metrics.Descent) / 2f;
+            var y = height * layer.TextY - (metrics.Ascent + metrics.Descent) / 2f;
 
-            canvas.DrawText(text, x, y, strokePaint);
+            if (strokeWidth > 0)
+            {
+                using var strokePaint = new SKPaint
+                {
+                    Color = layer.StrokeColor,
+                    IsAntialias = true,
+                    Typeface = typeface,
+                    TextSize = fontSize,
+                    TextAlign = SKTextAlign.Center,
+                    Style = SKPaintStyle.Stroke,
+                    StrokeWidth = strokeWidth,
+                    StrokeJoin = SKStrokeJoin.Round,
+                };
+
+                canvas.DrawText(text, x, y, strokePaint);
+            }
+
             canvas.DrawText(text, x, y, fillPaint);
         }
         finally
         {
             ownedTypeface?.Dispose();
         }
+    }
+
+    private static string ResolveText(string template, int number)
+    {
+        return string.IsNullOrEmpty(template) ? string.Empty : template.Replace("{number}", number.ToString());
     }
 }

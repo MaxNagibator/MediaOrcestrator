@@ -15,6 +15,8 @@ public sealed class SettingsManager
         LoadSettings();
     }
 
+    public string SettingsDirectory => Path.GetDirectoryName(Path.GetFullPath(_settingsPath)) ?? AppContext.BaseDirectory;
+
     public string? GetStringValue(string key)
     {
         return _settings.GetValueOrDefault(key);

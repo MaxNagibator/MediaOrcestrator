@@ -7,7 +7,7 @@ public class BatchPreviewForm : Form
     private readonly List<Media> _medias;
     private readonly BatchPreviewService _service;
     private readonly CoverGenerator _coverGenerator;
-    private bool _hasSuccess;
+    private readonly CoverTemplateStore _coverTemplateStore;
 
     private readonly RadioButton _uiFromSourceRadio;
     private readonly RadioButton _uiFromFileRadio;
@@ -16,21 +16,26 @@ public class BatchPreviewForm : Form
     private readonly TextBox _uiFilePathTextBox;
     private readonly Button _uiBrowseButton;
     private readonly Button _uiTemplateButton;
-    private readonly Label _uiTemplateStateLabel;
+    private readonly ComboBox _uiProfileCombo;
     private readonly CheckedListBox _uiTargetsListBox;
     private readonly DataGridView _uiResultGrid;
     private readonly Button _uiApplyButton;
     private readonly Label _uiStatusLabel;
+    private bool _hasSuccess;
 
     private List<Source> _donors = [];
     private List<Source> _targets = [];
     private CoverTemplate? _coverTemplate;
 
-    public BatchPreviewForm(List<Media> medias, BatchPreviewService service, CoverGenerator coverGenerator)
+    private bool _suppressProfileComboEvents;
+
+    public BatchPreviewForm(List<Media> medias, BatchPreviewService service, CoverGenerator coverGenerator, CoverTemplateStore coverTemplateStore)
     {
         _medias = medias;
         _service = service;
         _coverGenerator = coverGenerator;
+        _coverTemplateStore = coverTemplateStore;
+        _coverTemplate = coverTemplateStore.LoadLast();
 
         Text = $"Обновление превью ({medias.Count} видео)";
         Size = new(750, 550);
@@ -155,18 +160,18 @@ public class BatchPreviewForm : Form
 
         _uiTemplateButton.Click += (_, _) => OpenTemplateEditor();
 
-        _uiTemplateStateLabel = new()
+        _uiProfileCombo = new()
         {
-            Text = "не настроен",
-            AutoSize = true,
-            ForeColor = Color.Gray,
-            Anchor = AnchorStyles.Left,
-            Margin = new(6, 6, 0, 0),
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 160,
+            Margin = new(6, 3, 0, 0),
         };
+
+        _uiProfileCombo.SelectedIndexChanged += (_, _) => OnProfileComboChanged();
 
         templateLayout.Controls.Add(_uiFromTemplateRadio);
         templateLayout.Controls.Add(_uiTemplateButton);
-        templateLayout.Controls.Add(_uiTemplateStateLabel);
+        templateLayout.Controls.Add(_uiProfileCombo);
 
         sourcePanelLayout.Controls.Add(donorLayout, 0, 0);
         sourcePanelLayout.Controls.Add(fileLayout, 0, 1);
@@ -298,6 +303,7 @@ public class BatchPreviewForm : Form
 
         PopulateDonors();
         OnModeChanged();
+        RefreshProfilesCombo();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -308,6 +314,60 @@ public class BatchPreviewForm : Form
         }
 
         base.OnFormClosing(e);
+    }
+
+    private static string RowKey(string mediaId, string sourceId)
+    {
+        return $"{mediaId}|{sourceId}";
+    }
+
+    private void RefreshProfilesCombo()
+    {
+        _suppressProfileComboEvents = true;
+        _uiProfileCombo.Items.Clear();
+        _uiProfileCombo.Items.Add("— выбрать профиль —");
+
+        foreach (var name in _coverTemplateStore.List())
+        {
+            _uiProfileCombo.Items.Add(name);
+        }
+
+        _uiProfileCombo.SelectedIndex = 0;
+        _suppressProfileComboEvents = false;
+    }
+
+    private void OnProfileComboChanged()
+    {
+        if (_suppressProfileComboEvents)
+        {
+            return;
+        }
+
+        var idx = _uiProfileCombo.SelectedIndex;
+
+        if (idx <= 0)
+        {
+            return;
+        }
+
+        var name = _uiProfileCombo.SelectedItem?.ToString();
+
+        if (string.IsNullOrEmpty(name))
+        {
+            return;
+        }
+
+        var loaded = _coverTemplateStore.Load(name);
+
+        if (loaded == null)
+        {
+            MessageBox.Show($"Не удалось загрузить профиль '{name}'", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        _coverTemplate = loaded;
+        _coverTemplateStore.SaveLast(loaded);
+        UpdatePreview();
     }
 
     private void PopulateDonors()
@@ -384,11 +444,6 @@ public class BatchPreviewForm : Form
         return _uiFromTemplateRadio.Checked && _coverTemplate != null;
     }
 
-    private static string RowKey(string mediaId, string sourceId)
-    {
-        return $"{mediaId}|{sourceId}";
-    }
-
     private void OnProgressReport(BatchPreviewResult result)
     {
         var key = RowKey(result.Media.Id, result.Target.Id);
@@ -440,7 +495,7 @@ public class BatchPreviewForm : Form
 
     private void OpenTemplateEditor()
     {
-        using var form = new CoverTemplateForm(_coverGenerator, _coverTemplate);
+        using var form = new CoverTemplateForm(_coverGenerator, _coverTemplateStore, _coverTemplate);
 
         if (form.ShowDialog(this) != DialogResult.OK || form.Result == null)
         {
@@ -448,8 +503,8 @@ public class BatchPreviewForm : Form
         }
 
         _coverTemplate = form.Result;
-        _uiTemplateStateLabel.Text = $"OK (стартовый № {_coverTemplate.StartNumber})";
-        _uiTemplateStateLabel.ForeColor = Color.DarkGreen;
+        _coverTemplateStore.SaveLast(_coverTemplate);
+        RefreshProfilesCombo();
         UpdatePreview();
     }
 

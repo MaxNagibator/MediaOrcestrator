@@ -1,5 +1,6 @@
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 
 namespace MediaOrcestrator.Domain;
 
@@ -103,7 +104,7 @@ public sealed class BatchPreviewService(
 
         if (context.CoverTemplate != null)
         {
-            previewPath = GenerateCoverPath(context.CoverTemplate, index, context.TempFiles);
+            previewPath = GenerateCoverPath(context.CoverTemplate, media, index, context.TempFiles);
         }
         else if (context.LocalFilePath != null)
         {
@@ -138,14 +139,58 @@ public sealed class BatchPreviewService(
         }
     }
 
-    private string GenerateCoverPath(CoverTemplate template, int index, List<string> tempFiles)
+    private string GenerateCoverPath(CoverTemplate template, Media media, int index, List<string> tempFiles)
     {
-        var number = template.StartNumber + index;
+        var number = ResolveNumber(template, media, index);
         var tempDir = Path.Combine(tempManager.TempPath, Guid.NewGuid().ToString());
         var coverPath = coverGenerator.Generate(template, number, tempDir);
         tempFiles.Add(tempDir);
         tempFiles.Add(coverPath);
         return coverPath;
+    }
+
+    private int ResolveNumber(CoverTemplate template, Media media, int index)
+    {
+        if (template.NumberMode != CoverNumberMode.TitleRegex)
+        {
+            return template.StartNumber + index;
+        }
+
+        var pattern = string.IsNullOrWhiteSpace(template.TitleRegexPattern)
+            ? CoverTemplate.DefaultTitleRegex
+            : template.TitleRegexPattern;
+
+        if (string.IsNullOrEmpty(media.Title))
+        {
+            logger.LogWarning("Не удалось извлечь номер из названия (пустой Title) для медиа {Id}, использован {Fallback}", media.Id, template.StartNumber + index);
+            return template.StartNumber + index;
+        }
+
+        try
+        {
+            var match = Regex.Match(media.Title, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(100));
+
+            if (match.Success)
+            {
+                var captured = match.Groups.Count > 1 && match.Groups[1].Success ? match.Groups[1].Value : match.Value;
+
+                if (int.TryParse(captured, out var parsed))
+                {
+                    return parsed;
+                }
+            }
+        }
+        catch (RegexMatchTimeoutException ex)
+        {
+            logger.LogWarning(ex, "Регулярка для номера зависла на '{Title}', использован {Fallback}", media.Title, template.StartNumber + index);
+        }
+        catch (ArgumentException ex)
+        {
+            logger.LogWarning(ex, "Невалидная регулярка номера '{Pattern}', использован {Fallback}", pattern, template.StartNumber + index);
+        }
+
+        logger.LogWarning("Не удалось извлечь номер из '{Title}' по '{Pattern}', использован {Fallback}", media.Title, pattern, template.StartNumber + index);
+        return template.StartNumber + index;
     }
 
     private void CleanupTempFiles(List<string> tempFiles)
