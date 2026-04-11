@@ -2,235 +2,139 @@ using MediaOrcestrator.Domain;
 
 namespace MediaOrcestrator.Runner;
 
-// TODO: Переделать на дизайнер. Не удобно постоянно на студию переключаться для вёрстки
-public class BatchRenameForm : Form
+public partial class BatchRenameForm : Form
 {
     private readonly List<Media> _medias;
     private readonly BatchRenameService _service;
+    private CancellationTokenSource? _applyCts;
 
-    private readonly TextBox _uiFindTextBox;
-    private readonly TextBox _uiReplaceTextBox;
-    private readonly Button _uiPreviewButton;
-    private readonly DataGridView _uiPreviewGrid;
-    private readonly Button _uiApplyButton;
-    private readonly Button _uiCancelButton;
-    private readonly Label _uiStatusLabel;
+    public BatchRenameForm()
+    {
+        _medias = [];
+        _service = null!;
+        InitializeComponent();
+    }
 
-    public BatchRenameForm(List<Media> medias, BatchRenameService service)
+    public BatchRenameForm(List<Media> medias, BatchRenameService service) : this()
     {
         _medias = medias;
         _service = service;
-
         Text = $"Пакетное переименование ({medias.Count} видео)";
-        Size = new(700, 500);
-        MinimumSize = new(500, 400);
-        StartPosition = FormStartPosition.CenterParent;
-        FormBorderStyle = FormBorderStyle.Sizable;
+    }
 
-        var mainLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new(10),
-            RowCount = 4,
-            ColumnCount = 1,
-        };
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _applyCts?.Cancel();
+        _applyCts?.Dispose();
+        _applyCts = null;
+        base.OnFormClosed(e);
+    }
 
-        mainLayout.RowStyles.Add(new(SizeType.AutoSize));
-        mainLayout.RowStyles.Add(new(SizeType.Percent, 100));
-        mainLayout.RowStyles.Add(new(SizeType.AutoSize));
-        mainLayout.RowStyles.Add(new(SizeType.AutoSize));
+    private void uiPreviewButton_Click(object? sender, EventArgs e)
+    {
+        UpdatePreview();
+    }
 
-        var inputPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            ColumnCount = 3,
-            RowCount = 2,
-        };
-
-        inputPanel.ColumnStyles.Add(new(SizeType.AutoSize));
-        inputPanel.ColumnStyles.Add(new(SizeType.Percent, 100));
-        inputPanel.ColumnStyles.Add(new(SizeType.AutoSize));
-
-        inputPanel.Controls.Add(new Label
-        {
-            Text = "Найти:",
-            Anchor = AnchorStyles.Left,
-            AutoSize = true,
-        }, 0, 0);
-
-        _uiFindTextBox = new()
-        {
-            Dock = DockStyle.Fill,
-        };
-
-        inputPanel.Controls.Add(_uiFindTextBox, 1, 0);
-
-        inputPanel.Controls.Add(new Label
-        {
-            Text = "Заменить:",
-            Anchor = AnchorStyles.Left,
-            AutoSize = true,
-        }, 0, 1);
-
-        _uiReplaceTextBox = new()
-        {
-            Dock = DockStyle.Fill,
-        };
-
-        inputPanel.Controls.Add(_uiReplaceTextBox, 1, 1);
-
-        _uiPreviewButton = new()
-        {
-            Text = "Обновить превью",
-            AutoSize = true,
-        };
-
-        _uiPreviewButton.Click += (_, _) => UpdatePreview();
-        inputPanel.Controls.Add(_uiPreviewButton, 2, 0);
-        inputPanel.SetRowSpan(_uiPreviewButton, 2);
-
-        mainLayout.Controls.Add(inputPanel, 0, 0);
-
-        _uiPreviewGrid = new()
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
-            AllowUserToResizeRows = false,
-            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            RowHeadersVisible = false,
-        };
-
-        _uiPreviewGrid.Columns.Add("OldTitle", "Было");
-        _uiPreviewGrid.Columns.Add("NewTitle", "Стало");
-        _uiPreviewGrid.Columns.Add("Status", "Статус");
-        _uiPreviewGrid.Columns["Status"]!.FillWeight = 50;
-
-        mainLayout.Controls.Add(_uiPreviewGrid, 0, 1);
-
-        _uiStatusLabel = new()
-        {
-            Text = "",
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-        };
-
-        mainLayout.Controls.Add(_uiStatusLabel, 0, 2);
-
-        var buttonPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
-            AutoSize = true,
-        };
-
-        _uiCancelButton = new()
-        {
-            Text = "Отмена",
-            DialogResult = DialogResult.Cancel,
-        };
-
-        _uiApplyButton = new()
-        {
-            Text = "Применить",
-            Enabled = false,
-        };
-
-        _uiApplyButton.Click += async (_, _) => await ApplyAsync();
-
-        buttonPanel.Controls.Add(_uiCancelButton);
-        buttonPanel.Controls.Add(_uiApplyButton);
-
-        mainLayout.Controls.Add(buttonPanel, 0, 3);
-
-        Controls.Add(mainLayout);
-
-        CancelButton = _uiCancelButton;
-        AcceptButton = _uiPreviewButton;
+    private async void uiApplyButton_Click(object? sender, EventArgs e)
+    {
+        await ApplyAsync();
     }
 
     private void UpdatePreview()
     {
-        var find = _uiFindTextBox.Text;
-        _uiPreviewGrid.Rows.Clear();
+        var find = uiFindTextBox.Text;
+        uiPreviewGrid.Rows.Clear();
 
         if (string.IsNullOrEmpty(find))
         {
-            _uiApplyButton.Enabled = false;
+            uiApplyButton.Enabled = false;
             return;
         }
 
-        var previews = _service.Preview(_medias, find, _uiReplaceTextBox.Text);
+        var previews = _service.Preview(_medias, find, uiReplaceTextBox.Text);
         var hasChanges = false;
 
         foreach (var preview in previews)
         {
             if (!preview.HasChanges)
             {
-                var row = _uiPreviewGrid.Rows.Add(preview.OldTitle, preview.OldTitle, "(без изменений)");
-                _uiPreviewGrid.Rows[row].DefaultCellStyle.ForeColor = Color.Gray;
+                var row = uiPreviewGrid.Rows.Add(preview.OldTitle, preview.OldTitle, "(без изменений)");
+                uiPreviewGrid.Rows[row].DefaultCellStyle.ForeColor = Color.Gray;
             }
             else
             {
-                _uiPreviewGrid.Rows.Add(preview.OldTitle, preview.NewTitle, "");
+                uiPreviewGrid.Rows.Add(preview.OldTitle, preview.NewTitle, "");
                 hasChanges = true;
             }
         }
 
-        _uiApplyButton.Enabled = hasChanges;
+        uiApplyButton.Enabled = hasChanges;
     }
 
     private async Task ApplyAsync()
     {
-        var find = _uiFindTextBox.Text;
-        var replace = _uiReplaceTextBox.Text;
+        var find = uiFindTextBox.Text;
+        var replace = uiReplaceTextBox.Text;
 
-        _uiApplyButton.Enabled = false;
-        _uiPreviewButton.Enabled = false;
-        _uiFindTextBox.Enabled = false;
-        _uiReplaceTextBox.Enabled = false;
-        _uiStatusLabel.Text = "Применение изменений...";
+        uiApplyButton.Enabled = false;
+        uiPreviewButton.Enabled = false;
+        uiFindTextBox.Enabled = false;
+        uiReplaceTextBox.Enabled = false;
+        uiStatusLabel.Text = "Применение изменений...";
+
+        _applyCts?.Dispose();
+        _applyCts = new();
+        var token = _applyCts.Token;
+
+        List<BatchRenameResult> results;
 
         try
         {
-            var results = await Task.Run(() =>
-                _service.ApplyAsync(_medias, find, replace, CancellationToken.None));
-
-            _uiPreviewGrid.Rows.Clear();
-
-            foreach (var result in results)
-            {
-                var statusText = result.Success ? "Готово" : $"Ошибка: {result.ErrorMessage}";
-                var row = _uiPreviewGrid.Rows.Add(result.OldTitle, result.NewTitle, statusText);
-
-                if (!result.Success)
-                {
-                    _uiPreviewGrid.Rows[row].DefaultCellStyle.ForeColor = Color.DarkRed;
-                }
-                else
-                {
-                    _uiPreviewGrid.Rows[row].DefaultCellStyle.ForeColor = Color.DarkGreen;
-                }
-            }
-
-            var successCount = results.Count(r => r.Success);
-            var failCount = results.Count(r => !r.Success);
-            _uiStatusLabel.Text = $"Готово: {successCount} успешно, {failCount} с ошибками";
-
-            DialogResult = successCount > 0 ? DialogResult.OK : DialogResult.None;
+            results = await Task.Run(() => _service.ApplyAsync(_medias, find, replace, token),
+                token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
         }
         catch (Exception ex)
         {
-            _uiStatusLabel.Text = $"Ошибка: {ex.Message}";
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            uiStatusLabel.Text = $"Ошибка: {ex.Message}";
+            uiPreviewButton.Enabled = true;
+            uiFindTextBox.Enabled = true;
+            uiReplaceTextBox.Enabled = true;
+            return;
         }
-        finally
+
+        if (IsDisposed)
         {
-            _uiPreviewButton.Enabled = true;
-            _uiFindTextBox.Enabled = true;
-            _uiReplaceTextBox.Enabled = true;
+            return;
         }
+
+        uiPreviewGrid.Rows.Clear();
+
+        foreach (var result in results)
+        {
+            var statusText = result.Success ? "Готово" : $"Ошибка: {result.ErrorMessage}";
+            var row = uiPreviewGrid.Rows.Add(result.OldTitle, result.NewTitle, statusText);
+            uiPreviewGrid.Rows[row].DefaultCellStyle.ForeColor = result.Success
+                ? Color.DarkGreen
+                : Color.DarkRed;
+        }
+
+        var successCount = results.Count(r => r.Success);
+        var failCount = results.Count(r => !r.Success);
+        uiStatusLabel.Text = $"Готово: {successCount} успешно, {failCount} с ошибками";
+
+        uiPreviewButton.Enabled = true;
+        uiFindTextBox.Enabled = true;
+        uiReplaceTextBox.Enabled = true;
+
+        DialogResult = successCount > 0 ? DialogResult.OK : DialogResult.None;
     }
 }

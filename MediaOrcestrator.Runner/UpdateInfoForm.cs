@@ -1,102 +1,20 @@
 using MediaOrcestrator.Domain;
 
+// TODO: Скрестить с UpdateProgressForm
 namespace MediaOrcestrator.Runner;
 
-// TODO: Скрестить с UpdateProgressForm
-public sealed class UpdateInfoForm : Form
+public partial class UpdateInfoForm : Form
 {
-    public UpdateInfoForm(AppUpdateInfo update)
+    public UpdateInfoForm()
     {
-        Text = "Обновление приложения";
-        MinimumSize = new(400, 350);
-        Size = new(800, 600);
-        StartPosition = FormStartPosition.CenterParent;
-        MaximizeBox = false;
-        MinimizeBox = false;
-        AutoScaleMode = AutoScaleMode.Dpi;
+        InitializeComponent();
+    }
 
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new(12),
-            RowCount = 5,
-            ColumnCount = 1,
-        };
-
-        layout.ColumnStyles.Add(new(SizeType.Percent, 100));
-        layout.RowStyles.Add(new(SizeType.AutoSize));
-        layout.RowStyles.Add(new(SizeType.AutoSize));
-        layout.RowStyles.Add(new(SizeType.AutoSize));
-        layout.RowStyles.Add(new(SizeType.Percent, 100));
-        layout.RowStyles.Add(new(SizeType.AutoSize));
-
-        var versionLabel = new Label
-        {
-            Text = $"Доступна новая версия {update.Version}",
-            Font = new(Font.FontFamily, 12, FontStyle.Bold),
-            AutoSize = true,
-            Margin = new(0, 0, 0, 4),
-        };
-
-        var sizeLabel = new Label
-        {
-            Text = $"Размер: {FormatSize(update.Size)}",
-            AutoSize = true,
-            Margin = new(0, 0, 0, 8),
-        };
-
-        var releaseNotesLabel = new Label
-        {
-            Text = "Что нового:",
-            AutoSize = true,
-            Margin = new(0, 0, 0, 2),
-        };
-
-        var releaseNotesTextBox = new RichTextBox
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            BorderStyle = BorderStyle.FixedSingle,
-            BackColor = SystemColors.Window,
-            Font = new("Segoe UI", 10),
-        };
-
-        FormatReleaseNotes(releaseNotesTextBox, update.ReleaseNotes);
-
-        var buttonsPanel = new FlowLayoutPanel
-        {
-            AutoSize = true,
-            FlowDirection = FlowDirection.RightToLeft,
-            Dock = DockStyle.Fill,
-            Padding = new(0, 4, 0, 0),
-        };
-
-        var laterButton = new Button
-        {
-            Text = "Позже",
-            DialogResult = DialogResult.No,
-            AutoSize = true,
-        };
-
-        var updateButton = new Button
-        {
-            Text = "Обновить",
-            DialogResult = DialogResult.Yes,
-            AutoSize = true,
-        };
-
-        buttonsPanel.Controls.AddRange([laterButton, updateButton]);
-
-        layout.Controls.Add(versionLabel, 0, 0);
-        layout.Controls.Add(sizeLabel, 0, 1);
-        layout.Controls.Add(releaseNotesLabel, 0, 2);
-        layout.Controls.Add(releaseNotesTextBox, 0, 3);
-        layout.Controls.Add(buttonsPanel, 0, 4);
-
-        AcceptButton = updateButton;
-        CancelButton = laterButton;
-
-        Controls.Add(layout);
+    public UpdateInfoForm(AppUpdateInfo update) : this()
+    {
+        uiVersionLabel.Text = $"Доступна новая версия {update.Version}";
+        uiSizeLabel.Text = $"Размер: {FormatSize(update.Size)}";
+        FormatReleaseNotes(uiReleaseNotesTextBox, update.ReleaseNotes);
     }
 
     private static void FormatReleaseNotes(RichTextBox rtb, string markdown)

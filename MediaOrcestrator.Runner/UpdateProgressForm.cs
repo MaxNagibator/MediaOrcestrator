@@ -1,53 +1,15 @@
 namespace MediaOrcestrator.Runner;
 
-public sealed class UpdateProgressForm : Form
+public partial class UpdateProgressForm : Form
 {
-    private readonly ProgressBar _progressBar;
-    private readonly Label _statusLabel;
-    private readonly Button _cancelButton;
     private CancellationTokenSource? _cts;
-
-    public CancellationToken CancellationToken => (_cts ??= new()).Token;
 
     public UpdateProgressForm()
     {
-        Text = "Обновление приложения";
-        Size = new(420, 150);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        StartPosition = FormStartPosition.CenterParent;
-        MaximizeBox = false;
-        MinimizeBox = false;
-
-        _statusLabel = new()
-        {
-            Text = "Скачивание обновления...",
-            Location = new(12, 15),
-            Size = new(380, 20),
-        };
-
-        _progressBar = new()
-        {
-            Location = new(12, 40),
-            Size = new(380, 25),
-            Minimum = 0,
-            Maximum = 100,
-        };
-
-        _cancelButton = new()
-        {
-            Text = "Отмена",
-            Location = new(317, 75),
-            Size = new(75, 25),
-        };
-
-        _cancelButton.Click += (_, _) =>
-        {
-            _cts?.Cancel();
-            Close();
-        };
-
-        Controls.AddRange([_statusLabel, _progressBar, _cancelButton]);
+        InitializeComponent();
     }
+
+    public CancellationToken CancellationToken => (_cts ??= new()).Token;
 
     public void UpdateProgress(double progress)
     {
@@ -57,13 +19,26 @@ public sealed class UpdateProgressForm : Form
             return;
         }
 
-        _progressBar.Value = (int)(progress * 100);
-        _statusLabel.Text = $"Скачивание обновления... {progress:P0}";
+        uiProgressBar.Value = (int)(progress * 100);
+        uiStatusLabel.Text = $"Скачивание обновления... {progress:P0}";
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         _cts?.Cancel();
         base.OnFormClosing(e);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _cts?.Dispose();
+        _cts = null;
+        base.OnFormClosed(e);
+    }
+
+    private void uiCancelButton_Click(object? sender, EventArgs e)
+    {
+        _cts?.Cancel();
+        Close();
     }
 }

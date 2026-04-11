@@ -1,5 +1,4 @@
 using MediaOrcestrator.Domain;
-using Microsoft.Msagl.GraphViewerGdi;
 using DColor = Microsoft.Msagl.Drawing.Color;
 using DEdge = Microsoft.Msagl.Drawing.Edge;
 using DGraph = Microsoft.Msagl.Drawing.Graph;
@@ -10,7 +9,7 @@ using IViewerNode = Microsoft.Msagl.Drawing.IViewerNode;
 
 namespace MediaOrcestrator.Runner;
 
-public sealed class RelationsGraphControl : UserControl
+public partial class RelationsGraphControl : UserControl
 {
     private static readonly Dictionary<NodeRole, DColor> RoleGraphColors = new()
     {
@@ -19,12 +18,8 @@ public sealed class RelationsGraphControl : UserControl
         [NodeRole.Transit] = new(255, 228, 181),
     };
 
-    private readonly GViewer _viewer;
-    private readonly Label _emptyStateLabel;
     private readonly ContextMenuStrip _edgeMenu;
     private readonly ContextMenuStrip _nodeMenu;
-    private readonly ToolStripButton _createRelationButton;
-    private readonly ToolStripLabel _statusLabel;
     private readonly HashSet<string> _disabledSourceIds = new(StringComparer.Ordinal);
     private readonly HashSet<string> _disabledEdgeKeys = new(StringComparer.Ordinal);
     private readonly Dictionary<string, NodeRole> _nodeRoles = new(StringComparer.Ordinal);
@@ -38,23 +33,11 @@ public sealed class RelationsGraphControl : UserControl
 
     public RelationsGraphControl()
     {
-        _viewer = new()
-        {
-            Dock = DockStyle.Fill,
-            ToolBarIsVisible = true,
-            OutsideAreaBrush = Brushes.White,
-            LayoutEditingEnabled = false,
-        };
+        InitializeComponent();
 
-        _emptyStateLabel = new()
-        {
-            Text = "Нет связей. Кликните правой кнопкой по узлу или нажмите «Создать связь».",
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = SystemColors.GrayText,
-            Font = new("Segoe UI", 10F, FontStyle.Regular),
-            Visible = false,
-        };
+        uiReaderLegend.Image = CreateLegendSwatch(Color.PaleGreen);
+        uiWriterLegend.Image = CreateLegendSwatch(Color.LightBlue);
+        uiTransitLegend.Image = CreateLegendSwatch(Color.Moccasin);
 
         _edgeMenu = new();
         _edgeMenu.Items.Add("Инвертировать", null, (_, _) => RaiseEdgeEvent(InvertRequested));
@@ -63,66 +46,7 @@ public sealed class RelationsGraphControl : UserControl
         _nodeMenu = new();
         _nodeMenu.Items.Add("Создать связь отсюда", null, OnNodeMenuCreateClick);
 
-        _createRelationButton = new("Создать связь");
-        _createRelationButton.Click += OnCreateRelationButtonClick;
-
-        var rebuildButton = new ToolStripButton("Перестроить")
-        {
-            ToolTipText = "Перечитать связи из базы и пересобрать раскладку графа",
-        };
-
-        rebuildButton.Click += OnRebuildButtonClick;
-
-        _statusLabel = new(string.Empty);
-
-        var readerLegend = new ToolStripLabel("Источник")
-        {
-            Image = CreateLegendSwatch(Color.PaleGreen),
-            ImageAlign = ContentAlignment.MiddleLeft,
-        };
-
-        var writerLegend = new ToolStripLabel("Цель")
-        {
-            Image = CreateLegendSwatch(Color.LightBlue),
-            ImageAlign = ContentAlignment.MiddleLeft,
-        };
-
-        var transitLegend = new ToolStripLabel("Транзит")
-        {
-            Image = CreateLegendSwatch(Color.Moccasin),
-            ImageAlign = ContentAlignment.MiddleLeft,
-        };
-
-        var helpButton = new ToolStripButton("?")
-        {
-            Alignment = ToolStripItemAlignment.Right,
-            ToolTipText = "Справка по работе с графом",
-        };
-
-        helpButton.Click += OnHelpButtonClick;
-
-        var toolStrip = new ToolStrip
-        {
-            Dock = DockStyle.Top,
-            GripStyle = ToolStripGripStyle.Hidden,
-            RenderMode = ToolStripRenderMode.System,
-        };
-
-        toolStrip.Items.Add(_createRelationButton);
-        toolStrip.Items.Add(rebuildButton);
-        toolStrip.Items.Add(new ToolStripSeparator());
-        toolStrip.Items.Add(_statusLabel);
-        toolStrip.Items.Add(new ToolStripSeparator());
-        toolStrip.Items.Add(readerLegend);
-        toolStrip.Items.Add(writerLegend);
-        toolStrip.Items.Add(transitLegend);
-        toolStrip.Items.Add(helpButton);
-
-        _viewer.MouseDown += OnViewerMouseDown;
-
-        Controls.Add(_viewer);
-        Controls.Add(_emptyStateLabel);
-        Controls.Add(toolStrip);
+        uiViewer.MouseDown += OnViewerMouseDown;
     }
 
     public event EventHandler<RelationGraphEdgeEventArgs>? CreateRequested;
@@ -202,8 +126,8 @@ public sealed class RelationsGraphControl : UserControl
         }
 
         var isEmpty = graph.NodeCount == 0;
-        _emptyStateLabel.Visible = isEmpty;
-        _viewer.Visible = !isEmpty;
+        uiEmptyStateLabel.Visible = isEmpty;
+        uiViewer.Visible = !isEmpty;
 
         _focusedNodeId = null;
         _pendingFromId = null;
@@ -211,15 +135,15 @@ public sealed class RelationsGraphControl : UserControl
 
         ApplyVisualState(graph);
 
-        var shouldPreserveZoom = !_forceFitOnNextSet && _viewer.Graph != null;
+        var shouldPreserveZoom = !_forceFitOnNextSet && uiViewer.Graph != null;
         _forceFitOnNextSet = false;
 
-        var savedZoom = shouldPreserveZoom ? _viewer.ZoomF : (double?)null;
-        _viewer.Graph = graph;
+        var savedZoom = shouldPreserveZoom ? uiViewer.ZoomF : (double?)null;
+        uiViewer.Graph = graph;
 
         if (savedZoom.HasValue)
         {
-            _viewer.ZoomF = savedZoom.Value;
+            uiViewer.ZoomF = savedZoom.Value;
         }
     }
 
@@ -236,32 +160,21 @@ public sealed class RelationsGraphControl : UserControl
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _edgeMenu.Dispose();
-            _nodeMenu.Dispose();
-        }
-
-        base.Dispose(disposing);
-    }
-
     private void OnViewerMouseDown(object? sender, MouseEventArgs e)
     {
         if (e.Button == MouseButtons.Right)
         {
-            var rightObj = _viewer.ObjectUnderMouseCursor;
+            var rightObj = uiViewer.ObjectUnderMouseCursor;
 
             if (rightObj is IViewerEdge viewerEdge)
             {
                 _selectedEdge = viewerEdge.Edge;
-                _edgeMenu.Show(_viewer, e.Location);
+                _edgeMenu.Show(uiViewer, e.Location);
             }
             else if (rightObj is IViewerNode viewerNodeRight)
             {
                 _menuTargetNodeId = viewerNodeRight.Node.Id;
-                _nodeMenu.Show(_viewer, e.Location);
+                _nodeMenu.Show(uiViewer, e.Location);
             }
 
             return;
@@ -272,7 +185,7 @@ public sealed class RelationsGraphControl : UserControl
             return;
         }
 
-        var obj = _viewer.ObjectUnderMouseCursor;
+        var obj = uiViewer.ObjectUnderMouseCursor;
 
         if (obj is IViewerNode viewerNode)
         {
@@ -492,7 +405,7 @@ public sealed class RelationsGraphControl : UserControl
 
     private void RefreshVisualState()
     {
-        var graph = _viewer.Graph;
+        var graph = uiViewer.Graph;
 
         if (graph == null)
         {
@@ -500,21 +413,21 @@ public sealed class RelationsGraphControl : UserControl
         }
 
         ApplyVisualState(graph);
-        _viewer.Invalidate();
+        uiViewer.Invalidate();
     }
 
     private void SetMode(SelectionMode mode)
     {
         _mode = mode;
-        _statusLabel.Text = mode switch
+        uiStatusLabel.Text = mode switch
         {
             SelectionMode.SelectingFrom => "Выберите начальный узел",
             SelectionMode.SelectingTo => "Выберите целевой узел (Esc — выйти)",
             _ => string.Empty,
         };
 
-        _createRelationButton.Checked = mode != SelectionMode.Idle;
-        _viewer.Cursor = mode != SelectionMode.Idle ? Cursors.Cross : Cursors.Default;
+        uiCreateRelationButton.Checked = mode != SelectionMode.Idle;
+        uiViewer.Cursor = mode != SelectionMode.Idle ? Cursors.Cross : Cursors.Default;
     }
 
     private void RaiseEdgeEvent(EventHandler<RelationGraphEdgeEventArgs>? handler)

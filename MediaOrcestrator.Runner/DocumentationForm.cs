@@ -2,28 +2,26 @@ using Markdig;
 
 namespace MediaOrcestrator.Runner;
 
-public sealed class DocumentationForm : Form
+public partial class DocumentationForm : Form
 {
-    private readonly WebBrowser _webBrowser;
+    private readonly string _markdownContent = "";
+    private readonly string _basePath = "";
 
-    public DocumentationForm(string title, string markdownContent, string basePath)
+    public DocumentationForm()
+    {
+        InitializeComponent();
+    }
+
+    public DocumentationForm(string title, string markdownContent, string basePath) : this()
     {
         Text = title;
-        Size = new(850, 650);
-        StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new(400, 300);
+        _markdownContent = markdownContent;
+        _basePath = basePath;
+    }
 
-        _webBrowser = new()
-        {
-            Dock = DockStyle.Fill,
-            IsWebBrowserContextMenuEnabled = false,
-            ScriptErrorsSuppressed = true,
-        };
-
-        Controls.Add(_webBrowser);
-
-        var html = RenderMarkdown(markdownContent, basePath);
-        _webBrowser.DocumentText = html;
+    private void DocumentationForm_Load(object? sender, EventArgs e)
+    {
+        uiWebBrowser.DocumentText = RenderMarkdown(_markdownContent, _basePath);
     }
 
     private static string RenderMarkdown(string markdown, string basePath)

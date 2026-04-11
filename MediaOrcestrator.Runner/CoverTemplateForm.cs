@@ -4,36 +4,12 @@ using DrawingColor = System.Drawing.Color;
 
 namespace MediaOrcestrator.Runner;
 
-public sealed class CoverTemplateForm : Form
+public partial class CoverTemplateForm : Form
 {
     private readonly CoverGenerator _coverGenerator;
     private readonly CoverTemplateStore _store;
 
-    private readonly ComboBox _uiProfilesCombo;
-    private readonly TextBox _uiTemplatePathTextBox;
-    private readonly PictureBox _uiPreview;
-    private readonly NumericUpDown _uiStartNumber;
-    private readonly NumericUpDown _uiSampleNumber;
-    private readonly RadioButton _uiSequentialRadio;
-    private readonly RadioButton _uiTitleRegexRadio;
-    private readonly TextBox _uiTitleRegexTextBox;
-
-    private readonly ListBox _uiLayersList;
-    private readonly Button _uiRemoveLayerButton;
-    private readonly Button _uiMoveLayerUpButton;
-    private readonly Button _uiMoveLayerDownButton;
-
-    private readonly GroupBox _uiLayerGroup;
-    private readonly TextBox _uiLayerTextBox;
-    private readonly ComboBox _uiFontFamily;
-    private readonly NumericUpDown _uiFontSize;
-    private readonly NumericUpDown _uiStrokeWidth;
-    private readonly Button _uiFillColorButton;
-    private readonly Button _uiStrokeColorButton;
-    private readonly Label _uiPositionLabel;
-
     private readonly List<MutableLayer> _layers = [];
-    private readonly ToolTip _uiToolTip = new();
 
     private string? _templatePath;
     private string? _currentProfileName;
@@ -42,535 +18,21 @@ public sealed class CoverTemplateForm : Form
     private int _prevSelectedLayerIndex = -1;
     private bool _isDraggingLayer;
 
-    public CoverTemplateForm(CoverGenerator coverGenerator, CoverTemplateStore store, CoverTemplate? initial, string? initialProfileName = null)
+    public CoverTemplateForm()
+    {
+        _coverGenerator = null!;
+        _store = null!;
+        InitializeComponent();
+        PopulateFontFamilies();
+    }
+
+    public CoverTemplateForm(CoverGenerator coverGenerator, CoverTemplateStore store, CoverTemplate? initial, string? initialProfileName = null) : this()
     {
         _coverGenerator = coverGenerator;
         _store = store;
         _currentProfileName = initialProfileName;
 
         Text = FormatTitle(_currentProfileName);
-        Size = new(1080, 760);
-        MinimumSize = new(900, 600);
-        StartPosition = FormStartPosition.CenterParent;
-        FormBorderStyle = FormBorderStyle.Sizable;
-
-        var rootLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new(10),
-            ColumnCount = 2,
-            RowCount = 2,
-        };
-
-        rootLayout.ColumnStyles.Add(new(SizeType.Percent, 58));
-        rootLayout.ColumnStyles.Add(new(SizeType.Percent, 42));
-        rootLayout.RowStyles.Add(new(SizeType.Percent, 100));
-        rootLayout.RowStyles.Add(new(SizeType.AutoSize));
-
-        var previewGroup = new GroupBox
-        {
-            Text = "Превью (клик — задать позицию выбранного слоя)",
-            Dock = DockStyle.Fill,
-        };
-
-        var previewLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-        };
-
-        previewLayout.RowStyles.Add(new(SizeType.Percent, 100));
-        previewLayout.RowStyles.Add(new(SizeType.AutoSize));
-
-        _uiPreview = new()
-        {
-            Dock = DockStyle.Fill,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = DrawingColor.Black,
-            Cursor = Cursors.Cross,
-        };
-
-        _uiPreview.MouseDown += OnPreviewMouseDown;
-        _uiPreview.MouseMove += OnPreviewMouseMove;
-        _uiPreview.MouseUp += OnPreviewMouseUp;
-
-        _uiPositionLabel = new()
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            Text = "Слой не выбран",
-        };
-
-        previewLayout.Controls.Add(_uiPreview, 0, 0);
-        previewLayout.Controls.Add(_uiPositionLabel, 0, 1);
-        previewGroup.Controls.Add(previewLayout);
-        rootLayout.Controls.Add(previewGroup, 0, 0);
-
-        var settingsPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 4,
-            AutoScroll = true,
-        };
-
-        settingsPanel.RowStyles.Add(new(SizeType.AutoSize));
-        settingsPanel.RowStyles.Add(new(SizeType.AutoSize));
-        settingsPanel.RowStyles.Add(new(SizeType.AutoSize));
-        settingsPanel.RowStyles.Add(new(SizeType.Percent, 100));
-
-        // ── Группа: профили ──────────────────────────────────────────
-        var profilesGroup = new GroupBox
-        {
-            Text = "Профиль",
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-        };
-
-        var profilesLayout = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new(8),
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true,
-        };
-
-        _uiProfilesCombo = new()
-        {
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Width = 180,
-        };
-
-        var uiLoadProfileButton = new Button
-        {
-            Text = "Загрузить",
-            AutoSize = true,
-        };
-
-        uiLoadProfileButton.Click += (_, _) => LoadSelectedProfile();
-
-        var uiSaveAsProfileButton = new Button
-        {
-            Text = "Сохранить как...",
-            AutoSize = true,
-        };
-
-        uiSaveAsProfileButton.Click += (_, _) => SaveAsProfile();
-
-        var uiDeleteProfileButton = new Button
-        {
-            Text = "Удалить",
-            AutoSize = true,
-        };
-
-        uiDeleteProfileButton.Click += (_, _) => DeleteSelectedProfile();
-
-        profilesLayout.Controls.Add(_uiProfilesCombo);
-        profilesLayout.Controls.Add(uiLoadProfileButton);
-        profilesLayout.Controls.Add(uiSaveAsProfileButton);
-        profilesLayout.Controls.Add(uiDeleteProfileButton);
-        profilesGroup.Controls.Add(profilesLayout);
-        settingsPanel.Controls.Add(profilesGroup, 0, 0);
-
-        // ── Группа: шаблон и нумерация ───────────────────────────────
-        var templateGroup = new GroupBox
-        {
-            Text = "Шаблон и нумерация",
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-        };
-
-        var templateLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 7,
-            Padding = new(8),
-            AutoSize = true,
-        };
-
-        templateLayout.ColumnStyles.Add(new(SizeType.AutoSize));
-        templateLayout.ColumnStyles.Add(new(SizeType.Percent, 100));
-
-        for (var i = 0; i < 7; i++)
-        {
-            templateLayout.RowStyles.Add(new(SizeType.AutoSize));
-        }
-
-        templateLayout.Controls.Add(new Label { Text = "Файл:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
-
-        var pathPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
-            AutoSize = true,
-        };
-
-        pathPanel.ColumnStyles.Add(new(SizeType.Percent, 100));
-        pathPanel.ColumnStyles.Add(new(SizeType.AutoSize));
-
-        _uiTemplatePathTextBox = new()
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-        };
-
-        var uiBrowseButton = new Button
-        {
-            Text = "Обзор...",
-            AutoSize = true,
-        };
-
-        uiBrowseButton.Click += (_, _) => BrowseTemplate();
-        pathPanel.Controls.Add(_uiTemplatePathTextBox, 0, 0);
-        pathPanel.Controls.Add(uiBrowseButton, 1, 0);
-        templateLayout.Controls.Add(pathPanel, 1, 0);
-
-        templateLayout.Controls.Add(new Label { Text = "Режим №:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
-
-        var modeLayout = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-        };
-
-        _uiSequentialRadio = new()
-        {
-            Text = "Последовательно",
-            AutoSize = true,
-            Checked = true,
-        };
-
-        _uiTitleRegexRadio = new()
-        {
-            Text = "Из названия",
-            AutoSize = true,
-        };
-
-        _uiSequentialRadio.CheckedChanged += (_, _) =>
-        {
-            if (!_uiSequentialRadio.Checked)
-            {
-                return;
-            }
-
-            _uiTitleRegexRadio.Checked = false;
-            UpdateNumberModeUi();
-            UpdatePreview();
-        };
-
-        _uiTitleRegexRadio.CheckedChanged += (_, _) =>
-        {
-            if (!_uiTitleRegexRadio.Checked)
-            {
-                return;
-            }
-
-            _uiSequentialRadio.Checked = false;
-            UpdateNumberModeUi();
-            UpdatePreview();
-        };
-
-        modeLayout.Controls.Add(_uiSequentialRadio);
-        modeLayout.Controls.Add(_uiTitleRegexRadio);
-        templateLayout.Controls.Add(modeLayout, 1, 1);
-
-        templateLayout.Controls.Add(new Label { Text = "Начальный №:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
-
-        _uiStartNumber = new()
-        {
-            Dock = DockStyle.Fill,
-            Minimum = 1,
-            Maximum = 99999,
-            Value = 1,
-        };
-
-        _uiStartNumber.ValueChanged += (_, _) => UpdatePreview();
-        templateLayout.Controls.Add(_uiStartNumber, 1, 2);
-
-        templateLayout.Controls.Add(new Label { Text = "Regex:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 3);
-
-        _uiTitleRegexTextBox = new()
-        {
-            Dock = DockStyle.Fill,
-            Text = CoverTemplate.DefaultTitleRegex,
-        };
-
-        _uiTitleRegexTextBox.TextChanged += (_, _) => UpdatePreview();
-        templateLayout.Controls.Add(_uiTitleRegexTextBox, 1, 3);
-
-        templateLayout.Controls.Add(new Label { Text = "Образец №:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 4);
-
-        _uiSampleNumber = new()
-        {
-            Dock = DockStyle.Fill,
-            Minimum = 1,
-            Maximum = 99999,
-            Value = 12,
-        };
-
-        _uiSampleNumber.ValueChanged += (_, _) => UpdatePreview();
-        templateLayout.Controls.Add(_uiSampleNumber, 1, 4);
-
-        var uiHintLabel = new Label
-        {
-            Text = "В тексте слоя пишите {number} — будет подставлен расчётный номер.",
-            AutoSize = true,
-            ForeColor = DrawingColor.Gray,
-            MaximumSize = new(360, 0),
-        };
-
-        templateLayout.SetColumnSpan(uiHintLabel, 2);
-        templateLayout.Controls.Add(uiHintLabel, 0, 5);
-
-        templateGroup.Controls.Add(templateLayout);
-        settingsPanel.Controls.Add(templateGroup, 0, 1);
-
-        // ── Группа: список слоёв ─────────────────────────────────────
-        var layersGroup = new GroupBox
-        {
-            Text = "Слои",
-            Dock = DockStyle.Fill,
-            Height = 130,
-        };
-
-        var layersLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new(8),
-            ColumnCount = 2,
-            RowCount = 1,
-        };
-
-        layersLayout.ColumnStyles.Add(new(SizeType.Percent, 100));
-        layersLayout.ColumnStyles.Add(new(SizeType.AutoSize));
-
-        _uiLayersList = new()
-        {
-            Dock = DockStyle.Fill,
-        };
-
-        _uiLayersList.SelectedIndexChanged += (_, _) => OnLayerSelectionChanged();
-
-        var layersButtons = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            AutoSize = true,
-            WrapContents = false,
-        };
-
-        var uiAddLayerButton = new Button
-        {
-            Text = "Добавить",
-            AutoSize = true,
-            Width = 90,
-        };
-
-        uiAddLayerButton.Click += (_, _) => AddLayer();
-
-        _uiRemoveLayerButton = new()
-        {
-            Text = "Удалить",
-            AutoSize = true,
-            Width = 90,
-            Enabled = false,
-        };
-
-        _uiRemoveLayerButton.Click += (_, _) => RemoveSelectedLayer();
-
-        _uiMoveLayerUpButton = new()
-        {
-            Text = "Вверх",
-            AutoSize = true,
-            Width = 90,
-            Enabled = false,
-        };
-
-        _uiMoveLayerUpButton.Click += (_, _) => MoveSelectedLayer(-1);
-
-        _uiMoveLayerDownButton = new()
-        {
-            Text = "Вниз",
-            AutoSize = true,
-            Width = 90,
-            Enabled = false,
-        };
-
-        _uiMoveLayerDownButton.Click += (_, _) => MoveSelectedLayer(1);
-
-        layersButtons.Controls.Add(uiAddLayerButton);
-        layersButtons.Controls.Add(_uiRemoveLayerButton);
-        layersButtons.Controls.Add(_uiMoveLayerUpButton);
-        layersButtons.Controls.Add(_uiMoveLayerDownButton);
-
-        layersLayout.Controls.Add(_uiLayersList, 0, 0);
-        layersLayout.Controls.Add(layersButtons, 1, 0);
-        layersGroup.Controls.Add(layersLayout);
-        settingsPanel.Controls.Add(layersGroup, 0, 2);
-
-        // ── Группа: редактор текущего слоя ───────────────────────────
-        _uiLayerGroup = new()
-        {
-            Text = "Текущий слой",
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Enabled = false,
-        };
-
-        var layerLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new(8),
-            ColumnCount = 2,
-            RowCount = 6,
-            AutoSize = true,
-        };
-
-        layerLayout.ColumnStyles.Add(new(SizeType.AutoSize));
-        layerLayout.ColumnStyles.Add(new(SizeType.Percent, 100));
-
-        for (var i = 0; i < 6; i++)
-        {
-            layerLayout.RowStyles.Add(new(SizeType.AutoSize));
-        }
-
-        layerLayout.Controls.Add(new Label { Text = "Текст:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
-
-        _uiLayerTextBox = new()
-        {
-            Dock = DockStyle.Fill,
-            Text = "{number}",
-        };
-
-        _uiLayerTextBox.TextChanged += (_, _) => OnLayerFieldChanged(layer => layer.TextTemplate = _uiLayerTextBox.Text);
-        // Ярлык в ListBox обновляем только когда редактирование завершено — иначе ListBox.Items[idx] = ...
-        // пересоздаёт элемент, сбрасывает выделение и крадёт фокус с текстбокса на каждом нажатии.
-        _uiLayerTextBox.Leave += (_, _) => RefreshLayerListLabel(_uiLayersList.SelectedIndex);
-        layerLayout.Controls.Add(_uiLayerTextBox, 1, 0);
-
-        layerLayout.Controls.Add(new Label { Text = "Шрифт:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
-
-        _uiFontFamily = new()
-        {
-            Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-        };
-
-        foreach (var family in FontFamily.Families.OrderBy(f => f.Name))
-        {
-            _uiFontFamily.Items.Add(family.Name);
-        }
-
-        _uiFontFamily.SelectedIndexChanged += (_, _) => OnLayerFieldChanged(layer => layer.FontFamily = _uiFontFamily.SelectedItem?.ToString() ?? "Arial");
-        layerLayout.Controls.Add(_uiFontFamily, 1, 1);
-
-        layerLayout.Controls.Add(new Label { Text = "Размер (% выс.):", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
-
-        _uiFontSize = new()
-        {
-            Dock = DockStyle.Fill,
-            Minimum = 1,
-            Maximum = 100,
-            DecimalPlaces = 1,
-            Increment = 0.5m,
-            Value = 25m,
-        };
-
-        _uiFontSize.ValueChanged += (_, _) => OnLayerFieldChanged(layer => layer.FontSizeRatio = (float)_uiFontSize.Value / 100f);
-        layerLayout.Controls.Add(_uiFontSize, 1, 2);
-
-        layerLayout.Controls.Add(new Label { Text = "Обводка (% выс.):", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 3);
-
-        _uiStrokeWidth = new()
-        {
-            Dock = DockStyle.Fill,
-            Minimum = 0,
-            Maximum = 10,
-            DecimalPlaces = 2,
-            Increment = 0.1m,
-            Value = 1.0m,
-        };
-
-        _uiStrokeWidth.ValueChanged += (_, _) => OnLayerFieldChanged(layer => layer.StrokeWidthRatio = (float)_uiStrokeWidth.Value / 100f);
-        layerLayout.Controls.Add(_uiStrokeWidth, 1, 3);
-
-        layerLayout.Controls.Add(new Label { Text = "Заливка:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 4);
-
-        _uiFillColorButton = new()
-        {
-            Dock = DockStyle.Fill,
-            Text = "",
-            Height = 26,
-            BackColor = DrawingColor.White,
-            FlatStyle = FlatStyle.Flat,
-        };
-
-        _uiFillColorButton.Click += (_, _) => PickColor(true);
-        layerLayout.Controls.Add(_uiFillColorButton, 1, 4);
-
-        layerLayout.Controls.Add(new Label { Text = "Цвет обводки:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 5);
-
-        _uiStrokeColorButton = new()
-        {
-            Dock = DockStyle.Fill,
-            Text = "",
-            Height = 26,
-            BackColor = DrawingColor.Black,
-            FlatStyle = FlatStyle.Flat,
-        };
-
-        _uiStrokeColorButton.Click += (_, _) => PickColor(false);
-        layerLayout.Controls.Add(_uiStrokeColorButton, 1, 5);
-
-        _uiLayerGroup.Controls.Add(layerLayout);
-        settingsPanel.Controls.Add(_uiLayerGroup, 0, 3);
-
-        rootLayout.Controls.Add(settingsPanel, 1, 0);
-
-        var buttonPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
-            AutoSize = true,
-            Padding = new(0, 8, 0, 0),
-        };
-
-        var uiCancelButton = new Button
-        {
-            Text = "Отмена",
-            DialogResult = DialogResult.Cancel,
-        };
-
-        var uiOkButton = new Button { Text = "OK" };
-        uiOkButton.Click += (_, _) => OnApply();
-
-        var uiHelpButton = new Button
-        {
-            Text = "Справка",
-            AutoSize = true,
-        };
-
-        uiHelpButton.Click += (_, _) => ShowHelp();
-
-        buttonPanel.Controls.Add(uiCancelButton);
-        buttonPanel.Controls.Add(uiOkButton);
-        buttonPanel.Controls.Add(uiHelpButton);
-
-        rootLayout.SetColumnSpan(buttonPanel, 2);
-        rootLayout.Controls.Add(buttonPanel, 0, 1);
-
-        Controls.Add(rootLayout);
-        CancelButton = uiCancelButton;
-        AcceptButton = uiOkButton;
 
         if (initial != null)
         {
@@ -578,10 +40,9 @@ public sealed class CoverTemplateForm : Form
         }
         else
         {
-            // Дефолтный шаблон с одним слоем-номером.
             _layers.Add(MutableLayer.FromDomain(CoverTemplate.DefaultNumberLayer));
             RefreshLayersList();
-            _uiLayersList.SelectedIndex = 0;
+            uiLayersList.SelectedIndex = 0;
         }
 
         UpdateNumberModeUi();
@@ -592,14 +53,14 @@ public sealed class CoverTemplateForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        _uiPreview.Image?.Dispose();
-        _uiPreview.Image = null;
+        uiPreview.Image?.Dispose();
+        uiPreview.Image = null;
         base.OnFormClosed(e);
     }
 
     private void OnPreviewMouseDown(object? sender, MouseEventArgs e)
     {
-        if (e.Button != MouseButtons.Left || _uiPreview.Image == null)
+        if (e.Button != MouseButtons.Left || uiPreview.Image == null)
         {
             return;
         }
@@ -610,7 +71,7 @@ public sealed class CoverTemplateForm : Form
         }
 
         _isDraggingLayer = true;
-        _uiPreview.Capture = true;
+        uiPreview.Capture = true;
     }
 
     private void OnPreviewMouseMove(object? sender, MouseEventArgs e)
@@ -631,7 +92,136 @@ public sealed class CoverTemplateForm : Form
         }
 
         _isDraggingLayer = false;
-        _uiPreview.Capture = false;
+        uiPreview.Capture = false;
+    }
+
+    private void uiBrowseButton_Click(object? sender, EventArgs e)
+    {
+        BrowseTemplate();
+    }
+
+    private void uiSequentialRadio_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (!uiSequentialRadio.Checked)
+        {
+            return;
+        }
+
+        uiTitleRegexRadio.Checked = false;
+        UpdateNumberModeUi();
+        UpdatePreview();
+    }
+
+    private void uiTitleRegexRadio_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (!uiTitleRegexRadio.Checked)
+        {
+            return;
+        }
+
+        uiSequentialRadio.Checked = false;
+        UpdateNumberModeUi();
+        UpdatePreview();
+    }
+
+    private void uiStartNumber_ValueChanged(object? sender, EventArgs e)
+    {
+        UpdatePreview();
+    }
+
+    private void uiTitleRegexTextBox_TextChanged(object? sender, EventArgs e)
+    {
+        UpdatePreview();
+    }
+
+    private void uiSampleNumber_ValueChanged(object? sender, EventArgs e)
+    {
+        UpdatePreview();
+    }
+
+    private void uiLayersList_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        OnLayerSelectionChanged();
+    }
+
+    private void uiLayerTextBox_TextChanged(object? sender, EventArgs e)
+    {
+        OnLayerFieldChanged(layer => layer.TextTemplate = uiLayerTextBox.Text);
+    }
+
+    private void uiLayerTextBox_Leave(object? sender, EventArgs e)
+    {
+        RefreshLayerListLabel(uiLayersList.SelectedIndex);
+    }
+
+    private void uiFontFamily_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        OnLayerFieldChanged(layer => layer.FontFamily = uiFontFamily.SelectedItem?.ToString() ?? "Arial");
+    }
+
+    private void uiFontSize_ValueChanged(object? sender, EventArgs e)
+    {
+        OnLayerFieldChanged(layer => layer.FontSizeRatio = (float)uiFontSize.Value / 100f);
+    }
+
+    private void uiStrokeWidth_ValueChanged(object? sender, EventArgs e)
+    {
+        OnLayerFieldChanged(layer => layer.StrokeWidthRatio = (float)uiStrokeWidth.Value / 100f);
+    }
+
+    private void uiFillColorButton_Click(object? sender, EventArgs e)
+    {
+        PickColor(true);
+    }
+
+    private void uiStrokeColorButton_Click(object? sender, EventArgs e)
+    {
+        PickColor(false);
+    }
+
+    private void uiAddLayerButton_Click(object? sender, EventArgs e)
+    {
+        AddLayer();
+    }
+
+    private void uiRemoveLayerButton_Click(object? sender, EventArgs e)
+    {
+        RemoveSelectedLayer();
+    }
+
+    private void uiMoveLayerUpButton_Click(object? sender, EventArgs e)
+    {
+        MoveSelectedLayer(-1);
+    }
+
+    private void uiMoveLayerDownButton_Click(object? sender, EventArgs e)
+    {
+        MoveSelectedLayer(1);
+    }
+
+    private void uiLoadProfileButton_Click(object? sender, EventArgs e)
+    {
+        LoadSelectedProfile();
+    }
+
+    private void uiSaveAsProfileButton_Click(object? sender, EventArgs e)
+    {
+        SaveAsProfile();
+    }
+
+    private void uiDeleteProfileButton_Click(object? sender, EventArgs e)
+    {
+        DeleteSelectedProfile();
+    }
+
+    private void uiOkButton_Click(object? sender, EventArgs e)
+    {
+        OnApply();
+    }
+
+    private void uiHelpButton_Click(object? sender, EventArgs e)
+    {
+        ShowHelp();
     }
 
     private static string FormatTitle(string? profileName)
@@ -639,6 +229,16 @@ public sealed class CoverTemplateForm : Form
         return string.IsNullOrEmpty(profileName)
             ? "Шаблон обложки"
             : $"Шаблон обложки — {profileName}";
+    }
+
+    private void PopulateFontFamilies()
+    {
+        uiFontFamily.Items.Clear();
+
+        foreach (var family in FontFamily.Families.OrderBy(f => f.Name))
+        {
+            uiFontFamily.Items.Add(family.Name);
+        }
     }
 
     private bool TryApplyDragPosition(Point location)
@@ -671,11 +271,11 @@ public sealed class CoverTemplateForm : Form
 
         _templatePath = initial.TemplatePath;
         SetTemplatePathDisplay(initial.TemplatePath);
-        _uiStartNumber.Value = Math.Clamp(initial.StartNumber, (int)_uiStartNumber.Minimum, (int)_uiStartNumber.Maximum);
-        _uiSampleNumber.Value = Math.Clamp(initial.StartNumber, (int)_uiSampleNumber.Minimum, (int)_uiSampleNumber.Maximum);
-        _uiTitleRegexTextBox.Text = string.IsNullOrWhiteSpace(initial.TitleRegexPattern) ? CoverTemplate.DefaultTitleRegex : initial.TitleRegexPattern;
-        _uiSequentialRadio.Checked = initial.NumberMode == CoverNumberMode.Sequential;
-        _uiTitleRegexRadio.Checked = initial.NumberMode == CoverNumberMode.TitleRegex;
+        uiStartNumber.Value = Math.Clamp(initial.StartNumber, (int)uiStartNumber.Minimum, (int)uiStartNumber.Maximum);
+        uiSampleNumber.Value = Math.Clamp(initial.StartNumber, (int)uiSampleNumber.Minimum, (int)uiSampleNumber.Maximum);
+        uiTitleRegexTextBox.Text = string.IsNullOrWhiteSpace(initial.TitleRegexPattern) ? CoverTemplate.DefaultTitleRegex : initial.TitleRegexPattern;
+        uiSequentialRadio.Checked = initial.NumberMode == CoverNumberMode.Sequential;
+        uiTitleRegexRadio.Checked = initial.NumberMode == CoverNumberMode.TitleRegex;
 
         _layers.Clear();
 
@@ -694,9 +294,9 @@ public sealed class CoverTemplateForm : Form
         _suppressLayerEdits = false;
         _suppressPreview = false;
 
-        if (_uiLayersList.Items.Count > 0)
+        if (uiLayersList.Items.Count > 0)
         {
-            _uiLayersList.SelectedIndex = 0;
+            uiLayersList.SelectedIndex = 0;
         }
 
         UpdateNumberModeUi();
@@ -705,16 +305,15 @@ public sealed class CoverTemplateForm : Form
 
     private void UpdateNumberModeUi()
     {
-        var sequential = _uiSequentialRadio.Checked;
-        _uiStartNumber.Enabled = sequential;
-        _uiTitleRegexTextBox.Enabled = !sequential;
+        var sequential = uiSequentialRadio.Checked;
+        uiStartNumber.Enabled = sequential;
+        uiTitleRegexTextBox.Enabled = !sequential;
     }
 
     private void OnLayerSelectionChanged()
     {
-        var currentIndex = _uiLayersList.SelectedIndex;
+        var currentIndex = uiLayersList.SelectedIndex;
 
-        // Обновляем ярлык у слоя, с которого ушли — вдруг в текстбоксе были несохранённые правки.
         if (_prevSelectedLayerIndex >= 0 && _prevSelectedLayerIndex != currentIndex)
         {
             RefreshLayerListLabel(_prevSelectedLayerIndex);
@@ -726,29 +325,29 @@ public sealed class CoverTemplateForm : Form
 
         if (layer == null)
         {
-            _uiLayerGroup.Enabled = false;
-            _uiRemoveLayerButton.Enabled = false;
-            _uiMoveLayerUpButton.Enabled = false;
-            _uiMoveLayerDownButton.Enabled = false;
-            _uiPositionLabel.Text = "Слой не выбран";
+            uiLayerGroup.Enabled = false;
+            uiRemoveLayerButton.Enabled = false;
+            uiMoveLayerUpButton.Enabled = false;
+            uiMoveLayerDownButton.Enabled = false;
+            uiPositionLabel.Text = "Слой не выбран";
             return;
         }
 
-        _uiLayerGroup.Enabled = true;
-        _uiRemoveLayerButton.Enabled = _layers.Count > 1;
-        _uiMoveLayerUpButton.Enabled = currentIndex > 0;
-        _uiMoveLayerDownButton.Enabled = currentIndex >= 0 && currentIndex < _layers.Count - 1;
+        uiLayerGroup.Enabled = true;
+        uiRemoveLayerButton.Enabled = _layers.Count > 1;
+        uiMoveLayerUpButton.Enabled = currentIndex > 0;
+        uiMoveLayerDownButton.Enabled = currentIndex >= 0 && currentIndex < _layers.Count - 1;
 
         _suppressLayerEdits = true;
-        _uiLayerTextBox.Text = layer.TextTemplate;
+        uiLayerTextBox.Text = layer.TextTemplate;
 
-        var familyIndex = _uiFontFamily.Items.IndexOf(layer.FontFamily);
-        _uiFontFamily.SelectedIndex = familyIndex >= 0 ? familyIndex : Math.Max(0, _uiFontFamily.Items.IndexOf("Impact"));
+        var familyIndex = uiFontFamily.Items.IndexOf(layer.FontFamily);
+        uiFontFamily.SelectedIndex = familyIndex >= 0 ? familyIndex : Math.Max(0, uiFontFamily.Items.IndexOf("Impact"));
 
-        _uiFontSize.Value = (decimal)Math.Clamp(layer.FontSizeRatio * 100f, (float)_uiFontSize.Minimum, (float)_uiFontSize.Maximum);
-        _uiStrokeWidth.Value = (decimal)Math.Clamp(layer.StrokeWidthRatio * 100f, (float)_uiStrokeWidth.Minimum, (float)_uiStrokeWidth.Maximum);
-        _uiFillColorButton.BackColor = layer.FillColor;
-        _uiStrokeColorButton.BackColor = layer.StrokeColor;
+        uiFontSize.Value = (decimal)Math.Clamp(layer.FontSizeRatio * 100f, (float)uiFontSize.Minimum, (float)uiFontSize.Maximum);
+        uiStrokeWidth.Value = (decimal)Math.Clamp(layer.StrokeWidthRatio * 100f, (float)uiStrokeWidth.Minimum, (float)uiStrokeWidth.Maximum);
+        uiFillColorButton.BackColor = layer.FillColor;
+        uiStrokeColorButton.BackColor = layer.StrokeColor;
         _suppressLayerEdits = false;
 
         UpdatePositionLabel();
@@ -774,7 +373,7 @@ public sealed class CoverTemplateForm : Form
 
     private MutableLayer? GetSelectedLayer()
     {
-        var idx = _uiLayersList.SelectedIndex;
+        var idx = uiLayersList.SelectedIndex;
         return idx >= 0 && idx < _layers.Count ? _layers[idx] : null;
     }
 
@@ -789,13 +388,13 @@ public sealed class CoverTemplateForm : Form
 
         _layers.Add(newLayer);
         RefreshLayersList();
-        _uiLayersList.SelectedIndex = _layers.Count - 1;
+        uiLayersList.SelectedIndex = _layers.Count - 1;
         UpdatePreview();
     }
 
     private void RemoveSelectedLayer()
     {
-        var idx = _uiLayersList.SelectedIndex;
+        var idx = uiLayersList.SelectedIndex;
 
         if (idx < 0 || _layers.Count <= 1)
         {
@@ -804,13 +403,13 @@ public sealed class CoverTemplateForm : Form
 
         _layers.RemoveAt(idx);
         RefreshLayersList();
-        _uiLayersList.SelectedIndex = Math.Min(idx, _layers.Count - 1);
+        uiLayersList.SelectedIndex = Math.Min(idx, _layers.Count - 1);
         UpdatePreview();
     }
 
     private void MoveSelectedLayer(int direction)
     {
-        var idx = _uiLayersList.SelectedIndex;
+        var idx = uiLayersList.SelectedIndex;
         var target = idx + direction;
 
         if (idx < 0 || target < 0 || target >= _layers.Count)
@@ -820,44 +419,44 @@ public sealed class CoverTemplateForm : Form
 
         (_layers[idx], _layers[target]) = (_layers[target], _layers[idx]);
         RefreshLayersList();
-        _uiLayersList.SelectedIndex = target;
+        uiLayersList.SelectedIndex = target;
         UpdatePreview();
     }
 
     private void RefreshLayersList()
     {
-        var preserved = _uiLayersList.SelectedIndex;
-        _uiLayersList.BeginUpdate();
-        _uiLayersList.Items.Clear();
+        var preserved = uiLayersList.SelectedIndex;
+        uiLayersList.BeginUpdate();
+        uiLayersList.Items.Clear();
 
         for (var i = 0; i < _layers.Count; i++)
         {
-            _uiLayersList.Items.Add($"{i + 1}. {_layers[i].TextTemplate}");
+            uiLayersList.Items.Add($"{i + 1}. {_layers[i].TextTemplate}");
         }
 
-        _uiLayersList.EndUpdate();
+        uiLayersList.EndUpdate();
 
         if (preserved >= 0 && preserved < _layers.Count)
         {
-            _uiLayersList.SelectedIndex = preserved;
+            uiLayersList.SelectedIndex = preserved;
         }
     }
 
     private void RefreshLayerListLabel(int idx)
     {
-        if (idx < 0 || idx >= _layers.Count || idx >= _uiLayersList.Items.Count)
+        if (idx < 0 || idx >= _layers.Count || idx >= uiLayersList.Items.Count)
         {
             return;
         }
 
         var newLabel = $"{idx + 1}. {_layers[idx].TextTemplate}";
 
-        if (Equals(_uiLayersList.Items[idx], newLabel))
+        if (Equals(uiLayersList.Items[idx], newLabel))
         {
             return;
         }
 
-        _uiLayersList.Items[idx] = newLabel;
+        uiLayersList.Items[idx] = newLabel;
     }
 
     private void BrowseTemplate()
@@ -882,38 +481,38 @@ public sealed class CoverTemplateForm : Form
     {
         if (string.IsNullOrEmpty(fullPath))
         {
-            _uiTemplatePathTextBox.Text = string.Empty;
-            _uiToolTip.SetToolTip(_uiTemplatePathTextBox, string.Empty);
+            uiTemplatePathTextBox.Text = string.Empty;
+            uiToolTip.SetToolTip(uiTemplatePathTextBox, string.Empty);
             return;
         }
 
-        _uiTemplatePathTextBox.Text = Path.GetFileName(fullPath);
-        _uiToolTip.SetToolTip(_uiTemplatePathTextBox, fullPath);
+        uiTemplatePathTextBox.Text = Path.GetFileName(fullPath);
+        uiToolTip.SetToolTip(uiTemplatePathTextBox, fullPath);
     }
 
     private void PopulateProfiles(string? select = null)
     {
-        _uiProfilesCombo.Items.Clear();
+        uiProfilesCombo.Items.Clear();
 
         foreach (var name in _store.List())
         {
-            _uiProfilesCombo.Items.Add(name);
+            uiProfilesCombo.Items.Add(name);
         }
 
         if (!string.IsNullOrEmpty(select))
         {
-            var idx = _uiProfilesCombo.Items.IndexOf(select);
+            var idx = uiProfilesCombo.Items.IndexOf(select);
 
             if (idx >= 0)
             {
-                _uiProfilesCombo.SelectedIndex = idx;
+                uiProfilesCombo.SelectedIndex = idx;
             }
         }
     }
 
     private void LoadSelectedProfile()
     {
-        var name = _uiProfilesCombo.SelectedItem?.ToString();
+        var name = uiProfilesCombo.SelectedItem?.ToString();
 
         if (string.IsNullOrEmpty(name))
         {
@@ -955,7 +554,7 @@ public sealed class CoverTemplateForm : Form
             return;
         }
 
-        if (_uiProfilesCombo.Items.Contains(name))
+        if (uiProfilesCombo.Items.Contains(name))
         {
             var confirm = MessageBox.Show($"Профиль '{name}' уже существует. Перезаписать?", "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
@@ -973,7 +572,7 @@ public sealed class CoverTemplateForm : Form
 
     private void DeleteSelectedProfile()
     {
-        var name = _uiProfilesCombo.SelectedItem?.ToString();
+        var name = uiProfilesCombo.SelectedItem?.ToString();
 
         if (string.IsNullOrEmpty(name))
         {
@@ -1021,12 +620,12 @@ public sealed class CoverTemplateForm : Form
         if (fill)
         {
             layer.FillColor = dialog.Color;
-            _uiFillColorButton.BackColor = dialog.Color;
+            uiFillColorButton.BackColor = dialog.Color;
         }
         else
         {
             layer.StrokeColor = dialog.Color;
-            _uiStrokeColorButton.BackColor = dialog.Color;
+            uiStrokeColorButton.BackColor = dialog.Color;
         }
 
         UpdatePreview();
@@ -1035,22 +634,22 @@ public sealed class CoverTemplateForm : Form
     private void UpdatePositionLabel()
     {
         var layer = GetSelectedLayer();
-        _uiPositionLabel.Text = layer == null
+        uiPositionLabel.Text = layer == null
             ? "Слой не выбран"
             : $"Позиция слоя: X={layer.TextX:F2}, Y={layer.TextY:F2}";
     }
 
     private RectangleF GetZoomedImageRect()
     {
-        if (_uiPreview.Image == null)
+        if (uiPreview.Image == null)
         {
             return RectangleF.Empty;
         }
 
-        var imgW = (float)_uiPreview.Image.Width;
-        var imgH = (float)_uiPreview.Image.Height;
-        var ctrlW = (float)_uiPreview.ClientSize.Width;
-        var ctrlH = (float)_uiPreview.ClientSize.Height;
+        var imgW = (float)uiPreview.Image.Width;
+        var imgH = (float)uiPreview.Image.Height;
+        var ctrlW = (float)uiPreview.ClientSize.Width;
+        var ctrlH = (float)uiPreview.ClientSize.Height;
 
         var scale = Math.Min(ctrlW / imgW, ctrlH / imgH);
         var w = imgW * scale;
@@ -1062,12 +661,12 @@ public sealed class CoverTemplateForm : Form
 
     private CoverTemplate BuildTemplate()
     {
-        var mode = _uiTitleRegexRadio.Checked ? CoverNumberMode.TitleRegex : CoverNumberMode.Sequential;
+        var mode = uiTitleRegexRadio.Checked ? CoverNumberMode.TitleRegex : CoverNumberMode.Sequential;
 
         return new(_templatePath ?? string.Empty,
-            (int)_uiStartNumber.Value,
+            (int)uiStartNumber.Value,
             mode,
-            _uiTitleRegexTextBox.Text,
+            uiTitleRegexTextBox.Text,
             _layers.Select(l => l.ToDomain()).ToList());
     }
 
@@ -1080,26 +679,26 @@ public sealed class CoverTemplateForm : Form
 
         if (string.IsNullOrEmpty(_templatePath) || !File.Exists(_templatePath))
         {
-            _uiPreview.Image?.Dispose();
-            _uiPreview.Image = null;
+            uiPreview.Image?.Dispose();
+            uiPreview.Image = null;
             return;
         }
 
         try
         {
             var template = BuildTemplate();
-            using var skBitmap = _coverGenerator.Render(template, (int)_uiSampleNumber.Value);
+            using var skBitmap = _coverGenerator.Render(template, (int)uiSampleNumber.Value);
             using var skImage = SKImage.FromBitmap(skBitmap);
             using var data = skImage.Encode(SKEncodedImageFormat.Png, 90);
             using var ms = new MemoryStream(data.ToArray());
             using var sourceBitmap = new Bitmap(ms);
 
-            _uiPreview.Image?.Dispose();
-            _uiPreview.Image = new Bitmap(sourceBitmap);
+            uiPreview.Image?.Dispose();
+            uiPreview.Image = new Bitmap(sourceBitmap);
         }
         catch (Exception ex)
         {
-            _uiPositionLabel.Text = $"Ошибка превью: {ex.Message}";
+            uiPositionLabel.Text = $"Ошибка превью: {ex.Message}";
         }
     }
 
