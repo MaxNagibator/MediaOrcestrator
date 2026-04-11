@@ -196,12 +196,8 @@ public partial class SourceSettingsForm : Form
             selectedFile = _docFiles[listBox.SelectedIndex];
         }
 
-        var markdown = File.ReadAllText(selectedFile);
         var title = Path.GetFileNameWithoutExtension(selectedFile);
-        var basePath = Path.GetDirectoryName(selectedFile)!;
-
-        var docForm = new DocumentationForm(title, markdown, basePath);
-        docForm.Show(this);
+        DocumentationForm.ShowForFile(this, title, selectedFile);
     }
 
     private static Label CreateLabel(string text)

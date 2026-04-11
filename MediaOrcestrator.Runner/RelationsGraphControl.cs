@@ -233,14 +233,7 @@ public partial class RelationsGraphControl : UserControl
 
     private void OnHelpButtonClick(object? sender, EventArgs e)
     {
-        var docsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "docs", "relations-graph.md");
-        var content = File.ReadAllText(docsPath);
-
-        using var form = new DocumentationForm("Граф связей — справка",
-            content,
-            Path.GetDirectoryName(docsPath) ?? AppDomain.CurrentDomain.BaseDirectory);
-
-        form.ShowDialog(FindForm());
+        DocumentationForm.ShowAppDoc(FindForm(), "Граф связей — справка", "relations-graph.md");
     }
 
     private void OnRebuildButtonClick(object? sender, EventArgs e)

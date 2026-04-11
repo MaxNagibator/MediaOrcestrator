@@ -723,18 +723,7 @@ public partial class CoverTemplateForm : Form
 
     private void ShowHelp()
     {
-        var docsDir = Path.Combine(AppContext.BaseDirectory, "docs");
-        var helpPath = Path.Combine(docsDir, "covers.md");
-
-        if (!File.Exists(helpPath))
-        {
-            MessageBox.Show($"Файл справки не найден: {helpPath}", "Справка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        var markdown = File.ReadAllText(helpPath);
-        using var form = new DocumentationForm("Генератор обложек — справка", markdown, docsDir);
-        form.ShowDialog(this);
+        DocumentationForm.ShowAppDoc(this, "Генератор обложек — справка", "covers.md");
     }
 
     private sealed class MutableLayer
