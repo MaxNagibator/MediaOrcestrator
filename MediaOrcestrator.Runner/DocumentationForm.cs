@@ -68,12 +68,7 @@ public partial class DocumentationForm : Form
         form.Show(owner);
     }
 
-    private void DocumentationForm_Load(object? sender, EventArgs e)
-    {
-        uiWebBrowser.DocumentText = RenderMarkdown(_markdownContent, _basePath);
-    }
-
-    private static string RenderMarkdown(string markdown, string basePath)
+    internal static string RenderMarkdown(string markdown, string basePath)
     {
         var htmlBody = Markdown.ToHtml(markdown, _pipeline);
         var baseUri = string.IsNullOrEmpty(basePath)
@@ -83,6 +78,11 @@ public partial class DocumentationForm : Form
         return _htmlTemplate
             .Replace("{{baseUri}}", baseUri)
             .Replace("{{body}}", htmlBody);
+    }
+
+    private void DocumentationForm_Load(object? sender, EventArgs e)
+    {
+        uiWebBrowser.DocumentText = RenderMarkdown(_markdownContent, _basePath);
     }
 
     private static string LoadTemplate()

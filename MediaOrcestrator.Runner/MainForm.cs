@@ -550,45 +550,34 @@ public partial class MainForm : Form
         }
     }
 
-    private async void ShowUpdateDialog(AppUpdateInfo update)
+    private void ShowUpdateDialog(AppUpdateInfo update)
     {
-        using var infoForm = new UpdateInfoForm(update);
+        using var form = new UpdateForm(update, (progress, ct) => _updateManager.DownloadUpdateAsync(update, progress, ct));
 
-        if (infoForm.ShowDialog(this) != DialogResult.Yes)
+        switch (form.ShowDialog(this))
         {
-            return;
-        }
+            case DialogResult.OK:
+                MessageBox.Show("Обновление скачано. Приложение будет перезапущено.",
+                    "Обновление", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-        using var progressForm = new UpdateProgressForm();
-        var progress = new Progress<double>(progressForm.UpdateProgress);
+                _updateManager.ApplyUpdate(form.DownloadedZipPath!);
+                break;
 
-        progressForm.Show(this);
+            case DialogResult.Abort:
+                _logger.LogError(form.DownloadError, "Не удалось скачать обновление");
 
-        try
-        {
-            var zipPath = await Task.Run(() => _updateManager.DownloadUpdateAsync(update, progress, progressForm.CancellationToken));
+                MessageBox.Show($"""
+                                 Не удалось скачать обновление:
 
-            progressForm.Close();
+                                 {form.DownloadError?.Message}
+                                 """,
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
-            MessageBox.Show("Обновление скачано. Приложение будет перезапущено.",
-                "Обновление", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                break;
 
-            _updateManager.ApplyUpdate(zipPath);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Скачивание обновления отменено пользователем");
-        }
-        catch (Exception ex)
-        {
-            progressForm.Close();
-            _logger.LogError(ex, "Не удалось скачать обновление");
-            MessageBox.Show($"""
-                             Не удалось скачать обновление:
-
-                             {ex.Message}
-                             """,
-                "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            case DialogResult.Cancel:
+                _logger.LogInformation("Скачивание обновления отменено пользователем");
+                break;
         }
     }
 
