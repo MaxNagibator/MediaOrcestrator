@@ -13,10 +13,14 @@ namespace MediaOrcestrator.Runner;
 
 file static class Program
 {
+    private static IServiceProvider? _runningServiceProvider;
+
     [STAThread]
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
+
+        RegisterGlobalExceptionHandlers();
 
         // TODO: Выглядит не очень
         var logControl = new RichTextBox();
@@ -119,6 +123,7 @@ file static class Program
                     sp.GetRequiredService<ILogger<StateManager>>()));
 
             using var serviceProvider = services.BuildServiceProvider();
+            _runningServiceProvider = serviceProvider;
             var mainForm = serviceProvider.GetRequiredService<MainForm>();
 
             var orcestrator = serviceProvider.GetRequiredService<Orcestrator>();
@@ -146,7 +151,7 @@ file static class Program
         catch (Exception ex)
         {
             Log.Fatal(ex, "Приложение не смогло запуститься корректно");
-            MessageBox.Show(ex.Message, "Error");
+            ShowErrorReport(ex);
         }
         finally
         {
@@ -159,6 +164,54 @@ file static class Program
                 // Игнорируем ошибки при закрытии логов, так как приложение все равно завершается
             }
         }
+    }
+
+    private static void RegisterGlobalExceptionHandlers()
+    {
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+
+        Application.ThreadException += (_, args) =>
+        {
+            Log.Fatal(args.Exception, "Необработанное исключение в UI-потоке");
+            ShowErrorReport(args.Exception);
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is not Exception ex)
+            {
+                return;
+            }
+
+            Log.Fatal(ex, "Необработанное исключение вне UI-потока");
+            ShowErrorReport(ex);
+        };
+    }
+
+    private static void ShowErrorReport(Exception ex)
+    {
+        try
+        {
+            var service = _runningServiceProvider?.GetService<ErrorReportService>()
+                          ?? BuildFallbackErrorReportService();
+
+            using var form = new ErrorReportForm(service, ex);
+            form.ShowDialog();
+        }
+        catch (Exception reportEx)
+        {
+            Log.Error(reportEx, "Не удалось показать ErrorReportForm");
+            MessageBox.Show(ex.ToString(),
+                "Критическая ошибка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private static ErrorReportService BuildFallbackErrorReportService()
+    {
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddSerilog());
+        return new(loggerFactory.CreateLogger<ErrorReportService>());
     }
 
     /// <summary>
@@ -360,6 +413,8 @@ file static class Program
                 updateRepo,
                 sp.GetRequiredService<ILogger<AppUpdateManager>>());
         });
+
+        services.AddSingleton<ErrorReportService>();
 
         services.AddSingleton<Orcestrator>();
         services.AddSingleton<SyncRetryRunner>();

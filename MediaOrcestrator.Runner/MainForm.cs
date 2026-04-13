@@ -277,6 +277,13 @@ public partial class MainForm : Form
         CheckAppUpdateInBackground();
     }
 
+    private void uiReportIssueButton_Click(object? sender, EventArgs e)
+    {
+        var errorReportService = _serviceProvider.GetRequiredService<ErrorReportService>();
+        using var form = new ErrorReportForm(errorReportService);
+        form.ShowDialog(this);
+    }
+
     private void OnGraphInvertRequested(object? sender, RelationGraphEdgeEventArgs e)
     {
         _orcestrator.InvertRelation(e.FromSourceId, e.ToSourceId);

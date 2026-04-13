@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             var resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             uiMediaSourcePanel = new Panel();
             uiMediaMatrixGridControl = new MediaMatrixGridControl();
@@ -56,13 +57,15 @@
             uiBulkProgressLabel = new Label();
             uiAuditSourcesPanel = new FlowLayoutPanel();
             uiAuditMaintenanceHeaderLabel = new Label();
-            uiClearSpecificTypeButton = new Button();
-            uiClearTypeComboBox = new ComboBox();
             uiClearDatabaseButton = new Button();
+            uiClearTypeComboBox = new ComboBox();
+            uiClearSpecificTypeButton = new Button();
             uiForceScanButton = new Button();
             uiSyncTreeTabPage = new TabPage();
             uiSyncTreeControl = new SyncTreeControl();
             uiLogsTabPage = new TabPage();
+            uiLogsToolbarPanel = new Panel();
+            uiReportIssueButton = new Button();
             uiToolsTabPage = new TabPage();
             groupBox3 = new GroupBox();
             uiVkVideoAuthStatePathTextBox = new TextBox();
@@ -76,7 +79,7 @@
             uiManageToolsButton = new Button();
             uiOpenSettingsButton = new Button();
             uiCheckUpdatesButton = new Button();
-            uiAuditToolTip = new ToolTip();
+            uiAuditToolTip = new ToolTip(components);
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
@@ -85,6 +88,8 @@
             uiAuditTabPage.SuspendLayout();
             uiAuditBulkPanel.SuspendLayout();
             uiSyncTreeTabPage.SuspendLayout();
+            uiLogsTabPage.SuspendLayout();
+            uiLogsToolbarPanel.SuspendLayout();
             uiToolsTabPage.SuspendLayout();
             groupBox3.SuspendLayout();
             groupBox2.SuspendLayout();
@@ -108,7 +113,7 @@
             uiMediaMatrixGridControl.Dock = DockStyle.Fill;
             uiMediaMatrixGridControl.Location = new Point(3, 3);
             uiMediaMatrixGridControl.Name = "uiMediaMatrixGridControl";
-            uiMediaMatrixGridControl.Size = new Size(1202, 747);
+            uiMediaMatrixGridControl.Size = new Size(1206, 751);
             uiMediaMatrixGridControl.TabIndex = 2;
             // 
             // uiAddSourceButton
@@ -202,7 +207,7 @@
             uiMainTabControl.Location = new Point(12, 12);
             uiMainTabControl.Name = "uiMainTabControl";
             uiMainTabControl.SelectedIndex = 0;
-            uiMainTabControl.Size = new Size(1216, 781);
+            uiMainTabControl.Size = new Size(1220, 785);
             uiMainTabControl.TabIndex = 6;
             // 
             // uiFilesTabPage
@@ -211,13 +216,13 @@
             uiFilesTabPage.Location = new Point(4, 24);
             uiFilesTabPage.Name = "uiFilesTabPage";
             uiFilesTabPage.Padding = new Padding(3);
-            uiFilesTabPage.Size = new Size(1208, 753);
+            uiFilesTabPage.Size = new Size(1212, 757);
             uiFilesTabPage.TabIndex = 0;
             uiFilesTabPage.Text = "Фаилы";
             uiFilesTabPage.UseVisualStyleBackColor = true;
-            //
+            // 
             // uiPublishTabPage
-            //
+            // 
             uiPublishTabPage.Location = new Point(4, 24);
             uiPublishTabPage.Name = "uiPublishTabPage";
             uiPublishTabPage.Padding = new Padding(3);
@@ -225,9 +230,9 @@
             uiPublishTabPage.TabIndex = 8;
             uiPublishTabPage.Text = "Публикация";
             uiPublishTabPage.UseVisualStyleBackColor = true;
-            //
+            // 
             // uiStorageTabPage
-            //
+            // 
             uiStorageTabPage.Controls.Add(uiSourcesComboBox);
             uiStorageTabPage.Controls.Add(uiAddSourceButton);
             uiStorageTabPage.Controls.Add(uiMediaSourcePanel);
@@ -253,9 +258,9 @@
             uiRelationsTabPage.TabIndex = 2;
             uiRelationsTabPage.Text = "Связи";
             uiRelationsTabPage.UseVisualStyleBackColor = true;
-            //
+            // 
             // uiRelationsGraphTabPage
-            //
+            // 
             uiRelationsGraphTabPage.Controls.Add(uiRelationsGraphControl);
             uiRelationsGraphTabPage.Location = new Point(4, 24);
             uiRelationsGraphTabPage.Name = "uiRelationsGraphTabPage";
@@ -263,17 +268,17 @@
             uiRelationsGraphTabPage.TabIndex = 7;
             uiRelationsGraphTabPage.Text = "Граф связей";
             uiRelationsGraphTabPage.UseVisualStyleBackColor = true;
-            //
+            // 
             // uiRelationsGraphControl
-            //
+            // 
             uiRelationsGraphControl.Dock = DockStyle.Fill;
             uiRelationsGraphControl.Location = new Point(0, 0);
             uiRelationsGraphControl.Name = "uiRelationsGraphControl";
             uiRelationsGraphControl.Size = new Size(1208, 753);
             uiRelationsGraphControl.TabIndex = 0;
-            //
+            // 
             // uiAuditTabPage
-            //
+            // 
             uiAuditTabPage.Controls.Add(uiAuditSyncHeaderLabel);
             uiAuditTabPage.Controls.Add(uiAuditBulkPanel);
             uiAuditTabPage.Controls.Add(uiAuditSourcesPanel);
@@ -288,9 +293,9 @@
             uiAuditTabPage.TabIndex = 3;
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
-            //
+            // 
             // uiAuditSyncHeaderLabel
-            //
+            // 
             uiAuditSyncHeaderLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             uiAuditSyncHeaderLabel.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
             uiAuditSyncHeaderLabel.Location = new Point(6, 6);
@@ -298,9 +303,9 @@
             uiAuditSyncHeaderLabel.Size = new Size(1196, 20);
             uiAuditSyncHeaderLabel.TabIndex = 0;
             uiAuditSyncHeaderLabel.Text = "Синхронизация по источникам";
-            //
-            // uiAuditBulkPanel привет что делал до того как я написал
-            //
+            // 
+            // uiAuditBulkPanel
+            // 
             uiAuditBulkPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             uiAuditBulkPanel.Controls.Add(uiBulkSourcesLabel);
             uiAuditBulkPanel.Controls.Add(uiSyncButton);
@@ -311,48 +316,51 @@
             uiAuditBulkPanel.Name = "uiAuditBulkPanel";
             uiAuditBulkPanel.Size = new Size(1196, 40);
             uiAuditBulkPanel.TabIndex = 1;
-            //
+            // 
             // uiBulkSourcesLabel
-            //
+            // 
             uiBulkSourcesLabel.AutoSize = true;
             uiBulkSourcesLabel.Location = new Point(6, 11);
             uiBulkSourcesLabel.Name = "uiBulkSourcesLabel";
-            uiBulkSourcesLabel.Size = new Size(95, 15);
+            uiBulkSourcesLabel.Size = new Size(91, 15);
             uiBulkSourcesLabel.TabIndex = 0;
             uiBulkSourcesLabel.Text = "Все источники:";
-            //
+            // 
             // uiSyncButton
-            //
+            // 
             uiSyncButton.Location = new Point(110, 6);
             uiSyncButton.Name = "uiSyncButton";
             uiSyncButton.Size = new Size(130, 28);
             uiSyncButton.TabIndex = 1;
             uiSyncButton.Text = "Полная";
+            uiAuditToolTip.SetToolTip(uiSyncButton, "Полная синхронизация по всем источникам");
             uiSyncButton.UseVisualStyleBackColor = true;
             uiSyncButton.Click += uiSyncButton_Click;
-            //
+            // 
             // uiQuickSyncButton
-            //
+            // 
             uiQuickSyncButton.Location = new Point(244, 6);
             uiQuickSyncButton.Name = "uiQuickSyncButton";
             uiQuickSyncButton.Size = new Size(130, 28);
             uiQuickSyncButton.TabIndex = 2;
             uiQuickSyncButton.Text = "Быстрая";
+            uiAuditToolTip.SetToolTip(uiQuickSyncButton, "Загружает список медиа без метаданных по всем источникам");
             uiQuickSyncButton.UseVisualStyleBackColor = true;
             uiQuickSyncButton.Click += uiQuickSyncButton_Click;
-            //
+            // 
             // uiSyncNewButton
-            //
+            // 
             uiSyncNewButton.Location = new Point(378, 6);
             uiSyncNewButton.Name = "uiSyncNewButton";
             uiSyncNewButton.Size = new Size(130, 28);
             uiSyncNewButton.TabIndex = 3;
             uiSyncNewButton.Text = "Новые";
+            uiAuditToolTip.SetToolTip(uiSyncNewButton, "Синхронизирует до первого уже известного медиа по всем источникам");
             uiSyncNewButton.UseVisualStyleBackColor = true;
             uiSyncNewButton.Click += uiSyncNewButton_Click;
-            //
+            // 
             // uiBulkProgressLabel
-            //
+            // 
             uiBulkProgressLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             uiBulkProgressLabel.AutoEllipsis = true;
             uiBulkProgressLabel.ForeColor = Color.DimGray;
@@ -361,9 +369,9 @@
             uiBulkProgressLabel.Size = new Size(676, 18);
             uiBulkProgressLabel.TabIndex = 4;
             uiBulkProgressLabel.Text = "—";
-            //
+            // 
             // uiAuditSourcesPanel
-            //
+            // 
             uiAuditSourcesPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             uiAuditSourcesPanel.AutoScroll = true;
             uiAuditSourcesPanel.BorderStyle = BorderStyle.FixedSingle;
@@ -373,9 +381,9 @@
             uiAuditSourcesPanel.Size = new Size(1196, 466);
             uiAuditSourcesPanel.TabIndex = 2;
             uiAuditSourcesPanel.WrapContents = false;
-            //
+            // 
             // uiAuditMaintenanceHeaderLabel
-            //
+            // 
             uiAuditMaintenanceHeaderLabel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             uiAuditMaintenanceHeaderLabel.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold);
             uiAuditMaintenanceHeaderLabel.Location = new Point(6, 552);
@@ -383,20 +391,21 @@
             uiAuditMaintenanceHeaderLabel.Size = new Size(1196, 20);
             uiAuditMaintenanceHeaderLabel.TabIndex = 3;
             uiAuditMaintenanceHeaderLabel.Text = "Обслуживание";
-            //
+            // 
             // uiClearDatabaseButton
-            //
+            // 
             uiClearDatabaseButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             uiClearDatabaseButton.Location = new Point(6, 576);
             uiClearDatabaseButton.Name = "uiClearDatabaseButton";
             uiClearDatabaseButton.Size = new Size(220, 30);
             uiClearDatabaseButton.TabIndex = 4;
             uiClearDatabaseButton.Text = "Очистить базу данных";
+            uiAuditToolTip.SetToolTip(uiClearDatabaseButton, "Удаляет все данные из базы. Операция необратима!");
             uiClearDatabaseButton.UseVisualStyleBackColor = true;
             uiClearDatabaseButton.Click += uiClearDatabaseButton_Click;
-            //
+            // 
             // uiClearTypeComboBox
-            //
+            // 
             uiClearTypeComboBox.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             uiClearTypeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             uiClearTypeComboBox.FormattingEnabled = true;
@@ -405,38 +414,31 @@
             uiClearTypeComboBox.Name = "uiClearTypeComboBox";
             uiClearTypeComboBox.Size = new Size(180, 23);
             uiClearTypeComboBox.TabIndex = 5;
-            //
+            // 
             // uiClearSpecificTypeButton
-            //
+            // 
             uiClearSpecificTypeButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             uiClearSpecificTypeButton.Location = new Point(418, 576);
             uiClearSpecificTypeButton.Name = "uiClearSpecificTypeButton";
             uiClearSpecificTypeButton.Size = new Size(140, 30);
             uiClearSpecificTypeButton.TabIndex = 6;
             uiClearSpecificTypeButton.Text = "Очистить тип";
+            uiAuditToolTip.SetToolTip(uiClearSpecificTypeButton, "Удаляет все записи выбранного типа коллекции из базы данных");
             uiClearSpecificTypeButton.UseVisualStyleBackColor = true;
             uiClearSpecificTypeButton.Click += uiClearSpecificTypeButton_Click;
-            //
+            // 
             // uiForceScanButton
-            //
+            // 
             uiForceScanButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             uiForceScanButton.Location = new Point(564, 576);
             uiForceScanButton.Name = "uiForceScanButton";
             uiForceScanButton.Size = new Size(220, 30);
             uiForceScanButton.TabIndex = 7;
             uiForceScanButton.Text = "Принудительное сканирование";
+            uiAuditToolTip.SetToolTip(uiForceScanButton, "Отладочная функция принудительного сканирования");
             uiForceScanButton.UseVisualStyleBackColor = true;
             uiForceScanButton.Click += uiForceScanButton_Click;
-            //
-            // uiAuditToolTip
-            //
-            uiAuditToolTip.SetToolTip(uiSyncButton, "Полная синхронизация по всем источникам");
-            uiAuditToolTip.SetToolTip(uiQuickSyncButton, "Загружает список медиа без метаданных по всем источникам");
-            uiAuditToolTip.SetToolTip(uiSyncNewButton, "Синхронизирует до первого уже известного медиа по всем источникам");
-            uiAuditToolTip.SetToolTip(uiClearDatabaseButton, "Удаляет все данные из базы. Операция необратима!");
-            uiAuditToolTip.SetToolTip(uiClearSpecificTypeButton, "Удаляет все записи выбранного типа коллекции из базы данных");
-            uiAuditToolTip.SetToolTip(uiForceScanButton, "Отладочная функция принудительного сканирования");
-            //
+            // 
             // uiSyncTreeTabPage
             // 
             uiSyncTreeTabPage.Controls.Add(uiSyncTreeControl);
@@ -457,6 +459,7 @@
             // 
             // uiLogsTabPage
             // 
+            uiLogsTabPage.Controls.Add(uiLogsToolbarPanel);
             uiLogsTabPage.Location = new Point(4, 24);
             uiLogsTabPage.Name = "uiLogsTabPage";
             uiLogsTabPage.Padding = new Padding(3);
@@ -464,6 +467,25 @@
             uiLogsTabPage.TabIndex = 4;
             uiLogsTabPage.Text = "Логи";
             uiLogsTabPage.UseVisualStyleBackColor = true;
+            // 
+            // uiLogsToolbarPanel
+            // 
+            uiLogsToolbarPanel.Controls.Add(uiReportIssueButton);
+            uiLogsToolbarPanel.Dock = DockStyle.Top;
+            uiLogsToolbarPanel.Location = new Point(3, 3);
+            uiLogsToolbarPanel.Name = "uiLogsToolbarPanel";
+            uiLogsToolbarPanel.Size = new Size(1202, 34);
+            uiLogsToolbarPanel.TabIndex = 0;
+            // 
+            // uiReportIssueButton
+            // 
+            uiReportIssueButton.Location = new Point(3, 4);
+            uiReportIssueButton.Name = "uiReportIssueButton";
+            uiReportIssueButton.Size = new Size(200, 26);
+            uiReportIssueButton.TabIndex = 0;
+            uiReportIssueButton.Text = "Сообщить о проблеме";
+            uiReportIssueButton.UseVisualStyleBackColor = true;
+            uiReportIssueButton.Click += uiReportIssueButton_Click;
             // 
             // uiToolsTabPage
             // 
@@ -576,9 +598,9 @@
             uiManageToolsButton.Text = "Управление инструментами";
             uiManageToolsButton.UseVisualStyleBackColor = true;
             uiManageToolsButton.Click += uiManageToolsButton_Click;
-            //
+            // 
             // uiOpenSettingsButton
-            //
+            // 
             uiOpenSettingsButton.Location = new Point(6, 259);
             uiOpenSettingsButton.Name = "uiOpenSettingsButton";
             uiOpenSettingsButton.Size = new Size(200, 35);
@@ -586,7 +608,7 @@
             uiOpenSettingsButton.Text = "Настройки приложения";
             uiOpenSettingsButton.UseVisualStyleBackColor = true;
             uiOpenSettingsButton.Click += uiOpenSettingsButton_Click;
-            //
+            // 
             // uiCheckUpdatesButton
             // 
             uiCheckUpdatesButton.Location = new Point(6, 341);
@@ -596,12 +618,12 @@
             uiCheckUpdatesButton.Text = "Проверить обновления";
             uiCheckUpdatesButton.UseVisualStyleBackColor = true;
             uiCheckUpdatesButton.Click += uiCheckUpdatesButton_Click;
-            //
+            // 
             // MainForm
-            //
+            // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1240, 805);
+            ClientSize = new Size(1244, 809);
             Controls.Add(uiMainTabControl);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
@@ -617,6 +639,8 @@
             uiAuditBulkPanel.ResumeLayout(false);
             uiAuditBulkPanel.PerformLayout();
             uiSyncTreeTabPage.ResumeLayout(false);
+            uiLogsTabPage.ResumeLayout(false);
+            uiLogsToolbarPanel.ResumeLayout(false);
             uiToolsTabPage.ResumeLayout(false);
             groupBox3.ResumeLayout(false);
             groupBox3.PerformLayout();
@@ -654,6 +678,8 @@
         private ComboBox uiClearTypeComboBox;
         private Button uiClearSpecificTypeButton;
         private TabPage uiLogsTabPage;
+        private Panel uiLogsToolbarPanel;
+        private Button uiReportIssueButton;
         private TabPage uiToolsTabPage;
         private GroupBox groupBox1;
         private Button uiRubuteAuthStateOpenBrowserButton;
