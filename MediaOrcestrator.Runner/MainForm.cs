@@ -13,6 +13,7 @@ public partial class MainForm : Form
     private readonly ILogger<MainForm> _logger;
     private readonly AppUpdateManager _updateManager;
     private readonly Dictionary<string, AuditSourceRow> _auditRows = new();
+    private readonly PublishControl? _publishControl;
     private bool _isSyncRunning;
 
     public MainForm(Orcestrator orcestrator, IServiceProvider serviceProvider, ILogger<MainForm> logger, RichTextBox logControl, AppUpdateManager updateManager)
@@ -24,6 +25,12 @@ public partial class MainForm : Form
 
         InitializeComponent();
         uiLogsTabPage.Controls.Add(logControl);
+
+        // TODO: Сомнительно
+        _publishControl = _serviceProvider.GetRequiredService<PublishControl>();
+        _publishControl.Dock = DockStyle.Fill;
+        _publishControl.MediaPublished += OnMediaPublished;
+        uiPublishTabPage.Controls.Add(_publishControl);
     }
 
     private void MainForm_Load(object sender, EventArgs e)
@@ -530,6 +537,12 @@ public partial class MainForm : Form
         }
 
         DrawRelations();
+        _publishControl?.ReloadSources();
+    }
+
+    private void OnMediaPublished(object? sender, EventArgs e)
+    {
+        uiMediaMatrixGridControl.RefreshData();
     }
 
     private async void CheckToolUpdatesInBackground()

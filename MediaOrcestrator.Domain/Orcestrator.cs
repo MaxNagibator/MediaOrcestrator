@@ -501,6 +501,123 @@ public class Orcestrator(
             mediaCount + relationCount + sourceCount, mediaCount, relationCount, sourceCount);
     }
 
+    // TODO: Сомнительно
+    public async Task<Media> PublishMediaAsync(
+        Source source,
+        string title,
+        string? description,
+        string videoFilePath,
+        string? coverFilePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentException.ThrowIfNullOrWhiteSpace(videoFilePath);
+
+        if (!File.Exists(videoFilePath))
+        {
+            throw new FileNotFoundException("Файл видео не найден", videoFilePath);
+        }
+
+        if (!string.IsNullOrEmpty(coverFilePath) && !File.Exists(coverFilePath))
+        {
+            throw new FileNotFoundException("Файл обложки не найден", coverFilePath);
+        }
+
+        if (source.Type == null)
+        {
+            throw new InvalidOperationException($"Источник «{source.TitleFull}» не инициализирован (Type == null).");
+        }
+
+        var mediaId = Guid.NewGuid().ToString();
+        var tempDir = Path.Combine(tempManager.TempPath, mediaId);
+        Directory.CreateDirectory(tempDir);
+
+        logger.LogInformation("Публикация «{Title}» в источник {Source}. MediaId: {MediaId}", title, source.TitleFull, mediaId);
+
+        var videoExt = Path.GetExtension(videoFilePath);
+        var tempVideoPath = Path.Combine(tempDir, "media" + (string.IsNullOrEmpty(videoExt) ? ".mp4" : videoExt));
+        File.Copy(videoFilePath, tempVideoPath, true);
+
+        string? tempCoverPath = null;
+        if (!string.IsNullOrEmpty(coverFilePath))
+        {
+            var coverExt = Path.GetExtension(coverFilePath);
+            tempCoverPath = Path.Combine(tempDir, "cover" + (string.IsNullOrEmpty(coverExt) ? ".jpg" : coverExt));
+            File.Copy(coverFilePath, tempCoverPath, true);
+        }
+
+        var dto = new MediaDto
+        {
+            Id = mediaId,
+            Title = title,
+            Description = description ?? string.Empty,
+            TempDataPath = tempVideoPath,
+        };
+
+        if (tempCoverPath != null)
+        {
+            dto.TempPreviewPath = tempCoverPath;
+        }
+
+        UploadResult uploadResult;
+        try
+        {
+            uploadResult = await source.Type.UploadAsync(dto, source.Settings, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            tempManager.CleanMedia(mediaId);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Ошибка при публикации «{Title}» в {Source}", title, source.TitleFull);
+            tempManager.CleanMedia(mediaId);
+            throw;
+        }
+
+        if (string.IsNullOrEmpty(uploadResult.Id))
+        {
+            tempManager.CleanMedia(mediaId);
+            throw new InvalidOperationException($"Публикация в {source.TitleFull} не вернула идентификатор: {uploadResult.Status.Text} {uploadResult.Message}");
+        }
+
+        var mediaCollection = db.GetCollection<Media>("medias");
+        var existingLinks = mediaCollection.FindAll()
+            .SelectMany(x => x.Sources ?? [])
+            .Where(x => x.SourceId == source.Id)
+            .ToList();
+
+        var sortNumber = existingLinks.Select(x => x.SortNumber).DefaultIfEmpty(0).Max() + 1;
+
+        var media = new Media
+        {
+            Id = mediaId,
+            Title = title,
+            Description = description ?? string.Empty,
+            Sources = [],
+        };
+
+        var link = new MediaSourceLink
+        {
+            MediaId = mediaId,
+            Media = media,
+            SourceId = source.Id,
+            ExternalId = uploadResult.Id!,
+            Status = uploadResult.Status.Id,
+            SortNumber = sortNumber,
+        };
+
+        media.Sources.Add(link);
+        mediaCollection.Insert(media);
+
+        tempManager.CleanMedia(mediaId);
+
+        logger.LogInformation("Публикация «{Title}» завершена. ExternalId: {ExternalId}", title, uploadResult.Id);
+        return media;
+    }
+
     public async Task TransferByRelation(Media media, SourceSyncRelation rel, CancellationToken cancellationToken = default)
     {
         var fromMediaSource = media.Sources.FirstOrDefault(x => x.SourceId == rel.From.Id);

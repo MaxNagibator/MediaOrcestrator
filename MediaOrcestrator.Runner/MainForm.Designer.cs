@@ -41,6 +41,7 @@
             uiRelationFromComboBox = new ComboBox();
             uiMainTabControl = new TabControl();
             uiFilesTabPage = new TabPage();
+            uiPublishTabPage = new TabPage();
             uiStorageTabPage = new TabPage();
             uiRelationsTabPage = new TabPage();
             uiRelationsGraphTabPage = new TabPage();
@@ -190,6 +191,7 @@
             // 
             uiMainTabControl.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             uiMainTabControl.Controls.Add(uiFilesTabPage);
+            uiMainTabControl.Controls.Add(uiPublishTabPage);
             uiMainTabControl.Controls.Add(uiStorageTabPage);
             uiMainTabControl.Controls.Add(uiRelationsTabPage);
             uiMainTabControl.Controls.Add(uiRelationsGraphTabPage);
@@ -213,9 +215,19 @@
             uiFilesTabPage.TabIndex = 0;
             uiFilesTabPage.Text = "Фаилы";
             uiFilesTabPage.UseVisualStyleBackColor = true;
-            // 
+            //
+            // uiPublishTabPage
+            //
+            uiPublishTabPage.Location = new Point(4, 24);
+            uiPublishTabPage.Name = "uiPublishTabPage";
+            uiPublishTabPage.Padding = new Padding(3);
+            uiPublishTabPage.Size = new Size(1208, 753);
+            uiPublishTabPage.TabIndex = 8;
+            uiPublishTabPage.Text = "Публикация";
+            uiPublishTabPage.UseVisualStyleBackColor = true;
+            //
             // uiStorageTabPage
-            // 
+            //
             uiStorageTabPage.Controls.Add(uiSourcesComboBox);
             uiStorageTabPage.Controls.Add(uiAddSourceButton);
             uiStorageTabPage.Controls.Add(uiMediaSourcePanel);
@@ -629,6 +641,7 @@
         private ComboBox uiRelationFromComboBox;
         private TabControl uiMainTabControl;
         private TabPage uiFilesTabPage;
+        private TabPage uiPublishTabPage;
         private TabPage uiStorageTabPage;
         private TabPage uiRelationsTabPage;
         private TabPage uiRelationsGraphTabPage;

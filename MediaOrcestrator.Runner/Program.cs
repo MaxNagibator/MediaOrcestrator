@@ -373,6 +373,7 @@ file static class Program
         services.AddTransient<SourceControl>();
         services.AddTransient<RelationControl>();
         services.AddTransient<SyncTreeControl>();
+        services.AddTransient<PublishControl>();
     }
 }
 
