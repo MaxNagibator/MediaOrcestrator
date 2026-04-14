@@ -26,6 +26,10 @@ public class MediaSourceLink
     /// </remarks>
     public string ExternalId { get; set; }
 
+    public string Title { get; set; }
+
+    public string Description { get; set; }
+
     /// <summary>
     /// Внутренний идентификатор медии.
     /// </summary>

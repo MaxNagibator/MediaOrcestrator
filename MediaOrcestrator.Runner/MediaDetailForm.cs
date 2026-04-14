@@ -1,4 +1,4 @@
-using MediaOrcestrator.Domain;
+﻿using MediaOrcestrator.Domain;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp.Formats.Bmp;
@@ -55,6 +55,10 @@ public partial class MediaDetailForm : Form
 
         var padding = uiHeaderPanel.Padding;
         var contentWidth = uiHeaderPanel.ClientSize.Width - padding.Left - padding.Right;
+        if (contentWidth > 217)
+        {
+            contentWidth = 217;
+        }
 
         uiPreviewBox.Location = new(padding.Left, padding.Top);
         uiPreviewBox.Width = contentWidth;
@@ -299,6 +303,17 @@ public partial class MediaDetailForm : Form
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowOnly,
             };
+
+            innerFlow.Controls.Add(CreateLabel($"{sourceLink.Title}",
+                _boldFont,
+                copyValue: sourceLink.Title));
+
+            if (!string.IsNullOrEmpty(sourceLink.Description))
+            {
+                innerFlow.Controls.Add(CreateLabel($"Описание: {sourceLink.Description}",
+                    _boldFont,
+                    copyValue: sourceLink.Title));
+            }
 
             innerFlow.Controls.Add(CreateLabel($"{status.IconText} {status.Text}",
                 _boldFont,

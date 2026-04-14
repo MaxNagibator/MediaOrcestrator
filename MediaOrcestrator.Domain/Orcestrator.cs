@@ -127,6 +127,30 @@ public class Orcestrator(
                     hasChange = true;
                 }
 
+                if (foundMediaSource.Media.Sources.Count == 1)
+                {
+                    if (foundMediaSource.Media.Title != s.Title)
+                    {
+                        foundMediaSource.Media.Title = s.Title;
+                        hasChange = true;
+                    }
+                    if (foundMediaSource.Media.Description != s.Description)
+                    {
+                        foundMediaSource.Media.Description = s.Description;
+                        hasChange = true;
+                    }
+                }
+                if (foundMediaSource.Title != s.Title)
+                {
+                    foundMediaSource.Title = s.Title;
+                    hasChange = true;
+                }
+                if (foundMediaSource.Description != s.Description)
+                {
+                    foundMediaSource.Description = s.Description;
+                    hasChange = true;
+                }
+
                 if (foundMediaSource.Status is MediaStatus.Missing or MediaStatus.Error)
                 {
                     foundMediaSource.Status = MediaStatus.Ok;
@@ -162,6 +186,8 @@ public class Orcestrator(
                     MediaId = mediaId,
                     Media = myMedia,
                     ExternalId = s.Id,
+                    Description = s.Description,
+                    Title = s.Title,
                     Status = MediaStatus.Ok,
                     SourceId = mediaSource.Id,
                     SortNumber = sortNumber,
@@ -246,6 +272,25 @@ public class Orcestrator(
         //    db.GetCollection<Media>("medias").Delete(media.Id);
         //}
         // }
+
+        foreach (var media in medias)
+        {
+            foreach (var mediaLink in media.Sources)
+            {
+                if (mediaLink.Description == null || mediaLink.Title == null)
+                {
+                    if (mediaLink.Description == null)
+                    {
+                        mediaLink.Description = media.Description;
+                    }
+                    if (mediaLink.Title == null)
+                    {
+                        mediaLink.Title = media.Title;
+                    }
+                    db.GetCollection<Media>("medias").Update(media);
+                }
+            }
+        }
         return medias;
     }
 
@@ -724,6 +769,8 @@ public class Orcestrator(
                 media.Sources.Add(toMediaSource);
             }
 
+            toMediaSource.Title = media.Title;
+            toMediaSource.Description = media.Description;
             toMediaSource.Status = uploadResult.Status.Id;
             toMediaSource.ExternalId = uploadResult.Id!;
             UpdateMedia(media);
@@ -756,6 +803,8 @@ public class Orcestrator(
                 Media = media,
                 SourceId = toSourceId,
                 ExternalId = string.Empty,
+                Title = string.Empty,
+                Description = string.Empty,
             };
 
             media.Sources.Add(link);
