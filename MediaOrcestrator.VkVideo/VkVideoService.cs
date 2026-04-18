@@ -376,9 +376,10 @@ public sealed class VkVideoService : IDisposable
                 ["ref"] = "video_as_clip_video_upload",
             };
 
-            await Task.Delay(10000, cancellationToken);
             for (var i = 0; i < 10; i++)
             {
+            // todo mb nastroyku? ili checkat?:)
+                await Task.Delay(60000, cancellationToken);
                 // todo retry helper
                 try
                 {
@@ -398,7 +399,6 @@ public sealed class VkVideoService : IDisposable
                         }
 
                         _logger.LogInformation("Видео ещё обрабатывается, попытка публикации #{Attempt} не удалась", i + 1);
-                        await Task.Delay(15000, cancellationToken);
                     }
                     else
                     {
