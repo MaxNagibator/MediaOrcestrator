@@ -9,6 +9,7 @@ public class Orcestrator(
     LiteDatabase db,
     TempManager tempManager,
     StateManager stateManager,
+    ActionHolder actionHolder,
     ILogger<Orcestrator> logger)
 {
     public Dictionary<string, ISourceType> GetSourceTypes()
@@ -63,6 +64,9 @@ public class Orcestrator(
 
         await Parallel.ForEachAsync(sources, async (mediaSource, cancellationToken) =>
         {
+            var ctx = new CancellationTokenSource();
+            var action = actionHolder.Register("Синхронизация " + mediaSource.TitleFull + " isFull=" + isFull + " onlyNew=" + onlyNew, "Запущена", 0, ctx);
+
             var plugin = sourceTypes.Values.FirstOrDefault(x => x.Name == mediaSource.TypeId);
 
             if (plugin == null)
@@ -73,7 +77,7 @@ public class Orcestrator(
             }
 
             progress?.Report($"Сбор медиа из «{mediaSource.TitleFull}»...");
-            var syncMedia = plugin.GetMedia(mediaSource.Settings, isFull, cancellationToken);
+            var syncMedia = plugin.GetMedia(mediaSource.Settings, isFull, ctx.Token);
             var mediaList = new List<MediaDto>();
             var foundIds = new List<string>();
             await foreach (var s in syncMedia)
@@ -83,6 +87,8 @@ public class Orcestrator(
                 {
                     progress?.Report($"«{mediaSource.TitleFull}»: получено {foundIds.Count}");
                 }
+
+                action.Status = $"получено {foundIds.Count}";
 
                 var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.ExternalId == s.Id);
                 if (foundMediaSource == null)
@@ -229,6 +235,7 @@ public class Orcestrator(
                 dbSource.LastSyncedAt = DateTime.UtcNow;
                 sourcesCol.Update(dbSource);
             }
+            action.Finish();
         });
 
         logger.LogInformation("Синхронизация успешно завершена.");

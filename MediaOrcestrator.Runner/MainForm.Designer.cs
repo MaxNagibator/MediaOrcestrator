@@ -48,6 +48,8 @@
             uiRelationsGraphTabPage = new TabPage();
             uiRelationsGraphControl = new RelationsGraphControl();
             uiAuditTabPage = new TabPage();
+            button1 = new Button();
+            uiRunningActionsFlowLayoutPanel = new FlowLayoutPanel();
             uiAuditSyncHeaderLabel = new Label();
             uiAuditBulkPanel = new Panel();
             uiBulkSourcesLabel = new Label();
@@ -56,6 +58,7 @@
             uiSyncNewButton = new Button();
             uiBulkProgressLabel = new Label();
             uiAuditSourcesPanel = new FlowLayoutPanel();
+            flowLayoutPanel1 = new FlowLayoutPanel();
             uiAuditMaintenanceHeaderLabel = new Label();
             uiClearDatabaseButton = new Button();
             uiClearTypeComboBox = new ComboBox();
@@ -80,9 +83,6 @@
             uiOpenSettingsButton = new Button();
             uiCheckUpdatesButton = new Button();
             uiAuditToolTip = new ToolTip(components);
-            flowLayoutPanel1 = new FlowLayoutPanel();
-            uiRunningActionsFlowLayoutPanel = new FlowLayoutPanel();
-            button1 = new Button();
             uiMainTabControl.SuspendLayout();
             uiFilesTabPage.SuspendLayout();
             uiStorageTabPage.SuspendLayout();
@@ -300,6 +300,26 @@
             uiAuditTabPage.Text = "Аудит";
             uiAuditTabPage.UseVisualStyleBackColor = true;
             // 
+            // button1
+            // 
+            button1.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            button1.Location = new Point(6, 552);
+            button1.Name = "button1";
+            button1.Size = new Size(315, 23);
+            button1.TabIndex = 0;
+            button1.Text = "обновить список запущенных процессов";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
+            // 
+            // uiRunningActionsFlowLayoutPanel
+            // 
+            uiRunningActionsFlowLayoutPanel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            uiRunningActionsFlowLayoutPanel.AutoScroll = true;
+            uiRunningActionsFlowLayoutPanel.Location = new Point(3, 582);
+            uiRunningActionsFlowLayoutPanel.Name = "uiRunningActionsFlowLayoutPanel";
+            uiRunningActionsFlowLayoutPanel.Size = new Size(1199, 115);
+            uiRunningActionsFlowLayoutPanel.TabIndex = 8;
+            // 
             // uiAuditSyncHeaderLabel
             // 
             uiAuditSyncHeaderLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -388,6 +408,18 @@
             uiAuditSourcesPanel.Size = new Size(1196, 466);
             uiAuditSourcesPanel.TabIndex = 2;
             uiAuditSourcesPanel.WrapContents = false;
+            // 
+            // flowLayoutPanel1
+            // 
+            flowLayoutPanel1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            flowLayoutPanel1.AutoScroll = true;
+            flowLayoutPanel1.BorderStyle = BorderStyle.FixedSingle;
+            flowLayoutPanel1.FlowDirection = FlowDirection.TopDown;
+            flowLayoutPanel1.Location = new Point(3, 3);
+            flowLayoutPanel1.Name = "flowLayoutPanel1";
+            flowLayoutPanel1.Size = new Size(0, 466);
+            flowLayoutPanel1.TabIndex = 3;
+            flowLayoutPanel1.WrapContents = false;
             // 
             // uiAuditMaintenanceHeaderLabel
             // 
@@ -625,35 +657,6 @@
             uiCheckUpdatesButton.Text = "Проверить обновления";
             uiCheckUpdatesButton.UseVisualStyleBackColor = true;
             uiCheckUpdatesButton.Click += uiCheckUpdatesButton_Click;
-            // 
-            // flowLayoutPanel1
-            // 
-            flowLayoutPanel1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            flowLayoutPanel1.AutoScroll = true;
-            flowLayoutPanel1.BorderStyle = BorderStyle.FixedSingle;
-            flowLayoutPanel1.FlowDirection = FlowDirection.TopDown;
-            flowLayoutPanel1.Location = new Point(3, 3);
-            flowLayoutPanel1.Name = "flowLayoutPanel1";
-            flowLayoutPanel1.Size = new Size(0, 466);
-            flowLayoutPanel1.TabIndex = 3;
-            flowLayoutPanel1.WrapContents = false;
-            // 
-            // uiRunningActionsFlowLayoutPanel
-            // 
-            uiRunningActionsFlowLayoutPanel.Location = new Point(3, 582);
-            uiRunningActionsFlowLayoutPanel.Name = "uiRunningActionsFlowLayoutPanel";
-            uiRunningActionsFlowLayoutPanel.Size = new Size(1199, 115);
-            uiRunningActionsFlowLayoutPanel.TabIndex = 8;
-            // 
-            // button1
-            // 
-            button1.Location = new Point(6, 552);
-            button1.Name = "button1";
-            button1.Size = new Size(75, 23);
-            button1.TabIndex = 0;
-            button1.Text = "button1";
-            button1.UseVisualStyleBackColor = true;
-            button1.Click += button1_Click;
             // 
             // MainForm
             // 

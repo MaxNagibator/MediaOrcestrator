@@ -185,7 +185,7 @@ public partial class SyncTreeControl : UserControl
 
         LogToUi($"Запуск синхронизации для {filteredRootIntents.Count} цепочек...", Color.Yellow);
 
-        var actionId = _actionHolder.Register("Синхронизация цепочки", "В процессе", filteredRootIntents.Count, _cts);
+        var action = _actionHolder.Register("Синхронизация цепочки", "В процессе", filteredRootIntents.Count, _cts);
         var processed = 0;
         try
         {
@@ -201,7 +201,7 @@ public partial class SyncTreeControl : UserControl
 
                 await _retryRunner!.RunAsync(intent.Media, intent.Relation, progress, cancellationToken: _cts!.Token);
                 processed++;
-                _actionHolder.ProgressPlus(actionId);
+                action.ProgressPlus();
             }, _cts.Token, (intent, ex) =>
             {
                 var node = _intentNodeMap.GetValueOrDefault(intent);

@@ -6,17 +6,20 @@ public class ActionHolder(ILogger<ActionHolder> logger)
 {
     public Dictionary<Guid, RunningAction> Actions = new Dictionary<Guid, RunningAction>();
 
-    public Guid Register(string name, string status, int progressMax, CancellationTokenSource ctx)
+    public RunningAction Register(string name, string status, int progressMax, CancellationTokenSource ctx)
     {
         var id = Guid.NewGuid();
-        Actions.Add(id, new RunningAction
+        var act = new RunningAction
         {
+            Id = id,
             Name = name,
             Status = status,
             ProgressMax = progressMax,
             CancellationTokenSource = ctx,
-        });
-        return id;
+            Holder = this,
+        };
+        Actions.Add(id, act);
+        return act;
     }
 
     public void SetStatus(Guid id, string value)
@@ -43,5 +46,23 @@ public class ActionHolder(ILogger<ActionHolder> logger)
         public int ProgressValue { get; set; }
         public int ProgressMax { get; set; }
         public CancellationTokenSource CancellationTokenSource { get; set; }
+        public ActionHolder Holder { get; internal set; }
+
+        public void Cancel()
+        {
+            Status = "Отменено";
+            Holder.Cancel(Id);
+        }
+
+        public void ProgressPlus()
+        {
+            Holder.ProgressPlus(Id);
+        }
+
+        public void Finish()
+        {
+            Status = "Выполнено";
+            Holder.Cancel(Id);
+        }
     }
 }

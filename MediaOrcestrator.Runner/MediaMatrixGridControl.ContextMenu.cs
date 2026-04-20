@@ -546,11 +546,11 @@ public partial class MediaMatrixGridControl
         _logger?.LogInformation("Запуск пакетной синхронизации {Count} медиа: {From} → {To}",
             mediaList.Count, rel.From.TitleFull, rel.To.TitleFull);
         var ctx = new CancellationTokenSource();
-        var actionId = _actionHolder.Register("Синхронизация цепочки", "В процессе", mediaList.Count, ctx);
+        var action = _actionHolder.Register("Синхронизация цепочки", "В процессе", mediaList.Count, ctx);
         return RunBatchOperationAsync("Синхронизировано", "Пакетная синхронизация завершена с ошибками", mediaList, async media =>
         {
             await _retryRunner!.RunAsync(media, rel, maxAttempts: BatchSyncMaxAttempts, cancellationToken: ctx.Token);
-            _actionHolder.ProgressPlus(actionId);
+            action.ProgressPlus();
             _logger?.LogInformation("Синхронизировано: '{Title}'", media.Title);
         }, ctx);
     }
@@ -924,6 +924,11 @@ public partial class MediaMatrixGridControl
                 {
                     // todo поидее тут можно передавать, а не там, ну да и ладон
                     await action(media);
+                }
+                catch (TaskCanceledException ex)
+                {
+                    _logger?.LogWarning("TaskCanceledException для '{Title}'", media.Title);
+                    errors.Add((media, ex));
                 }
                 catch (Exception ex)
                 {

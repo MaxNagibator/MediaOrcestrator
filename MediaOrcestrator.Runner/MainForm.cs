@@ -655,29 +655,18 @@ public partial class MainForm : Form
     {
         uiRunningActionsFlowLayoutPanel.Controls.Clear();
         // todo shlyapa
-        var xxx = _serviceProvider.GetRequiredService<ActionHolder>();
+        var actionHolder = _serviceProvider.GetRequiredService<ActionHolder>();
+        //actionHolder.Register("Синкаем пипку коня Никиты " + actionHolder.Actions.Count, "в процессе", 10, new CancellationTokenSource());
         var i = -1;
-        //for(var i1 = 0; i1 < 10; i1++)
-        //{
-        //    i++;
-        //    var btn = new Button(); var prg = "";
-        //    btn.Text = "фыфффффффффффффффффффффффффффффффф фыфффффффффффффффффффффффффффффффф  фыфффффффффффффффффффффффффффффффф ";
-        //    btn.Width = uiRelationFromComboBox.Width - 10;
-        //    btn.Left = 5;
-        //    btn.Top = 5 + i * (btn.Height + 5);
-        //    uiRunningActionsFlowLayoutPanel.Controls.Add(btn);
-        //}
-        foreach (var action in xxx.Actions)
+        foreach (var action in actionHolder.Actions)
         {
+            action.Value.ProgressPlus();
             i++;
-            var btn = new Button(); var prg = "";
-            if (action.Value.ProgressMax > 0)
-            {
-                prg = " " + action.Value.ProgressValue + "/" + action.Value.ProgressMax;
-            }
-            btn.Text = action.Value.Name + " " + action.Value.Status + prg;
-            btn.Click += (s, e) => { xxx.Cancel(action.Value.Id); };
-            btn.Width = uiRelationFromComboBox.Width - 10;
+            var btn = new ActionUserControl();
+            btn.SetAction(action.Value);
+
+            btn.AutoSize = false;
+            btn.Width = uiRunningActionsFlowLayoutPanel.Width - 10;
             btn.Left = 5;
             btn.Top = 5 + i * (btn.Height + 5);
             uiRunningActionsFlowLayoutPanel.Controls.Add(btn);
