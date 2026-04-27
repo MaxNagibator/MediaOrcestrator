@@ -340,6 +340,24 @@ public sealed class SaveThumbResponse
     public long PhotoOwnerId { get; set; }
 }
 
+public sealed class ShortVideoThumbUploadUrlResponse
+{
+    [JsonPropertyName("upload_url")]
+    public string UploadUrl { get; set; } = string.Empty;
+}
+
+public sealed class ShortVideoEncodeProgressResponse
+{
+    [JsonPropertyName("percents")]
+    public int Percents { get; set; }
+
+    [JsonPropertyName("is_claimed")]
+    public bool IsClaimed { get; set; }
+
+    [JsonPropertyName("is_ready")]
+    public bool IsReady { get; set; }
+}
+
 public sealed class VideoForEditResponse
 {
     [JsonPropertyName("item")]
