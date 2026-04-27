@@ -1,4 +1,5 @@
 ﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Domain.Merging;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,9 +56,15 @@ public partial class MainForm : Form
             _serviceProvider.GetRequiredService<CoverTemplateStore>(),
             _serviceProvider.GetRequiredService<MediaMergeService>(),
             _serviceProvider.GetRequiredService<ActionHolder>(),
+            _serviceProvider.GetRequiredService<CommentsService>(),
             _serviceProvider.GetRequiredService<ILoggerFactory>()));
 
         uiMediaMatrixGridControl.RefreshData();
+
+        uiCommentsViewControl.Initialize(_orcestrator,
+            _serviceProvider.GetRequiredService<CommentsService>(),
+            _serviceProvider.GetRequiredService<ActionHolder>(),
+            _serviceProvider.GetRequiredService<ILogger<CommentsViewControl>>());
 
         if (uiClearTypeComboBox.Items.Count > 0)
         {

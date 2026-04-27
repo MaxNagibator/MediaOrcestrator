@@ -357,3 +357,84 @@ public sealed class VideoForEditItem
     [JsonPropertyName("thumb_upload_url")]
     public string? ThumbUploadUrl { get; set; }
 }
+
+public sealed class VkCommentsResponse
+{
+    [JsonPropertyName("count")]
+    public int Count { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<VkCommentItem> Items { get; set; } = [];
+
+    [JsonPropertyName("profiles")]
+    public List<VkCommentProfile> Profiles { get; set; } = [];
+
+    [JsonPropertyName("groups")]
+    public List<VkCommentGroup> Groups { get; set; } = [];
+}
+
+public sealed class VkCommentItem
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("from_id")]
+    public long FromId { get; set; }
+
+    [JsonPropertyName("date")]
+    public long Date { get; set; }
+
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+
+    [JsonPropertyName("parents_stack")]
+    public List<long> ParentsStack { get; set; } = [];
+
+    [JsonPropertyName("likes")]
+    public VkCommentLikes? Likes { get; set; }
+
+    [JsonPropertyName("thread")]
+    public VkCommentThread? Thread { get; set; }
+
+    [JsonPropertyName("deleted")]
+    public bool Deleted { get; set; }
+}
+
+public sealed class VkCommentLikes
+{
+    [JsonPropertyName("count")]
+    public int Count { get; set; }
+}
+
+public sealed class VkCommentThread
+{
+    [JsonPropertyName("count")]
+    public int Count { get; set; }
+}
+
+public sealed class VkCommentProfile
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("first_name")]
+    public string? FirstName { get; set; }
+
+    [JsonPropertyName("last_name")]
+    public string? LastName { get; set; }
+
+    [JsonPropertyName("photo_100")]
+    public string? Photo100 { get; set; }
+}
+
+public sealed class VkCommentGroup
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("photo_100")]
+    public string? Photo100 { get; set; }
+}

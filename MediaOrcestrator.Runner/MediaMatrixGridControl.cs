@@ -1,4 +1,5 @@
 ﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Domain.Merging;
 using Microsoft.Extensions.Logging;
 
@@ -15,6 +16,7 @@ public partial class MediaMatrixGridControl : UserControl
     private CoverTemplateStore? _coverTemplateStore;
     private MediaMergeService? _mergeService;
     private ActionHolder _actionHolder;
+    private CommentsService? _commentsService;
     private ILoggerFactory? _loggerFactory;
     private CancellationTokenSource? _convertCts;
 
@@ -36,6 +38,7 @@ public partial class MediaMatrixGridControl : UserControl
         _coverTemplateStore = context.CoverTemplateStore;
         _mergeService = context.MergeService;
         _actionHolder = context.ActionHolder;
+        _commentsService = context.CommentsService;
         _loggerFactory = context.LoggerFactory;
         uiFilterControl.SetSettingsManager(context.SettingsManager);
         uiFilterControl.PopulateRelationsFilter(context.Orcestrator);

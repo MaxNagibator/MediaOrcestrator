@@ -10,7 +10,7 @@ public sealed class VkVideoChannel(
     ILogger<VkVideoChannel> logger,
     ILogger<VkVideoService> serviceLogger,
     VideoTranscoder videoTranscoder)
-    : ISourceType, IAuthenticatable
+    : ISourceType, IAuthenticatable, ISupportsComments
 {
     private readonly SemaphoreSlim _serviceLock = new(1, 1);
     private VkVideoService? _cachedService;
@@ -80,6 +80,36 @@ public sealed class VkVideoChannel(
 
         var video = await service.GetVideoByIdAsync(ownerId, videoId);
         return video != null ? CreateMediaDto(video) : null;
+    }
+
+    public async IAsyncEnumerable<CommentDto> GetCommentsAsync(
+        string externalId,
+        Dictionary<string, string> settings,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var (ownerId, videoId) = ParseExternalId(externalId);
+        var service = await CreateServiceAsync(settings);
+
+        var authors = new Dictionary<long, AuthorInfo>();
+
+        await foreach (var comment in StreamCommentsAsync(service, ownerId, videoId, null, authors, cancellationToken))
+        {
+            yield return comment;
+
+            if (comment.Raw is not { } raw
+                || !raw.TryGetValue("thread_count", out var threadCountStr)
+                || !int.TryParse(threadCountStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out var threadCount)
+                || threadCount <= 0
+                || !long.TryParse(comment.ExternalId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var commentIdValue))
+            {
+                continue;
+            }
+
+            await foreach (var reply in StreamCommentsAsync(service, ownerId, videoId, commentIdValue, authors, cancellationToken))
+            {
+                yield return reply;
+            }
+        }
     }
 
     // TODO: Переделать нормально
@@ -342,6 +372,90 @@ public sealed class VkVideoChannel(
         throw new NotImplementedException();
     }
 
+    private static async IAsyncEnumerable<CommentDto> StreamCommentsAsync(
+        VkVideoService service,
+        long ownerId,
+        long videoId,
+        long? parentCommentId,
+        Dictionary<long, AuthorInfo> authors,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        const int PageSize = 100;
+        var offset = 0;
+        var total = -1;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var response = await service.GetVideoCommentsAsync(ownerId,
+                videoId,
+                PageSize,
+                offset,
+                parentCommentId);
+
+            foreach (var profile in response.Profiles)
+            {
+                authors.TryAdd(profile.Id, new($"{profile.FirstName} {profile.LastName}".Trim(), profile.Photo100));
+            }
+
+            foreach (var group in response.Groups)
+            {
+                authors.TryAdd(-group.Id, new(group.Name ?? string.Empty, group.Photo100));
+            }
+
+            if (total < 0)
+            {
+                total = response.Count;
+            }
+
+            if (response.Items.Count == 0)
+            {
+                yield break;
+            }
+
+            foreach (var item in response.Items)
+            {
+                yield return MapComment(item, parentCommentId, authors);
+            }
+
+            offset += response.Items.Count;
+            if (offset >= total)
+            {
+                yield break;
+            }
+        }
+    }
+
+    private static CommentDto MapComment(VkCommentItem item, long? parentCommentId, Dictionary<long, AuthorInfo> authors)
+    {
+        authors.TryGetValue(item.FromId, out var author);
+
+        var raw = new Dictionary<string, string>
+        {
+            ["from_id"] = item.FromId.ToString(CultureInfo.InvariantCulture),
+        };
+
+        if (item.Thread is { Count: > 0 } thread)
+        {
+            raw["thread_count"] = thread.Count.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return new()
+        {
+            ExternalId = item.Id.ToString(CultureInfo.InvariantCulture),
+            ParentExternalId = parentCommentId?.ToString(CultureInfo.InvariantCulture),
+            AuthorName = author.Name ?? string.Empty,
+            AuthorExternalId = item.FromId.ToString(CultureInfo.InvariantCulture),
+            AuthorAvatarUrl = author.AvatarUrl,
+            Text = item.Text,
+            PublishedAt = DateTimeOffset.FromUnixTimeSeconds(item.Date).UtcDateTime,
+            LikeCount = item.Likes?.Count,
+            IsDeleted = item.Deleted,
+            Raw = raw,
+        };
+    }
+
     private static ExternalVideoId ParseExternalId(string externalId)
     {
         var parts = externalId.Split('_', 2);
@@ -486,6 +600,8 @@ public sealed class VkVideoChannel(
             _serviceLock.Release();
         }
     }
+
+    private readonly record struct AuthorInfo(string? Name, string? AvatarUrl);
 
     private sealed record ExternalVideoId(long OwnerId, long VideoId);
 }

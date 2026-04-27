@@ -1,6 +1,7 @@
 ﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -708,6 +709,34 @@ public sealed class VkVideoService : IDisposable
         _logger.LogInformation("access_token получен, истекает в {Expires}", _tokenExpires);
 
         return _accessToken;
+    }
+
+    public Task<VkCommentsResponse> GetVideoCommentsAsync(
+        long ownerId,
+        long videoId,
+        int count = 100,
+        int offset = 0,
+        long? commentId = null,
+        string sort = "asc")
+    {
+        var parameters = new Dictionary<string, string>
+        {
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["video_id"] = videoId.ToString(CultureInfo.InvariantCulture),
+            ["count"] = count.ToString(CultureInfo.InvariantCulture),
+            ["offset"] = offset.ToString(CultureInfo.InvariantCulture),
+            ["sort"] = sort,
+            ["need_likes"] = "1",
+            ["extended"] = "1",
+            ["fields"] = "photo_100,first_name_dat",
+        };
+
+        if (commentId.HasValue)
+        {
+            parameters["comment_id"] = commentId.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return CallApiInternalAsync<VkCommentsResponse>(ApiBase, "video.getComments", parameters);
     }
 
     private async Task<T> CallApiInternalAsync<T>(string baseUrl, string method, Dictionary<string, string> parameters)

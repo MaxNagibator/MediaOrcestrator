@@ -1,4 +1,5 @@
 ﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Domain.Merging;
 using Microsoft.Extensions.Logging;
 
@@ -15,4 +16,5 @@ public sealed record MediaMatrixContext(
     CoverTemplateStore CoverTemplateStore,
     MediaMergeService MergeService,
     ActionHolder ActionHolder,
+    CommentsService CommentsService,
     ILoggerFactory LoggerFactory);

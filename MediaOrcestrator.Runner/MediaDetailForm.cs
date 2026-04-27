@@ -1,4 +1,5 @@
 ﻿using MediaOrcestrator.Domain;
+using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp.Formats.Bmp;
@@ -11,15 +12,17 @@ namespace MediaOrcestrator.Runner;
 public partial class MediaDetailForm : Form
 {
     private readonly ILogger? _logger;
+    private readonly CommentsService? _commentsService;
     private readonly Font _titleFont;
     private readonly Font _headerFont;
     private readonly Font _groupFont;
     private readonly Font _boldFont;
     private readonly Font _regularFont;
 
-    public MediaDetailForm(Media media, List<Source> sources, ILogger? logger = null)
+    public MediaDetailForm(Media media, List<Source> sources, CommentsService? commentsService = null, ILogger? logger = null)
     {
         _logger = logger;
+        _commentsService = commentsService;
         InitializeComponent();
 
         _titleFont = new(Font.FontFamily, 11, FontStyle.Bold);
@@ -35,11 +38,11 @@ public partial class MediaDetailForm : Form
         uiTitleLabel.Text = media.Title ?? "";
         uiTitleLabel.Font = _titleFont;
         uiDescriptionLabel.Text = media.Description ?? "";
-        uiSourcesHeaderLabel.Font = _headerFont;
 
         var sourceDict = sources.ToDictionary(s => s.Id);
         TryLoadPreview(media);
         PopulateSources(media, sourceDict);
+        uiCommentsControl.Initialize(media, sourceDict, _commentsService, _logger);
 
         uiTitleLabel.ContextMenuStrip = CreateCopyMenu(uiTitleLabel);
         uiDescriptionLabel.ContextMenuStrip = CreateCopyMenu(uiDescriptionLabel);

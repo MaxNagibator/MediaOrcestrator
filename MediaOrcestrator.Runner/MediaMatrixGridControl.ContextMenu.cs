@@ -847,7 +847,7 @@ public partial class MediaMatrixGridControl
     private void ShowMediaDetail(Media media)
     {
         var sources = _orcestrator?.GetSources() ?? [];
-        var form = new MediaDetailForm(media, sources, _logger);
+        var form = new MediaDetailForm(media, sources, _commentsService, _logger);
         form.Show(this);
     }
 

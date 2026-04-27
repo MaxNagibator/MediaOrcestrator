@@ -27,8 +27,11 @@ partial class MediaDetailForm
     private Label uiDescriptionLabel;
     private Panel uiHeaderPanel;
     private Label uiSeparator;
-    private Label uiSourcesHeaderLabel;
+    private TabControl uiTabControl;
+    private TabPage uiSourcesTab;
+    private TabPage uiCommentsTab;
     private Panel uiContentPanel;
+    private MediaCommentsControl uiCommentsControl;
 
     private void InitializeComponent()
     {
@@ -37,14 +40,20 @@ partial class MediaDetailForm
         uiTitleLabel = new Label();
         uiDescriptionLabel = new Label();
         uiSeparator = new Label();
-        uiSourcesHeaderLabel = new Label();
+        uiTabControl = new TabControl();
+        uiSourcesTab = new TabPage();
+        uiCommentsTab = new TabPage();
         uiContentPanel = new Panel();
+        uiCommentsControl = new MediaCommentsControl();
         uiHeaderPanel.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)uiPreviewBox).BeginInit();
+        uiTabControl.SuspendLayout();
+        uiSourcesTab.SuspendLayout();
+        uiCommentsTab.SuspendLayout();
         SuspendLayout();
-        // 
+        //
         // uiHeaderPanel
-        // 
+        //
         uiHeaderPanel.Controls.Add(uiPreviewBox);
         uiHeaderPanel.Controls.Add(uiTitleLabel);
         uiHeaderPanel.Controls.Add(uiDescriptionLabel);
@@ -56,9 +65,9 @@ partial class MediaDetailForm
         uiHeaderPanel.Size = new Size(1108, 345);
         uiHeaderPanel.TabIndex = 3;
         uiHeaderPanel.Resize += uiHeaderPanel_Resize;
-        // 
+        //
         // uiPreviewBox
-        // 
+        //
         uiPreviewBox.BackColor = Color.FromArgb(240, 240, 240);
         uiPreviewBox.BorderStyle = BorderStyle.FixedSingle;
         uiPreviewBox.Location = new Point(26, 30);
@@ -68,18 +77,18 @@ partial class MediaDetailForm
         uiPreviewBox.SizeMode = PictureBoxSizeMode.Zoom;
         uiPreviewBox.TabIndex = 0;
         uiPreviewBox.TabStop = false;
-        // 
+        //
         // uiTitleLabel
-        // 
+        //
         uiTitleLabel.AutoEllipsis = true;
         uiTitleLabel.Location = new Point(394, 30);
         uiTitleLabel.Margin = new Padding(6, 0, 6, 0);
         uiTitleLabel.Name = "uiTitleLabel";
         uiTitleLabel.Size = new Size(643, 99);
         uiTitleLabel.TabIndex = 1;
-        // 
+        //
         // uiDescriptionLabel
-        // 
+        //
         uiDescriptionLabel.AutoEllipsis = true;
         uiDescriptionLabel.ForeColor = Color.FromArgb(80, 80, 80);
         uiDescriptionLabel.Location = new Point(394, 138);
@@ -87,9 +96,9 @@ partial class MediaDetailForm
         uiDescriptionLabel.Name = "uiDescriptionLabel";
         uiDescriptionLabel.Size = new Size(643, 178);
         uiDescriptionLabel.TabIndex = 2;
-        // 
+        //
         // uiSeparator
-        // 
+        //
         uiSeparator.BackColor = Color.FromArgb(200, 200, 200);
         uiSeparator.Dock = DockStyle.Top;
         uiSeparator.Location = new Point(0, 345);
@@ -97,36 +106,69 @@ partial class MediaDetailForm
         uiSeparator.Name = "uiSeparator";
         uiSeparator.Size = new Size(1108, 5);
         uiSeparator.TabIndex = 2;
-        // 
-        // uiSourcesHeaderLabel
-        // 
-        uiSourcesHeaderLabel.Dock = DockStyle.Top;
-        uiSourcesHeaderLabel.Location = new Point(0, 350);
-        uiSourcesHeaderLabel.Margin = new Padding(6, 0, 6, 0);
-        uiSourcesHeaderLabel.Name = "uiSourcesHeaderLabel";
-        uiSourcesHeaderLabel.Padding = new Padding(26, 20, 0, 0);
-        uiSourcesHeaderLabel.Size = new Size(1108, 74);
-        uiSourcesHeaderLabel.TabIndex = 1;
-        uiSourcesHeaderLabel.Text = "Источники";
-        // 
+        //
+        // uiTabControl
+        //
+        uiTabControl.Controls.Add(uiSourcesTab);
+        uiTabControl.Controls.Add(uiCommentsTab);
+        uiTabControl.Dock = DockStyle.Fill;
+        uiTabControl.Location = new Point(0, 350);
+        uiTabControl.Margin = new Padding(6, 7, 6, 7);
+        uiTabControl.Name = "uiTabControl";
+        uiTabControl.SelectedIndex = 0;
+        uiTabControl.Size = new Size(1108, 1083);
+        uiTabControl.TabIndex = 0;
+        //
+        // uiSourcesTab
+        //
+        uiSourcesTab.Controls.Add(uiContentPanel);
+        uiSourcesTab.Location = new Point(4, 46);
+        uiSourcesTab.Margin = new Padding(6, 7, 6, 7);
+        uiSourcesTab.Name = "uiSourcesTab";
+        uiSourcesTab.Padding = new Padding(6, 7, 6, 7);
+        uiSourcesTab.Size = new Size(1100, 1033);
+        uiSourcesTab.TabIndex = 0;
+        uiSourcesTab.Text = "Источники";
+        uiSourcesTab.UseVisualStyleBackColor = true;
+        //
+        // uiCommentsTab
+        //
+        uiCommentsTab.Controls.Add(uiCommentsControl);
+        uiCommentsTab.Location = new Point(4, 46);
+        uiCommentsTab.Margin = new Padding(6, 7, 6, 7);
+        uiCommentsTab.Name = "uiCommentsTab";
+        uiCommentsTab.Padding = new Padding(6, 7, 6, 7);
+        uiCommentsTab.Size = new Size(1100, 1033);
+        uiCommentsTab.TabIndex = 1;
+        uiCommentsTab.Text = "Комментарии";
+        uiCommentsTab.UseVisualStyleBackColor = true;
+        //
         // uiContentPanel
-        // 
+        //
         uiContentPanel.AutoScroll = true;
         uiContentPanel.Dock = DockStyle.Fill;
-        uiContentPanel.Location = new Point(0, 424);
+        uiContentPanel.Location = new Point(6, 7);
         uiContentPanel.Margin = new Padding(6, 7, 6, 7);
         uiContentPanel.Name = "uiContentPanel";
         uiContentPanel.Padding = new Padding(26, 10, 26, 30);
-        uiContentPanel.Size = new Size(1108, 1009);
+        uiContentPanel.Size = new Size(1088, 1019);
         uiContentPanel.TabIndex = 0;
-        // 
+        //
+        // uiCommentsControl
+        //
+        uiCommentsControl.Dock = DockStyle.Fill;
+        uiCommentsControl.Location = new Point(6, 7);
+        uiCommentsControl.Margin = new Padding(6, 7, 6, 7);
+        uiCommentsControl.Name = "uiCommentsControl";
+        uiCommentsControl.Size = new Size(1088, 1019);
+        uiCommentsControl.TabIndex = 0;
+        //
         // MediaDetailForm
-        // 
+        //
         AutoScaleDimensions = new SizeF(15F, 37F);
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(1108, 1433);
-        Controls.Add(uiContentPanel);
-        Controls.Add(uiSourcesHeaderLabel);
+        Controls.Add(uiTabControl);
         Controls.Add(uiSeparator);
         Controls.Add(uiHeaderPanel);
         Margin = new Padding(6, 7, 6, 7);
@@ -136,6 +178,9 @@ partial class MediaDetailForm
         StartPosition = FormStartPosition.CenterParent;
         uiHeaderPanel.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)uiPreviewBox).EndInit();
+        uiTabControl.ResumeLayout(false);
+        uiSourcesTab.ResumeLayout(false);
+        uiCommentsTab.ResumeLayout(false);
         ResumeLayout(false);
     }
 

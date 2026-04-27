@@ -35,6 +35,18 @@ public class MediaSourceLink
     /// </summary>
     public string MediaId { get; set; }
 
+    /// <summary>
+    /// Время последней успешной загрузки комментариев из источника (UTC);
+    /// <see langword="null" /> – комментарии для этого медиа никогда не запрашивались.
+    /// </summary>
+    public DateTime? CommentsFetchedAt { get; set; }
+
+    /// <summary>
+    /// Количество комментариев в кэше после последней загрузки;
+    /// <see langword="null" /> – ещё не загружались.
+    /// </summary>
+    public int? CommentsCount { get; set; }
+
     [BsonIgnore]
     public Media Media { get; set; }
 

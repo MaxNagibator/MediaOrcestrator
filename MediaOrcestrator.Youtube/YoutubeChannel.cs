@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace MediaOrcestrator.Youtube;
 
 public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider toolPathProvider)
-    : ISourceType, IAuthenticatable, IToolConsumer
+    : ISourceType, IAuthenticatable, IToolConsumer, ISupportsComments
 {
     internal const string VideoUrlTemplate = "https://www.youtube.com/watch?v={0}";
 
@@ -16,6 +16,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
     private YoutubeUploadService? _uploadService;
     private YoutubeApiReadService? _apiReadService;
+    private YoutubeCommentsReadService? _commentsReadService;
 
     public IReadOnlyList<ToolDescriptor> RequiredTools { get; } =
     [
@@ -138,6 +139,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
     private YoutubeUploadService UploadService => _uploadService ??= new(logger, _authService);
     private YoutubeApiReadService ApiReadService => _apiReadService ??= new(logger, _authService);
+    private YoutubeCommentsReadService CommentsReadService => _commentsReadService ??= new(logger, _authService);
 
     public async Task<List<SettingOption>> GetSettingOptionsAsync(string settingKey, Dictionary<string, string> currentSettings)
     {
@@ -223,6 +225,11 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         }
 
         logger.LogInformation("Завершено получение медиа для канала: {ChannelUrl}", channelUrl);
+    }
+
+    public IAsyncEnumerable<CommentDto> GetCommentsAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
+    {
+        return CommentsReadService.GetCommentsAsync(externalId, settings, cancellationToken);
     }
 
     public async Task<MediaDto?> GetMediaByIdAsync(string externalId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)

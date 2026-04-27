@@ -1,5 +1,6 @@
 ﻿using LiteDB;
 using MediaOrcestrator.Domain;
+using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Domain.Merging;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.DependencyInjection;
@@ -418,6 +419,8 @@ file static class Program
         services.AddSingleton<ErrorReportService>();
 
         services.AddSingleton<Orcestrator>();
+        services.AddSingleton<CommentsRepository>();
+        services.AddSingleton<CommentsService>();
         services.AddSingleton<MediaMergeService>();
         services.AddSingleton<SyncRetryRunner>();
         services.AddSingleton<ActionHolder>();
