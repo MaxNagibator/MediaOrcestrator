@@ -31,7 +31,7 @@ partial class MediaDetailForm
     private TabPage uiSourcesTab;
     private TabPage uiCommentsTab;
     private Panel uiContentPanel;
-    private MediaCommentsControl uiCommentsControl;
+    private CommentsBrowserView uiCommentsBrowser;
 
     private void InitializeComponent()
     {
@@ -44,7 +44,7 @@ partial class MediaDetailForm
         uiSourcesTab = new TabPage();
         uiCommentsTab = new TabPage();
         uiContentPanel = new Panel();
-        uiCommentsControl = new MediaCommentsControl();
+        uiCommentsBrowser = new CommentsBrowserView();
         uiHeaderPanel.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)uiPreviewBox).BeginInit();
         uiTabControl.SuspendLayout();
@@ -133,7 +133,7 @@ partial class MediaDetailForm
         //
         // uiCommentsTab
         //
-        uiCommentsTab.Controls.Add(uiCommentsControl);
+        uiCommentsTab.Controls.Add(uiCommentsBrowser);
         uiCommentsTab.Location = new Point(4, 46);
         uiCommentsTab.Margin = new Padding(6, 7, 6, 7);
         uiCommentsTab.Name = "uiCommentsTab";
@@ -154,14 +154,14 @@ partial class MediaDetailForm
         uiContentPanel.Size = new Size(1088, 1019);
         uiContentPanel.TabIndex = 0;
         //
-        // uiCommentsControl
+        // uiCommentsBrowser
         //
-        uiCommentsControl.Dock = DockStyle.Fill;
-        uiCommentsControl.Location = new Point(6, 7);
-        uiCommentsControl.Margin = new Padding(6, 7, 6, 7);
-        uiCommentsControl.Name = "uiCommentsControl";
-        uiCommentsControl.Size = new Size(1088, 1019);
-        uiCommentsControl.TabIndex = 0;
+        uiCommentsBrowser.Dock = DockStyle.Fill;
+        uiCommentsBrowser.Location = new Point(6, 7);
+        uiCommentsBrowser.Margin = new Padding(6, 7, 6, 7);
+        uiCommentsBrowser.Name = "uiCommentsBrowser";
+        uiCommentsBrowser.Size = new Size(1088, 1019);
+        uiCommentsBrowser.TabIndex = 0;
         //
         // MediaDetailForm
         //

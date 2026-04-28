@@ -545,6 +545,7 @@ public partial class MediaMatrixGridControl
 
         _logger?.LogInformation("Запуск пакетной синхронизации {Count} медиа: {From} → {To}",
             mediaList.Count, rel.From.TitleFull, rel.To.TitleFull);
+
         var ctx = new CancellationTokenSource();
         var action = _actionHolder.Register("Синхронизация цепочки", "В процессе", mediaList.Count, ctx);
         return RunBatchOperationAsync("Синхронизировано", "Пакетная синхронизация завершена с ошибками", mediaList, async media =>
@@ -846,8 +847,12 @@ public partial class MediaMatrixGridControl
 
     private void ShowMediaDetail(Media media)
     {
-        var sources = _orcestrator?.GetSources() ?? [];
-        var form = new MediaDetailForm(media, sources, _commentsService, _logger);
+        if (_orcestrator == null)
+        {
+            return;
+        }
+
+        var form = new MediaDetailForm(media, _orcestrator, _actionHolder, _commentsService, _logger);
         form.Show(this);
     }
 
@@ -920,6 +925,7 @@ public partial class MediaMatrixGridControl
                 {
                     ctx.Token.ThrowIfCancellationRequested();
                 }
+
                 try
                 {
                     // todo поидее тут можно передавать, а не там, ну да и ладон

@@ -131,7 +131,7 @@ public partial class CommentsViewControl : UserControl
                         ok++;
                         action.Status = $"{media.Title}: {count}";
                     }
-                    catch (OperationCanceledException)
+                    catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
                     {
                         throw;
                     }
@@ -146,7 +146,7 @@ public partial class CommentsViewControl : UserControl
                 }
             }, cts.Token);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
         {
             _logger?.LogInformation("Загрузка комментариев отменена для «{Source}»", source.TitleFull);
         }
@@ -183,7 +183,7 @@ public partial class CommentsViewControl : UserControl
 
     private void uiCommentsGrid_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
     {
-        if (e.RowIndex < 0 || _orcestrator == null)
+        if (e.RowIndex < 0 || _orcestrator == null || _actionHolder == null)
         {
             return;
         }
@@ -200,7 +200,7 @@ public partial class CommentsViewControl : UserControl
             return;
         }
 
-        var detail = new MediaDetailForm(media, _orcestrator.GetSources(), _commentsService, _logger);
+        var detail = new MediaDetailForm(media, _orcestrator, _actionHolder, _commentsService, _logger);
         detail.Show(this);
     }
 

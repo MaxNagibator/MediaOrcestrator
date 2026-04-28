@@ -15,6 +15,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <EmbeddedResource Include="Resources\docs.template.html" />
+    <EmbeddedResource Include="Resources\comments.template.html" />
   </ItemGroup>
 
   <ItemGroup>

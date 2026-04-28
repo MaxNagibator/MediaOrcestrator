@@ -1,0 +1,541 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta content="IE=edge"
+          http-equiv="X-UA-Compatible" />
+    <style>
+        html, body {
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            font-size: 13px;
+            line-height: 1.45;
+            margin: 0;
+            padding: 0;
+            color: #2b2b2b;
+            background: #fafafa;
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 14px 18px 24px 18px;
+        }
+
+        .empty {
+            font-style: italic;
+            padding: 32px 0;
+            text-align: center;
+            color: #888;
+        }
+
+        .media {
+            overflow: hidden;
+            margin-bottom: 14px;
+            border: 1px solid #e3e3e3;
+            border-radius: 6px;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+
+        .media-head {
+            padding: 10px 14px;
+            border-bottom: 1px solid #ececec;
+            background: #f4f7fb;
+        }
+
+        .media-head:after {
+            display: block;
+            clear: both;
+            content: "";
+        }
+
+        .media-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .media-title a {
+            text-decoration: none;
+            color: #1a4f9b;
+        }
+
+        .media-title a:hover {
+            text-decoration: underline;
+        }
+
+        .media-meta {
+            font-size: 12px;
+            margin-top: 2px;
+            color: #777;
+        }
+
+        .media-actions {
+            font-size: 12px;
+            float: right;
+        }
+
+        .media-actions a {
+            margin-left: 8px;
+            text-decoration: none;
+            color: #1a4f9b;
+        }
+
+        .media-actions a:hover {
+            text-decoration: underline;
+        }
+
+        .threads {
+            padding: 8px 14px 12px 14px;
+        }
+
+        .comment {
+            position: relative;
+            min-height: 36px;
+            margin: 6px 0;
+            padding: 6px 10px 6px 50px;
+            border-left: 2px solid #d8e0ea;
+        }
+
+        .comment.deleted .body {
+            font-style: italic;
+            color: #999;
+        }
+
+        .comment .replies {
+            margin-top: 4px;
+            margin-left: 10px;
+        }
+
+        .avatar {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 32px;
+            position: absolute;
+            top: 6px;
+            left: 10px;
+            overflow: hidden;
+            width: 32px;
+            height: 32px;
+            text-align: center;
+            text-transform: uppercase;
+            color: #fff;
+            border-radius: 50%;
+            background: #d8e0ea;
+        }
+
+        .avatar img {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .avatar.placeholder-1 {
+            background: #6aa3d1;
+        }
+
+        .avatar.placeholder-2 {
+            background: #8c7bc6;
+        }
+
+        .avatar.placeholder-3 {
+            background: #c97a7a;
+        }
+
+        .avatar.placeholder-4 {
+            background: #6fa37a;
+        }
+
+        .avatar.placeholder-5 {
+            background: #c79b58;
+        }
+
+        .avatar.placeholder-6 {
+            background: #5fa9a3;
+        }
+
+        .head {
+            font-size: 12px;
+            margin-bottom: 2px;
+            color: #555;
+        }
+
+        .author {
+            font-weight: 600;
+            color: #2b2b2b;
+        }
+
+        .author-badge {
+            font-size: 10px;
+            font-weight: 600;
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 7px;
+            vertical-align: 1px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: #fff;
+            border-radius: 9px;
+            background: #1a4f9b;
+        }
+
+        .source-badge {
+            font-size: 10px;
+            font-weight: 500;
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 7px;
+            color: #5b6c84;
+            border-radius: 9px;
+            background: #e7eef7;
+        }
+
+        .date {
+            margin-left: 6px;
+            color: #888;
+        }
+
+        .likes {
+            font-size: 11px;
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 7px;
+            color: #c43b3b;
+            border-radius: 9px;
+            background: #fff0f0;
+        }
+
+        .liked-by-author {
+            font-size: 11px;
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 7px;
+            color: #c43b3b;
+            border: 1px solid #f0b8b8;
+            border-radius: 9px;
+            background: #fff0f0;
+        }
+
+        .body {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #1f1f1f;
+        }
+
+        .body a {
+            word-break: break-all;
+            color: #1a4f9b;
+        }
+
+        .mention {
+            font-weight: 500;
+            padding: 0 3px;
+            text-decoration: none;
+            color: #1a4f9b;
+            border-radius: 3px;
+            background: #eef3fb;
+        }
+
+        .mention:hover {
+            text-decoration: underline;
+        }
+
+        mark {
+            padding: 0 1px;
+            background: #fff3a3;
+        }
+
+        ::selection {
+            background: #cfe2ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div id="root"></div>
+    </div>
+    <script>
+        var __commentsData = {{data}};
+
+        (function () {
+            var data = __commentsData || { groups: [], search: "" };
+            var root = document.getElementById("root");
+
+            var TOKEN_RE = /\[(id|club|public)(\d+)\|([^\]]+)\]|https?:\/\/[^\s<>"']+/g;
+            var TRAIL_RE = /[)\].,!?;:]+$/;
+
+            function el(tag, className) {
+                var node = document.createElement(tag);
+                if (className) node.className = className;
+                return node;
+            }
+
+            function text(value) {
+                return document.createTextNode(value == null ? "" : String(value));
+            }
+
+            function tokenize(value) {
+                var tokens = [];
+                var last = 0;
+                var m;
+                TOKEN_RE.lastIndex = 0;
+                while ((m = TOKEN_RE.exec(value)) !== null) {
+                    if (m.index > last) {
+                        tokens.push({ kind: "text", value: value.substring(last, m.index) });
+                    }
+                    if (m[1]) {
+                        var url = (m[1] === "id" ? "https://vk.com/id" : "https://vk.com/" + m[1]) + m[2];
+                        tokens.push({ kind: "mention", url: url, name: m[3] });
+                    } else {
+                        var raw = m[0];
+                        var trail = "";
+                        var t = raw.match(TRAIL_RE);
+                        if (t) {
+                            trail = t[0];
+                            raw = raw.substring(0, raw.length - trail.length);
+                        }
+                        tokens.push({ kind: "url", url: raw, trail: trail });
+                    }
+                    last = m.index + m[0].length;
+                    if (m[0].length === 0) TOKEN_RE.lastIndex++;
+                }
+                if (last < value.length) {
+                    tokens.push({ kind: "text", value: value.substring(last) });
+                }
+                return tokens;
+            }
+
+            function appendHighlightedText(parent, value, search) {
+                if (!value) return;
+                if (!search) {
+                    parent.appendChild(text(value));
+                    return;
+                }
+                var safe = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                var re = new RegExp(safe, "gi");
+                var last = 0;
+                var m;
+                while ((m = re.exec(value)) !== null) {
+                    if (m.index > last) parent.appendChild(text(value.substring(last, m.index)));
+                    var mark = el("mark");
+                    mark.appendChild(text(m[0]));
+                    parent.appendChild(mark);
+                    last = m.index + m[0].length;
+                    if (m[0].length === 0) re.lastIndex++;
+                }
+                if (last < value.length) parent.appendChild(text(value.substring(last)));
+            }
+
+            function appendLinkified(parent, value, search) {
+                if (!value) return;
+                var tokens = tokenize(value);
+                for (var i = 0; i < tokens.length; i++) {
+                    var tok = tokens[i];
+                    if (tok.kind === "text") {
+                        appendHighlightedText(parent, tok.value, search);
+                    } else if (tok.kind === "mention") {
+                        var link = el("a", "mention");
+                        link.setAttribute("href", tok.url);
+                        link.setAttribute("target", "_blank");
+                        link.setAttribute("rel", "noopener");
+                        link.appendChild(text("@" + tok.name));
+                        parent.appendChild(link);
+                    } else if (tok.kind === "url") {
+                        var urlLink = el("a");
+                        urlLink.setAttribute("href", tok.url);
+                        urlLink.setAttribute("target", "_blank");
+                        urlLink.setAttribute("rel", "noopener");
+                        urlLink.appendChild(text(tok.url));
+                        parent.appendChild(urlLink);
+                        if (tok.trail) parent.appendChild(text(tok.trail));
+                    }
+                }
+            }
+
+            function buildIndex(comments) {
+                var byId = {};
+                var childrenByParent = {};
+                for (var i = 0; i < comments.length; i++) byId[comments[i].id] = comments[i];
+                for (var j = 0; j < comments.length; j++) {
+                    var c = comments[j];
+                    if (c.parent && byId[c.parent]) {
+                        if (!childrenByParent[c.parent]) childrenByParent[c.parent] = [];
+                        childrenByParent[c.parent].push(c);
+                    }
+                }
+                return { byId: byId, childrenByParent: childrenByParent };
+            }
+
+            function initialOf(name) {
+                if (!name) return "?";
+                var trimmed = name.replace(/^\s+/, "");
+                if (!trimmed) return "?";
+                return trimmed.charAt(0);
+            }
+
+            function paletteIndex(name) {
+                var s = name || "";
+                var h = 0;
+                for (var i = 0; i < s.length; i++) h = h * 31 + s.charCodeAt(i) & 0x7fffffff;
+                return h % 6 + 1;
+            }
+
+            function renderAvatar(c) {
+                var avatar = el("div", "avatar placeholder-" + paletteIndex(c.author));
+                avatar.appendChild(text(initialOf(c.author)));
+
+                if (c.avatar) {
+                    var img = document.createElement("img");
+                    img.setAttribute("alt", "");
+                    img.onload = function () {
+                        while (avatar.firstChild) avatar.removeChild(avatar.firstChild);
+                        avatar.appendChild(img);
+                    };
+                    img.onerror = function () {
+                    };
+                    img.setAttribute("src", c.avatar);
+                }
+
+                return avatar;
+            }
+
+            function renderComment(c, childrenByParent, showSource) {
+                var div = el("div", "comment" + (c.deleted ? " deleted" : ""));
+
+                div.appendChild(renderAvatar(c));
+
+                var head = el("div", "head");
+                var author = el("span", "author");
+                author.appendChild(text(c.author || "—"));
+                head.appendChild(author);
+
+                if (c.isAuthor) {
+                    var badge = el("span", "author-badge");
+                    badge.setAttribute("title", "Комментарий от автора");
+                    badge.appendChild(text("Автор"));
+                    head.appendChild(badge);
+                }
+
+                var date = el("span", "date");
+                date.appendChild(text(c.date));
+                head.appendChild(date);
+
+                if (c.likes > 0) {
+                    var likes = el("span", "likes");
+                    likes.appendChild(text("♥ " + c.likes));
+                    head.appendChild(likes);
+                }
+
+                if (c.likedByAuthor) {
+                    var heart = el("span", "liked-by-author");
+                    heart.setAttribute("title", "Лайк от автора");
+                    heart.appendChild(text("♥ автор"));
+                    head.appendChild(heart);
+                }
+
+                if (showSource && c.source) {
+                    var src = el("span", "source-badge");
+                    src.appendChild(text(c.source));
+                    head.appendChild(src);
+                }
+
+                div.appendChild(head);
+
+                var body = el("div", "body");
+                if (c.deleted) {
+                    body.appendChild(text("[удалён]"));
+                } else {
+                    appendLinkified(body, c.text || "", data.search);
+                }
+                div.appendChild(body);
+
+                var children = childrenByParent[c.id];
+                if (children && children.length) {
+                    var replies = el("div", "replies");
+                    for (var i = 0; i < children.length; i++) {
+                        replies.appendChild(renderComment(children[i], childrenByParent, showSource));
+                    }
+                    div.appendChild(replies);
+                }
+
+                return div;
+            }
+
+            function renderGroup(g) {
+                var media = el("div", "media");
+
+                var head = el("div", "media-head");
+
+                var actions = el("div", "media-actions");
+                var sources = g.sources || [];
+                var multipleSources = sources.length > 1;
+                for (var si = 0; si < sources.length; si++) {
+                    var s = sources[si];
+                    var refresh = el("a");
+                    refresh.setAttribute("href",
+                        "app://fetch/" + encodeURIComponent(s.sourceId) + "/" + encodeURIComponent(s.externalId));
+                    refresh.appendChild(text(multipleSources ? "обновить " + s.sourceTitle : "обновить"));
+                    actions.appendChild(refresh);
+                }
+                head.appendChild(actions);
+
+                var title = el("div", "media-title");
+                if (g.mediaId) {
+                    var titleLink = el("a");
+                    titleLink.setAttribute("href", "app://media/" + encodeURIComponent(g.mediaId));
+                    titleLink.appendChild(text(g.mediaTitle));
+                    title.appendChild(titleLink);
+                } else {
+                    title.appendChild(text(g.mediaTitle));
+                }
+                head.appendChild(title);
+
+                var meta = el("div", "media-meta");
+                var parts = [];
+                for (var pi = 0; pi < sources.length; pi++) {
+                    parts.push(sources[pi].sourceTitle + ": " + sources[pi].count);
+                }
+                var metaText = parts.join("  ·  ");
+                if (multipleSources) metaText += "  ·  всего: " + g.total;
+                meta.appendChild(text(metaText));
+                if (g.mediaMissing) meta.appendChild(text("  ·  локально не найдено"));
+                head.appendChild(meta);
+
+                media.appendChild(head);
+
+                var threads = el("div", "threads");
+                var idx = buildIndex(g.comments);
+                for (var i = 0; i < g.comments.length; i++) {
+                    var c = g.comments[i];
+                    if (!c.parent || !idx.byId[c.parent]) {
+                        threads.appendChild(renderComment(c, idx.childrenByParent, multipleSources));
+                    }
+                }
+                media.appendChild(threads);
+
+                return media;
+            }
+
+            function clear(node) {
+                while (node.firstChild) node.removeChild(node.firstChild);
+            }
+
+            function render() {
+                clear(root);
+                if (!data.groups || data.groups.length === 0) {
+                    var empty = el("div", "empty");
+                    empty.appendChild(text("Ничего не найдено"));
+                    root.appendChild(empty);
+                    return;
+                }
+                var frag = document.createDocumentFragment();
+                for (var i = 0; i < data.groups.length; i++) {
+                    frag.appendChild(renderGroup(data.groups[i]));
+                }
+                root.appendChild(frag);
+            }
+
+            render();
+        })();
+    </script>
+</body>
+</html>
