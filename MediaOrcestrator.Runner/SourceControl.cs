@@ -75,6 +75,7 @@ public partial class SourceControl : UserControl
         // TODO: Подумать _source.Type
         settingsForm.SetSettings(pluginInfo.SettingsKeys, _source.Type, _logger);
         settingsForm.SetEditSource(_source);
+        settingsForm.SetAvailableSources(_orcestrator.GetSources());
 
         if (settingsForm.ShowDialog() != DialogResult.OK)
         {

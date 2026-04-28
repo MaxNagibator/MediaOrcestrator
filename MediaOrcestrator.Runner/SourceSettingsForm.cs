@@ -9,6 +9,7 @@ public partial class SourceSettingsForm : Form
     private readonly Dictionary<string, Control> _controls = [];
     private readonly List<Button> _loadButtons = [];
     private IEnumerable<SourceSettings> _settingsKeys = [];
+    private List<Source> _availableSources = [];
     private Source? _editSource;
     private ISourceType? _sourceType;
     private ILogger? _logger;
@@ -36,6 +37,11 @@ public partial class SourceSettingsForm : Form
     {
         _stateManager = stateManager;
         _pendingSourceId = sourceId;
+    }
+
+    public void SetAvailableSources(IEnumerable<Source> sources)
+    {
+        _availableSources = sources.ToList();
     }
 
     public void SetEditSource(Source source)
@@ -107,6 +113,15 @@ public partial class SourceSettingsForm : Form
 
         var settingsTable = CreateSettingsTable();
         uiSettingsPanel.Controls.Add(settingsTable);
+
+        var copyableSources = GetCopyableSources();
+
+        if (copyableSources.Count > 0)
+        {
+            var copyCard = CreateCopySourceCard(copyableSources);
+            settingsTable.RowStyles.Add(new(SizeType.AutoSize));
+            settingsTable.Controls.Add(copyCard, 0, settingsTable.RowCount++);
+        }
 
         if (_settingsKeys == null)
         {
@@ -613,6 +628,240 @@ public partial class SourceSettingsForm : Form
         }
 
         return settings;
+    }
+
+    private List<Source> GetCopyableSources()
+    {
+        if (_sourceType == null)
+        {
+            return [];
+        }
+
+        return _availableSources
+            .Where(s => string.Equals(s.TypeId, _sourceType.Name, StringComparison.Ordinal) && s.Id != _editSource?.Id)
+            .OrderBy(s => s.Title)
+            .ToList();
+    }
+
+    private Panel CreateCopySourceCard(List<Source> copyableSources)
+    {
+        var card = new Panel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            BackColor = Color.FromArgb(248, 252, 255),
+            Padding = new(10, 8, 10, 8),
+            Margin = new(5, 3, 5, 3),
+            BorderStyle = BorderStyle.FixedSingle,
+        };
+
+        var copyButton = new Button
+        {
+            Text = "Скопировать из другого источника",
+            Dock = DockStyle.Top,
+            Height = 28,
+            FlatStyle = FlatStyle.System,
+        };
+
+        copyButton.Click += (_, _) => OnCopyFromSourceClick(copyableSources);
+
+        var hint = CreateDescriptionLabel($"Доступно источников этого же типа: {copyableSources.Count}");
+
+        card.Controls.Add(copyButton);
+        card.Controls.Add(hint);
+
+        return card;
+    }
+
+    private void OnCopyFromSourceClick(List<Source> copyableSources)
+    {
+        using var selectForm = new Form
+        {
+            Text = "Копирование из источника",
+            Size = new(450, 320),
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+        };
+
+        var listBox = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            Font = new("Segoe UI", 10F),
+        };
+
+        foreach (var source in copyableSources)
+        {
+            listBox.Items.Add(source);
+        }
+
+        listBox.SelectedIndex = 0;
+
+        var okButton = new Button
+        {
+            Text = "Скопировать",
+            Dock = DockStyle.Bottom,
+            Height = 35,
+            DialogResult = DialogResult.OK,
+        };
+
+        listBox.DoubleClick += (_, _) =>
+        {
+            selectForm.DialogResult = DialogResult.OK;
+            selectForm.Close();
+        };
+
+        CheckBox? copyAuthCheckBox = null;
+
+        if (_sourceType is IAuthenticatable)
+        {
+            copyAuthCheckBox = new CheckBox
+            {
+                Text = "Копировать данные авторизации",
+                Dock = DockStyle.Bottom,
+                Height = 26,
+                Checked = true,
+                Padding = new(5, 5, 5, 0),
+            };
+        }
+
+        selectForm.Controls.Add(listBox);
+        selectForm.Controls.Add(okButton);
+
+        if (copyAuthCheckBox != null)
+        {
+            selectForm.Controls.Add(copyAuthCheckBox);
+        }
+
+        selectForm.AcceptButton = okButton;
+
+        if (selectForm.ShowDialog(this) != DialogResult.OK || listBox.SelectedItem is not Source selectedSource)
+        {
+            return;
+        }
+
+        ApplyCopiedSettings(selectedSource, copyAuthCheckBox?.Checked == true);
+    }
+
+    private void ApplyCopiedSettings(Source source, bool copyAuth)
+    {
+        foreach (var (key, control) in _controls)
+        {
+            if (!source.Settings.TryGetValue(key, out var value))
+            {
+                continue;
+            }
+
+            SetControlValue(control, value);
+        }
+
+        if (copyAuth)
+        {
+            TryCopyAuthState(source);
+        }
+
+        if (_sourceType is IAuthenticatable auth && _logger != null)
+        {
+            UpdateAuthStatus(auth);
+        }
+    }
+
+    private void TryCopyAuthState(Source source)
+    {
+        var sourcePath = source.Settings.GetValueOrDefault("_system_state_path");
+        var targetPath = GetTargetStatePath();
+
+        if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(targetPath) || !Directory.Exists(sourcePath))
+        {
+            MessageBox.Show("Не удалось найти данные авторизации источника", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(targetPath);
+
+            foreach (var file in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(sourcePath, file);
+                var dest = Path.Combine(targetPath, relative);
+                var destDir = Path.GetDirectoryName(dest);
+
+                if (!string.IsNullOrEmpty(destDir))
+                {
+                    Directory.CreateDirectory(destDir);
+                }
+
+                File.Copy(file, dest, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка копирования данных авторизации: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private string? GetTargetStatePath()
+    {
+        if (_editSource != null)
+        {
+            return _editSource.Settings.GetValueOrDefault("_system_state_path");
+        }
+
+        if (_stateManager != null && _pendingSourceId != null)
+        {
+            return _stateManager.GetSourceStatePath(_pendingSourceId);
+        }
+
+        return null;
+    }
+
+    private static void SetControlValue(Control control, string value)
+    {
+        switch (control)
+        {
+            case TextBox textBox:
+                textBox.Text = value;
+                break;
+            case ComboBox comboBox:
+                var matchIndex = -1;
+
+                for (var i = 0; i < comboBox.Items.Count; i++)
+                {
+                    if (comboBox.Items[i] is ComboBoxItem item && item.Value == value)
+                    {
+                        matchIndex = i;
+                        break;
+                    }
+                }
+
+                if (matchIndex >= 0)
+                {
+                    comboBox.SelectedIndex = matchIndex;
+                }
+                else if (!string.IsNullOrEmpty(value))
+                {
+                    comboBox.Items.Add(new ComboBoxItem { Value = value, Label = value });
+                    comboBox.SelectedIndex = comboBox.Items.Count - 1;
+                }
+
+                break;
+            case Panel panel:
+                var inner = panel.Controls.OfType<TextBox>().FirstOrDefault();
+
+                if (inner != null)
+                {
+                    inner.Text = value;
+                }
+
+                break;
+        }
     }
 
     private string[] FindDocFiles()
