@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
 using TL;
@@ -134,22 +134,23 @@ public sealed class TelegramService : IDisposable
         await _client.DownloadFileAsync(document, outputStream, thumbSize);
     }
 
-    public async Task<Message> UploadVideoAsync(InputPeer peer, string filePath, string caption, VideoInfo videoInfo, long? bytesPerSecond = null, CancellationToken cancellationToken = default)
+    public async Task<Message> UploadVideoAsync(InputPeer peer, string filePath, string caption, VideoInfo videoInfo, long? bytesPerSecond = null, IProgress<double>? uploadProgress = null, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Загрузка видео в Telegram: {Path} ({W}x{H}, {Duration:F1}с)", filePath, videoInfo.Width, videoInfo.Height, videoInfo.Duration);
 
-        InputFileBase inputFile;
+        await using var fileStream = File.OpenRead(filePath);
+        var fileSize = fileStream.Length;
 
-        if (bytesPerSecond.HasValue)
-        {
-            await using var fileStream = File.OpenRead(filePath);
-            await using var throttled = new ThrottledStream(fileStream, bytesPerSecond);
-            inputFile = await _client.UploadFileAsync(throttled, Path.GetFileName(filePath));
-        }
-        else
-        {
-            inputFile = await _client.UploadFileAsync(filePath);
-        }
+        Stream sourceStream = bytesPerSecond.HasValue
+            ? new ThrottledStream(fileStream, bytesPerSecond)
+            : fileStream;
+
+        var byteProgress = uploadProgress != null && fileSize > 0
+            ? new Progress<long>(bytes => uploadProgress.Report(Math.Min(1.0, (double)bytes / fileSize)))
+            : null;
+
+        await using var stream = new ProgressStream(sourceStream, byteProgress);
+        var inputFile = await _client.UploadFileAsync(stream, Path.GetFileName(filePath));
 
         var mimeType = Path.GetExtension(filePath).ToLowerInvariant() switch
         {

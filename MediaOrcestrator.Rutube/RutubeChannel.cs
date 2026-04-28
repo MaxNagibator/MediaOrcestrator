@@ -292,7 +292,10 @@ public class RutubeChannel(
         try
         {
             var uploadBytesPerSecond = SpeedLimitHelper.ParseUploadBytesPerSecond(settings);
-            var result = await rutubeService.UploadVideoAsync(null, filePath, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, publishAt, uploadBytesPerSecond);
+            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
+            var result = await rutubeService.UploadVideoAsync(null, filePath, media.Title, media.Description, rutubeCategoryId, media.TempPreviewPath, publishAt, uploadBytesPerSecond,
+                uploadProgress);
+
             logger.LogInformation("Видео загружено на RuTube. Status: {Status}. Video ID: {SessionId}, Название: '{Title}'", result.Status.Id, result.Id, media.Title);
 
             return result;

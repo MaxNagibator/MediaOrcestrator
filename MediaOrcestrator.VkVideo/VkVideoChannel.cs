@@ -226,8 +226,9 @@ public sealed class VkVideoChannel(
         try
         {
             var uploadBytesPerSecond = SpeedLimitHelper.ParseUploadBytesPerSecond(settings);
+            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
             var result = await service.UploadVideoAsync(isShorts, groupId, filePath, media.Title, media.Description,
-                fileExt, media.TempPreviewPath, publishAtUnix, uploadBytesPerSecond, cancellationToken);
+                fileExt, media.TempPreviewPath, publishAtUnix, uploadBytesPerSecond, uploadProgress, cancellationToken);
 
             var externalId = $"{result.OwnerId}_{result.Id}";
             logger.LogInformation("Видео загружено на VK Video. ID: {ExternalId}", externalId);

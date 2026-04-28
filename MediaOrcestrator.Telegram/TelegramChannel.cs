@@ -166,7 +166,8 @@ public sealed class TelegramChannel(
         {
             var videoInfo = await ProbeVideoInfoAsync(filePath, cancellationToken);
             var uploadBytesPerSecond = SpeedLimitHelper.ParseUploadBytesPerSecond(settings);
-            var message = await service.UploadVideoAsync(peer, filePath, caption, videoInfo, uploadBytesPerSecond, cancellationToken);
+            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
+            var message = await service.UploadVideoAsync(peer, filePath, caption, videoInfo, uploadBytesPerSecond, uploadProgress, cancellationToken);
 
             var externalId = message.id.ToString();
             logger.LogInformation("Видео загружено в Telegram. Message ID: {ExternalId}", externalId);
@@ -291,6 +292,16 @@ public sealed class TelegramChannel(
         await ui.ShowMessageAsync($"Авторизация успешна!\nПользователь: {client.User.first_name} (ID: {client.User.id})");
     }
 
+    public ConvertType[] GetAvailableConvertTypes()
+    {
+        return [];
+    }
+
+    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, IProgress<ConvertProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
     private static MediaDto CreateMediaDto(Message message)
     {
         var doc = ((MessageMediaDocument)message.media!).document as Document;
@@ -382,6 +393,11 @@ public sealed class TelegramChannel(
         return info;
     }
 
+    private static string GetSessionPath(Dictionary<string, string> settings)
+    {
+        return Path.Combine(settings["_system_state_path"], "telegram.session");
+    }
+
     private async Task<TelegramService> CreateServiceAsync(Dictionary<string, string> settings)
     {
         var apiId = int.Parse(settings["api_id"]);
@@ -410,11 +426,6 @@ public sealed class TelegramChannel(
         {
             _serviceLock.Release();
         }
-    }
-
-    private static string GetSessionPath(Dictionary<string, string> settings)
-    {
-        return Path.Combine(settings["_system_state_path"], "telegram.session");
     }
 
     private async Task<VideoInfo> ProbeVideoInfoAsync(string filePath, CancellationToken cancellationToken)
@@ -466,16 +477,6 @@ public sealed class TelegramChannel(
             logger.LogWarning(ex, "Не удалось получить информацию о видео через ffprobe: {FilePath}", filePath);
             return new();
         }
-    }
-
-    public ConvertType[] GetAvailableConvertTypes()
-    {
-        return [];
-    }
-
-    public Task ConvertAsync(int typeId, string externalId, Dictionary<string, string> settings, IProgress<ConvertProgress>? progress = null, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
     }
 }
 

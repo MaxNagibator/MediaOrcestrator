@@ -1,4 +1,4 @@
-using Google.Apis.Upload;
+﻿using Google.Apis.Upload;
 using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
 using MediaOrcestrator.Modules;
@@ -50,6 +50,7 @@ public sealed class YoutubeUploadService(ILogger logger, YoutubeAuthService auth
         request.ChunkSize = chunkSize;
 
         var throttle = new UploadThrottle(uploadBytesPerSecond, chunkSize);
+        var bucketedProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
 
         request.ProgressChanged += progress =>
         {
@@ -60,8 +61,7 @@ public sealed class YoutubeUploadService(ILogger logger, YoutubeAuthService auth
                         ? (double)progress.BytesSent / fileStream.Length
                         : 0;
 
-                    logger.LogInformation("Прогресс загрузки: {Percent:P0} ({Sent}/{Total} байт)",
-                        percent, progress.BytesSent, fileStream.Length);
+                    bucketedProgress.Report(percent);
 
                     throttle.WaitIfNeeded();
                     break;

@@ -145,6 +145,7 @@ public sealed class VkVideoService : IDisposable
         string? thumbnailPath = null,
         long? publishAt = null,
         long? uploadBytesPerSecond = null,
+        IProgress<double>? uploadProgress = null,
         CancellationToken cancellationToken = default)
     {
         var fileInfo = new FileInfo(filePath);
@@ -181,7 +182,7 @@ public sealed class VkVideoService : IDisposable
 
         _logger.LogInformation("Шаг 2/3: Загрузка файла ({Size} байт)", fileInfo.Length);
 
-        var uploadResponse = await UploadFileAsync(saveResponse.UploadUrl, filePath, fileInfo, uploadBytesPerSecond, cancellationToken);
+        var uploadResponse = await UploadFileAsync(saveResponse.UploadUrl, filePath, fileInfo, uploadBytesPerSecond, uploadProgress, cancellationToken);
 
         _logger.LogInformation("Файл загружен. Hash: {Hash}", uploadResponse.VideoHash);
 
@@ -281,6 +282,34 @@ public sealed class VkVideoService : IDisposable
             return publishResponse.Video
                    ?? throw new InvalidOperationException("Ответ video.publish не содержит объект video");
         }
+    }
+
+    public Task<VkCommentsResponse> GetVideoCommentsAsync(
+        long ownerId,
+        long videoId,
+        int count = 100,
+        int offset = 0,
+        long? commentId = null,
+        string sort = "asc")
+    {
+        var parameters = new Dictionary<string, string>
+        {
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["video_id"] = videoId.ToString(CultureInfo.InvariantCulture),
+            ["count"] = count.ToString(CultureInfo.InvariantCulture),
+            ["offset"] = offset.ToString(CultureInfo.InvariantCulture),
+            ["sort"] = sort,
+            ["need_likes"] = "1",
+            ["extended"] = "1",
+            ["fields"] = "photo_100,first_name_dat",
+        };
+
+        if (commentId.HasValue)
+        {
+            parameters["comment_id"] = commentId.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return CallApiInternalAsync<VkCommentsResponse>(ApiBase, "video.getComments", parameters);
     }
 
     private static MultipartFormDataContent BuildThumbnailForm(string thumbnailPath)
@@ -510,7 +539,7 @@ public sealed class VkVideoService : IDisposable
 
         var pollInterval = TimeSpan.FromSeconds(2);
         var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(10);
-        var lastReportedPercents = -1;
+        var lastLoggedBucket = -1;
 
         while (DateTimeOffset.UtcNow < deadline)
         {
@@ -529,10 +558,11 @@ public sealed class VkVideoService : IDisposable
                 return;
             }
 
-            if (progress.Percents != lastReportedPercents)
+            var bucket = progress.Percents / 10;
+            if (bucket > lastLoggedBucket)
             {
-                _logger.LogDebug("Shorts ещё кодируется: {Percents}%", progress.Percents);
-                lastReportedPercents = progress.Percents;
+                _logger.LogInformation("Прогресс кодирования shorts {OwnerId}_{VideoId}: {Percents}%", ownerId, videoId, progress.Percents);
+                lastLoggedBucket = bucket;
             }
 
             await Task.Delay(pollInterval, cancellationToken);
@@ -772,34 +802,6 @@ public sealed class VkVideoService : IDisposable
         return _accessToken;
     }
 
-    public Task<VkCommentsResponse> GetVideoCommentsAsync(
-        long ownerId,
-        long videoId,
-        int count = 100,
-        int offset = 0,
-        long? commentId = null,
-        string sort = "asc")
-    {
-        var parameters = new Dictionary<string, string>
-        {
-            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
-            ["video_id"] = videoId.ToString(CultureInfo.InvariantCulture),
-            ["count"] = count.ToString(CultureInfo.InvariantCulture),
-            ["offset"] = offset.ToString(CultureInfo.InvariantCulture),
-            ["sort"] = sort,
-            ["need_likes"] = "1",
-            ["extended"] = "1",
-            ["fields"] = "photo_100,first_name_dat",
-        };
-
-        if (commentId.HasValue)
-        {
-            parameters["comment_id"] = commentId.Value.ToString(CultureInfo.InvariantCulture);
-        }
-
-        return CallApiInternalAsync<VkCommentsResponse>(ApiBase, "video.getComments", parameters);
-    }
-
     private async Task<T> CallApiInternalAsync<T>(string baseUrl, string method, Dictionary<string, string> parameters)
     {
         for (var attempt = 0; attempt < 2; attempt++)
@@ -915,10 +917,15 @@ public sealed class VkVideoService : IDisposable
         return true;
     }
 
-    private async Task<FileUploadResponse> UploadFileAsync(string uploadUrl, string filePath, FileInfo fileInfo, long? uploadBytesPerSecond, CancellationToken cancellationToken)
+    private async Task<FileUploadResponse> UploadFileAsync(string uploadUrl, string filePath, FileInfo fileInfo, long? uploadBytesPerSecond, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         await using var fileStream = File.OpenRead(filePath);
-        await using var stream = new ThrottledStream(fileStream, uploadBytesPerSecond);
+        await using var throttled = new ThrottledStream(fileStream, uploadBytesPerSecond);
+        var byteProgress = progress != null && fileInfo.Length > 0
+            ? new Progress<long>(bytes => progress.Report(Math.Min(1.0, (double)bytes / fileInfo.Length)))
+            : null;
+
+        await using var stream = new ProgressStream(throttled, byteProgress);
         var content = new StreamContent(stream);
 
         var mimeType = Path.GetExtension(filePath).ToLowerInvariant() switch

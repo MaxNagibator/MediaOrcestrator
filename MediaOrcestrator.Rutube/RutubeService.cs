@@ -43,7 +43,8 @@ public sealed partial class RutubeService
         string categoryId,
         string? thumbnailPath = null,
         DateTime? publishAt = null,
-        long? uploadBytesPerSecond = null)
+        long? uploadBytesPerSecond = null,
+        IProgress<double>? uploadProgress = null)
     {
         var isNewVideo = false;
         if (videoId == null)
@@ -58,7 +59,7 @@ public sealed partial class RutubeService
             _logger.LogDebug("URL загрузки получен: {UploadUrl}", uploadUrl);
 
             _logger.LogInformation("Начало загрузки видео данных");
-            await PerformTusUploadAsync(uploadUrl, filePath, uploadBytesPerSecond);
+            await PerformTusUploadAsync(uploadUrl, filePath, uploadBytesPerSecond, uploadProgress);
             _logger.LogInformation("Загрузка данных завершена");
 
             _logger.LogDebug("Ожидание обработки на сервере (5 секунд)");
@@ -284,6 +285,37 @@ public sealed partial class RutubeService
         return result?.ThumbnailUrl;
     }
 
+    public async IAsyncEnumerable<GetVideoApiItem> GetVideoAsync()
+    {
+        var url = "https://studio.rutube.ru/api/v2/video/person/?ordering=-calculated_date&limit=400&page=1";
+        while (true)
+        {
+            var response = await _httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Ошибка получения видео. Статус: {StatusCode}, Ответ: {Response}", response.StatusCode, err);
+                throw new HttpRequestException($"Не удалось опубликовать видео: {response.StatusCode}. Ответ: {err}");
+            }
+
+            var body = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<GetVideoApiResponse>(body);
+            foreach (var v in result.Results)
+            {
+                yield return v;
+            }
+
+            if (result.HasNext)
+            {
+                url = result.Next;
+            }
+            else
+            {
+                yield break;
+            }
+        }
+    }
+
     [GeneratedRegex(@"visitorID=([^;]+)")]
     private static partial Regex VisitorIdRegex();
 
@@ -360,11 +392,17 @@ public sealed partial class RutubeService
     }
 
     // TODO: Костыль
-    private async Task PerformTusUploadAsync(string uploadUrl, string filePath, long? uploadBytesPerSecond = null)
+    private async Task PerformTusUploadAsync(string uploadUrl, string filePath, long? uploadBytesPerSecond = null, IProgress<double>? progress = null)
     {
         await using var fileStream = File.OpenRead(filePath);
-        await using var stream = new ThrottledStream(fileStream, uploadBytesPerSecond);
+        await using var throttled = new ThrottledStream(fileStream, uploadBytesPerSecond);
         var fileSize = fileStream.Length;
+
+        var byteProgress = progress != null && fileSize > 0
+            ? new Progress<long>(bytes => progress.Report(Math.Min(1.0, (double)bytes / fileSize)))
+            : null;
+
+        await using var stream = new ProgressStream(throttled, byteProgress);
 
         _logger.LogDebug("Начало загрузки файла. Размер: {FileSize} байт", fileSize);
 
@@ -500,37 +538,6 @@ public sealed partial class RutubeService
         {
             _logger.LogDebug("Публикация подтверждена. Video ID: {VideoId}, Запланировано: {Timestamp}",
                 result.VideoId, result.Timestamp);
-        }
-    }
-
-    public async IAsyncEnumerable<GetVideoApiItem> GetVideoAsync()
-    {
-        var url = "https://studio.rutube.ru/api/v2/video/person/?ordering=-calculated_date&limit=400&page=1";
-        while (true)
-        {
-            var response = await _httpClient.GetAsync(url);
-            if (!response.IsSuccessStatusCode)
-            {
-                var err = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Ошибка получения видео. Статус: {StatusCode}, Ответ: {Response}", response.StatusCode, err);
-                throw new HttpRequestException($"Не удалось опубликовать видео: {response.StatusCode}. Ответ: {err}");
-            }
-
-            var body = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<GetVideoApiResponse>(body);
-            foreach (var v in result.Results)
-            {
-                yield return v;
-            }
-
-            if (result.HasNext)
-            {
-                url = result.Next;
-            }
-            else
-            {
-                yield break;
-            }
         }
     }
 }
