@@ -531,7 +531,7 @@ public partial class MediaMatrixGridControl
         }
     }
 
-    private Task HandleBatchSyncAsync(List<Media> mediaList, SourceSyncRelation rel)
+    private async Task HandleBatchSyncAsync(List<Media> mediaList, SourceSyncRelation rel)
     {
         var result = MessageBox.Show($"Синхронизировать {mediaList.Count} медиа из {rel.From.TitleFull} в {rel.To.TitleFull}?",
             "Подтверждение пакетной синхронизации",
@@ -540,7 +540,7 @@ public partial class MediaMatrixGridControl
 
         if (result != DialogResult.Yes)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _logger?.LogInformation("Запуск пакетной синхронизации {Count} медиа: {From} → {To}",
@@ -548,12 +548,19 @@ public partial class MediaMatrixGridControl
 
         var ctx = new CancellationTokenSource();
         var action = _actionHolder.Register("Синхронизация цепочки", "В процессе", mediaList.Count, ctx);
-        return RunBatchOperationAsync("Синхронизировано", "Пакетная синхронизация завершена с ошибками", mediaList, async media =>
+        try
         {
-            await _retryRunner!.RunAsync(media, rel, maxAttempts: BatchSyncMaxAttempts, cancellationToken: ctx.Token);
-            action.ProgressPlus();
-            _logger?.LogInformation("Синхронизировано: '{Title}'", media.Title);
-        }, ctx);
+            await RunBatchOperationAsync("Синхронизировано", "Пакетная синхронизация завершена с ошибками", mediaList, async media =>
+            {
+                await _retryRunner!.RunAsync(media, rel, maxAttempts: BatchSyncMaxAttempts, cancellationToken: ctx.Token);
+                action.ProgressPlus();
+                _logger?.LogInformation("Синхронизировано: '{Title}'", media.Title);
+            }, ctx);
+        }
+        finally
+        {
+            action.Finish();
+        }
     }
 
     private Task HandleBatchDeleteAsync(List<Media> mediaList, Source source)

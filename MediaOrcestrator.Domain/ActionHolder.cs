@@ -35,8 +35,12 @@ public class ActionHolder(ILogger<ActionHolder> logger)
 
     public void Cancel(Guid id)
     {
-        Actions[id].CancellationTokenSource.Cancel();
-        Actions.Remove(id);
+        if (!Actions.Remove(id, out var act))
+        {
+            return;
+        }
+
+        act.CancellationTokenSource.Cancel();
     }
 
     public class RunningAction

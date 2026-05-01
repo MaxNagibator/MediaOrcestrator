@@ -236,6 +236,7 @@ public partial class SyncTreeControl : UserControl
         }
         finally
         {
+            action.Finish();
             uiExecuteButton.Enabled = true;
             uiStopButton.Enabled = false;
             uiTreeView.Enabled = true;
