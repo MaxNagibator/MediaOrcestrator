@@ -27,6 +27,7 @@ public partial class ActionUserControl : UserControl
             button1.Visible = false;
             return;
         }
+
         if (_act.ProgressMax > 0)
         {
             progressBar1.Visible = true;

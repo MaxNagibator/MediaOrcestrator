@@ -140,17 +140,20 @@ public class Orcestrator(
                         foundMediaSource.Media.Title = s.Title;
                         hasChange = true;
                     }
+
                     if (foundMediaSource.Media.Description != s.Description)
                     {
                         foundMediaSource.Media.Description = s.Description;
                         hasChange = true;
                     }
                 }
+
                 if (foundMediaSource.Title != s.Title)
                 {
                     foundMediaSource.Title = s.Title;
                     hasChange = true;
                 }
+
                 if (foundMediaSource.Description != s.Description)
                 {
                     foundMediaSource.Description = s.Description;
@@ -235,6 +238,7 @@ public class Orcestrator(
                 dbSource.LastSyncedAt = DateTime.UtcNow;
                 sourcesCol.Update(dbSource);
             }
+
             action.Finish();
         });
 
@@ -290,14 +294,17 @@ public class Orcestrator(
                     {
                         mediaLink.Description = media.Description;
                     }
+
                     if (mediaLink.Title == null)
                     {
                         mediaLink.Title = media.Title;
                     }
+
                     db.GetCollection<Media>("medias").Update(media);
                 }
             }
         }
+
         return medias;
     }
 
@@ -327,44 +334,6 @@ public class Orcestrator(
         await UpdateSourceMetadataAsync(media, sourceId, ct);
         UpdateMedia(media);
         logger.LogInformation("Обновлены метаданные источника {SourceId} для {MediaTitle}", sourceId, media.Title);
-    }
-
-    private async Task UpdateSourceMetadataAsync(Media media, string sourceId, CancellationToken ct)
-    {
-        var source = GetSources().FirstOrDefault(s => s.Id == sourceId);
-        if (source == null || source.IsDisable)
-        {
-            return;
-        }
-
-        var plugin = GetSourceTypes().Values.FirstOrDefault(x => x.Name == source.TypeId);
-        if (plugin == null)
-        {
-            return;
-        }
-
-        var sourceLink = media.Sources.FirstOrDefault(s => s.SourceId == sourceId);
-        if (sourceLink == null)
-        {
-            return;
-        }
-
-        try
-        {
-            var dto = await plugin.GetMediaByIdAsync(sourceLink.ExternalId, source.Settings, ct);
-            if (dto is { Metadata.Count: > 0 })
-            {
-                foreach (var item in dto.Metadata)
-                {
-                    item.SourceId = source.Id;
-                    media.Metadata.Add(item);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Ошибка при обновлении метаданных из источника {SourceTitle}", source.TitleFull);
-        }
     }
 
     public void ClearSourceMetadata(Media media, string sourceId)
@@ -799,29 +768,6 @@ public class Orcestrator(
         }
     }
 
-    private void MarkUploadFailure(Media media, string toSourceId, string errorMessage)
-    {
-        var link = media.Sources.FirstOrDefault(x => x.SourceId == toSourceId);
-        if (link == null)
-        {
-            link = new()
-            {
-                MediaId = media.Id,
-                Media = media,
-                SourceId = toSourceId,
-                ExternalId = string.Empty,
-                Title = string.Empty,
-                Description = string.Empty,
-            };
-
-            media.Sources.Add(link);
-        }
-
-        link.Status = MediaStatus.Error;
-        UpdateMedia(media);
-        logger.LogInformation("Для медиа {MediaId}/{ToSourceId} проставлен статус Error: {Message}", media.Id, toSourceId, errorMessage);
-    }
-
     public async Task DeleteMediaFromSourceAsync(Media media, Source source, CancellationToken cancellationToken = default)
     {
         var sourceLink = media.Sources.FirstOrDefault(s => s.SourceId == source.Id);
@@ -851,6 +797,67 @@ public class Orcestrator(
         }
 
         CleanupMediaLinks(media, source.Id);
+    }
+
+    private async Task UpdateSourceMetadataAsync(Media media, string sourceId, CancellationToken ct)
+    {
+        var source = GetSources().FirstOrDefault(s => s.Id == sourceId);
+        if (source == null || source.IsDisable)
+        {
+            return;
+        }
+
+        var plugin = GetSourceTypes().Values.FirstOrDefault(x => x.Name == source.TypeId);
+        if (plugin == null)
+        {
+            return;
+        }
+
+        var sourceLink = media.Sources.FirstOrDefault(s => s.SourceId == sourceId);
+        if (sourceLink == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var dto = await plugin.GetMediaByIdAsync(sourceLink.ExternalId, source.Settings, ct);
+            if (dto is { Metadata.Count: > 0 })
+            {
+                foreach (var item in dto.Metadata)
+                {
+                    item.SourceId = source.Id;
+                    media.Metadata.Add(item);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при обновлении метаданных из источника {SourceTitle}", source.TitleFull);
+        }
+    }
+
+    private void MarkUploadFailure(Media media, string toSourceId, string errorMessage)
+    {
+        var link = media.Sources.FirstOrDefault(x => x.SourceId == toSourceId);
+        if (link == null)
+        {
+            link = new()
+            {
+                MediaId = media.Id,
+                Media = media,
+                SourceId = toSourceId,
+                ExternalId = string.Empty,
+                Title = string.Empty,
+                Description = string.Empty,
+            };
+
+            media.Sources.Add(link);
+        }
+
+        link.Status = MediaStatus.Error;
+        UpdateMedia(media);
+        logger.LogInformation("Для медиа {MediaId}/{ToSourceId} проставлен статус Error: {Message}", media.Id, toSourceId, errorMessage);
     }
 
     private void CleanupMediaLinks(Media media, string sourceId)

@@ -6,20 +6,20 @@ namespace MediaOrcestrator.Modules;
 
 public abstract class MediaStatus
 {
-    public abstract string Id { get; }
-    public abstract string Text { get; }
-    public abstract string IconText { get; }
-    public abstract Color IconColor { get; }
-
     public const string Ok = "OK";
 
     /// <summary>
     /// Фаил существует, но часть метаинформации не загрущена (превью или ещё что то).
     /// </summary>
     public const string PartialOk = "PartialOk";
+
     public const string None = "None";
     public const string Missing = "Missing";
     public const string Error = "Error";
+    public abstract string Id { get; }
+    public abstract string Text { get; }
+    public abstract string IconText { get; }
+    public abstract Color IconColor { get; }
 }
 
 public static class MediaStatusHelper

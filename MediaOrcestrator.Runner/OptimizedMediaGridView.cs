@@ -269,21 +269,6 @@ public class OptimizedMediaGridView : DataGridView
         return [.._selectionOrder];
     }
 
-    private void UpdateSelectionOrder()
-    {
-        var selectedMedias = SelectedRows.Cast<DataGridViewRow>()
-            .Select(r => r.Tag as Media)
-            .OfType<Media>()
-            .ToHashSet();
-
-        _selectionOrder.RemoveAll(m => !selectedMedias.Contains(m));
-
-        foreach (var media in selectedMedias.Where(m => !_selectionOrder.Contains(m)))
-        {
-            _selectionOrder.Add(media);
-        }
-    }
-
     public Media? GetMediaAtRow(int rowIndex)
     {
         if (rowIndex < 0 || rowIndex >= Rows.Count)
@@ -372,6 +357,26 @@ public class OptimizedMediaGridView : DataGridView
         }
     }
 
+    internal static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} Б";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:F1} КБ";
+        }
+
+        if (bytes < 1024L * 1024 * 1024)
+        {
+            return $"{bytes / (1024.0 * 1024):F1} МБ";
+        }
+
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} ГБ";
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -423,24 +428,19 @@ public class OptimizedMediaGridView : DataGridView
         }
     }
 
-    internal static string FormatFileSize(long bytes)
+    private void UpdateSelectionOrder()
     {
-        if (bytes < 1024)
-        {
-            return $"{bytes} Б";
-        }
+        var selectedMedias = SelectedRows.Cast<DataGridViewRow>()
+            .Select(r => r.Tag as Media)
+            .OfType<Media>()
+            .ToHashSet();
 
-        if (bytes < 1024 * 1024)
-        {
-            return $"{bytes / 1024.0:F1} КБ";
-        }
+        _selectionOrder.RemoveAll(m => !selectedMedias.Contains(m));
 
-        if (bytes < 1024L * 1024 * 1024)
+        foreach (var media in selectedMedias.Where(m => !_selectionOrder.Contains(m)))
         {
-            return $"{bytes / (1024.0 * 1024):F1} МБ";
+            _selectionOrder.Add(media);
         }
-
-        return $"{bytes / (1024.0 * 1024 * 1024):F2} ГБ";
     }
 
     private sealed record GridState(

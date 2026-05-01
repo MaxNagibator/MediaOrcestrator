@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -7,6 +7,32 @@ namespace MediaOrcestrator.Domain;
 
 public class ToolVersionDetector(ILogger<ToolVersionDetector> logger)
 {
+    public static bool IsUpdateAvailable(string? installedVersion, string? latestVersion)
+    {
+        if (latestVersion is null)
+        {
+            return false;
+        }
+
+        if (installedVersion is null)
+        {
+            return true;
+        }
+
+        return !VersionsEqual(installedVersion, latestVersion);
+    }
+
+    public static string NormalizeTagVersion(string tag, string? versionTagPattern)
+    {
+        if (versionTagPattern is null)
+        {
+            return tag.StartsWith('v') ? tag[1..] : tag;
+        }
+
+        var match = Regex.Match(tag, versionTagPattern);
+        return match.Success ? match.Groups[1].Value : tag;
+    }
+
     public async Task<string?> GetInstalledVersionAsync(
         string? toolPath,
         ToolDescriptor descriptor,
@@ -87,32 +113,6 @@ public class ToolVersionDetector(ILogger<ToolVersionDetector> logger)
             logger.LogWarning(ex, "Не удалось получить версию '{Name}'", descriptor.Name);
             return null;
         }
-    }
-
-    public static bool IsUpdateAvailable(string? installedVersion, string? latestVersion)
-    {
-        if (latestVersion is null)
-        {
-            return false;
-        }
-
-        if (installedVersion is null)
-        {
-            return true;
-        }
-
-        return !VersionsEqual(installedVersion, latestVersion);
-    }
-
-    public static string NormalizeTagVersion(string tag, string? versionTagPattern)
-    {
-        if (versionTagPattern is null)
-        {
-            return tag.StartsWith('v') ? tag[1..] : tag;
-        }
-
-        var match = Regex.Match(tag, versionTagPattern);
-        return match.Success ? match.Groups[1].Value : tag;
     }
 
     private static bool VersionsEqual(string version1, string version2)

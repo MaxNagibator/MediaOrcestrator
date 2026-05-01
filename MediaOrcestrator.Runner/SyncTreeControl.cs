@@ -33,7 +33,8 @@ public partial class SyncTreeControl : UserControl
         uiFilterControl.FilterChanged += (_, _) => ApplyTreeFilter();
     }
 
-    public void Initialize(SyncPlanner planner,
+    public void Initialize(
+        SyncPlanner planner,
         Orcestrator orcestrator,
         SyncRetryRunner retryRunner,
         ActionHolder actionHolder,

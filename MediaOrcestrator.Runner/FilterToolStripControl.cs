@@ -49,12 +49,6 @@ public partial class FilterToolStripControl : UserControl
         uiStatusFilterComboBox.SelectedIndex = 0;
     }
 
-    public void SetSettingsManager(SettingsManager settingsManager)
-    {
-        _settingsManager = settingsManager;
-        LoadSavedMetadataSelection();
-    }
-
     public event EventHandler? FilterChanged;
 
     public bool ShowStatusFilter
@@ -65,6 +59,12 @@ public partial class FilterToolStripControl : UserControl
             uiStatusLabel.Visible = value;
             uiStatusFilterComboBox.Visible = value;
         }
+    }
+
+    public void SetSettingsManager(SettingsManager settingsManager)
+    {
+        _settingsManager = settingsManager;
+        LoadSavedMetadataSelection();
     }
 
     public void PopulateRelationsFilter(Orcestrator orcestrator)
