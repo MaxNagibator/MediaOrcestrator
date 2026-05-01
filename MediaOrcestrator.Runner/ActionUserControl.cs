@@ -30,8 +30,8 @@ public partial class ActionUserControl : UserControl
         if (_act.ProgressMax > 0)
         {
             progressBar1.Visible = true;
-            progressBar1.Value = _act.ProgressValue;
             progressBar1.Maximum = _act.ProgressMax;
+            progressBar1.Value = Math.Clamp(_act.ProgressValue, 0, _act.ProgressMax);
             label2.Visible = true;
             label2.Text = _act.ProgressValue + " / " + _act.ProgressMax;
         }
