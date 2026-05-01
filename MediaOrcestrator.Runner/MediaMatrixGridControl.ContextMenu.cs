@@ -25,6 +25,8 @@ public partial class MediaMatrixGridControl
     private static Bitmap? _infoIcon;
     private static Bitmap? _openIcon;
     private static Bitmap? _previewIcon;
+    private static Bitmap? _skipIcon;
+    private static Bitmap? _unskipIcon;
 
     private static Bitmap? SyncIcon => _syncIcon ??= CreateTextIcon("→", Color.Blue);
     private static Bitmap? CopyIcon => _copyIcon ??= CreateTextIcon("📋", Color.DarkGray);
@@ -35,6 +37,8 @@ public partial class MediaMatrixGridControl
     private static Bitmap? InfoIcon => _infoIcon ??= CreateTextIcon("🔍", Color.SteelBlue);
     private static Bitmap? OpenIcon => _openIcon ??= CreateTextIcon("↗", Color.DodgerBlue);
     private static Bitmap? PreviewIcon => _previewIcon ??= CreateTextIcon("🖼", Color.MediumOrchid);
+    private static Bitmap? SkipIcon => _skipIcon ??= CreateTextIcon("⊘", Color.DimGray);
+    private static Bitmap? UnskipIcon => _unskipIcon ??= CreateTextIcon("↺", Color.SeaGreen);
 
     private static Bitmap? CreateTextIcon(string text, Color color)
     {
@@ -140,6 +144,10 @@ public partial class MediaMatrixGridControl
         AddBatchSyncMenuItems(selectedMedia);
         _contextMenu.Items.Add(new ToolStripSeparator());
 
+        AddBatchSkipMenuItems(selectedMedia, _orcestrator!.GetSources().Where(s => !s.IsDisable).ToList());
+        AddBatchSkipPlanMenuItems(selectedMedia);
+        _contextMenu.Items.Add(new ToolStripSeparator());
+
         var updateMetaItem = new ToolStripMenuItem($"Обновить метаданные ({selectedMedia.Count})", SyncIcon);
         updateMetaItem.Click += async (_, _) => await HandleBatchUpdateMetadataAsync(selectedMedia);
         _contextMenu.Items.Add(updateMetaItem);
@@ -196,7 +204,9 @@ public partial class MediaMatrixGridControl
                 {
                     var from = m.Sources.FirstOrDefault(s => s.SourceId == rel.From.Id);
                     var to = m.Sources.FirstOrDefault(s => s.SourceId == rel.To.Id);
-                    return from is { Status: MediaStatus.Ok } && to is not { Status: MediaStatus.Ok };
+                    return from is { Status: MediaStatus.Ok }
+                           && to is not { Status: MediaStatus.Ok }
+                           && to is not { Status: MediaStatus.Skipped };
                 })
                 .ToList();
 
@@ -222,7 +232,7 @@ public partial class MediaMatrixGridControl
         foreach (var source in allSources)
         {
             var sourceMedia = selectedMedia
-                .Where(m => m.Sources.Any(s => s.SourceId == source.Id))
+                .Where(m => m.Sources.Any(s => s.SourceId == source.Id && s.Status != MediaStatus.Skipped))
                 .ToList();
 
             if (sourceMedia.Count == 0)
@@ -234,6 +244,81 @@ public partial class MediaMatrixGridControl
             deleteItem.Click += async (_, _) => await HandleBatchDeleteAsync(sourceMedia, source);
             _contextMenu!.Items.Add(deleteItem);
         }
+    }
+
+    private void AddBatchSkipMenuItems(List<Media> selectedMedia, List<Source> allSources)
+    {
+        foreach (var source in allSources)
+        {
+            var toSkip = selectedMedia
+                .Where(m =>
+                {
+                    var link = m.Sources.FirstOrDefault(s => s.SourceId == source.Id);
+                    return link == null || link.Status is not MediaStatus.Ok and not MediaStatus.PartialOk and not MediaStatus.Skipped;
+                })
+                .ToList();
+
+            if (toSkip.Count > 0)
+            {
+                var skipItem = new ToolStripMenuItem($"Пропустить (не переносить в {source.TitleFull}) ({toSkip.Count})", SkipIcon);
+                skipItem.Click += async (_, _) => await HandleBatchSetSkippedAsync(toSkip, source);
+                _contextMenu!.Items.Add(skipItem);
+            }
+
+            var toUnskip = selectedMedia
+                .Where(m => m.Sources.Any(s => s.SourceId == source.Id && s.Status == MediaStatus.Skipped))
+                .ToList();
+
+            if (toUnskip.Count <= 0)
+            {
+                continue;
+            }
+
+            var unskipItem = new ToolStripMenuItem($"Снять пропуск ({source.TitleFull}) ({toUnskip.Count})", UnskipIcon);
+            unskipItem.Click += async (_, _) => await HandleBatchUnsetSkippedAsync(toUnskip, source);
+            _contextMenu!.Items.Add(unskipItem);
+        }
+    }
+
+    private void AddBatchSkipPlanMenuItems(List<Media> selectedMedia)
+    {
+        var allSources = _orcestrator!.GetSources().Where(s => !s.IsDisable).ToList();
+
+        var pairs = new List<(Media media, string sourceId)>();
+        foreach (var media in selectedMedia)
+        {
+            foreach (var source in allSources)
+            {
+                var link = media.Sources.FirstOrDefault(s => s.SourceId == source.Id);
+
+                if (link == null || link.Status != MediaStatus.Ok && link.Status != MediaStatus.PartialOk && link.Status != MediaStatus.Skipped)
+                {
+                    pairs.Add((media, source.Id));
+                }
+            }
+        }
+
+        if (pairs.Count > 0)
+        {
+            var planItem = new ToolStripMenuItem($"Пропустить выбранное везде, где не синхронизировано ({pairs.Count})", SkipIcon);
+            planItem.Click += async (_, _) => await HandleBatchSkipPlanAsync(pairs);
+            _contextMenu!.Items.Add(planItem);
+        }
+
+        var skippedLinks = selectedMedia
+            .SelectMany(m => m.Sources
+                .Where(s => s.Status == MediaStatus.Skipped)
+                .Select(s => (media: m, sourceId: s.SourceId)))
+            .ToList();
+
+        if (skippedLinks.Count <= 0)
+        {
+            return;
+        }
+
+        var unskipAllItem = new ToolStripMenuItem($"Снять весь пропуск с выбранных ({skippedLinks.Count})", UnskipIcon);
+        unskipAllItem.Click += async (_, _) => await HandleBatchUnskipAllAsync(skippedLinks);
+        _contextMenu!.Items.Add(unskipAllItem);
     }
 
     private async Task AddBatchConvertMenuItemsAsync(List<Media> selectedMedia, List<Source> allSources, ContextMenuStrip menu)
@@ -309,6 +394,8 @@ public partial class MediaMatrixGridControl
         _contextMenu.Items.Add(new ToolStripSeparator());
 
         AddSyncMenuItems(_contextMenu, media, specificSource);
+        AddSkipMenuItems(_contextMenu, media, specificSource);
+        AddBatchSkipPlanMenuItems([media]);
         AddDeleteMenuItems(media, specificSource);
 
         _contextMenu.Items.Add(new ToolStripSeparator());
@@ -318,9 +405,11 @@ public partial class MediaMatrixGridControl
         _contextMenu.Items.Add(copyItem);
 
         var allSources = _orcestrator!.GetSources();
-        var relevantSourceLinks = specificSource != null
-            ? media.Sources.Where(s => s.SourceId == specificSource.Id).ToList()
-            : media.Sources;
+        var relevantSourceLinks = (specificSource != null
+                ? media.Sources.Where(s => s.SourceId == specificSource.Id)
+                : media.Sources)
+            .Where(s => s.Status != MediaStatus.Skipped && !string.IsNullOrEmpty(s.ExternalId))
+            .ToList();
 
         AddOpenExternalLinks(relevantSourceLinks, allSources);
         await AddConvertMenuItemsAsync(media, relevantSourceLinks, allSources, currentMenu);
@@ -374,7 +463,9 @@ public partial class MediaMatrixGridControl
             var menuText = $"Синхронизировать {rel.From.TitleFull} -> {rel.To.TitleFull}";
 
             if (fromSource is { Status: MediaStatus.Ok }
-                && toSource is not { Status: MediaStatus.Ok })
+                && toSource is not { Status: MediaStatus.Ok }
+                && fromSource.Status != MediaStatus.Skipped
+                && toSource is not { Status: MediaStatus.Skipped })
             {
                 var menuItem = new ToolStripMenuItem(menuText, SyncIcon);
                 menuItem.Click += async (_, _) =>
@@ -408,7 +499,15 @@ public partial class MediaMatrixGridControl
                     Enabled = false,
                 };
 
-                if (fromSource == null && toSource == null)
+                if (fromSource is { Status: MediaStatus.Skipped })
+                {
+                    menuItem.ToolTipText = "Исходное хранилище помечено как пропущенное";
+                }
+                else if (toSource is { Status: MediaStatus.Skipped })
+                {
+                    menuItem.ToolTipText = "Целевое хранилище помечено как пропущенное";
+                }
+                else if (fromSource == null && toSource == null)
                 {
                     menuItem.ToolTipText = "Медиа отсутствует в исходном хранилище";
                 }
@@ -426,13 +525,62 @@ public partial class MediaMatrixGridControl
         }
     }
 
+    private void AddSkipMenuItems(ContextMenuStrip contextMenu, Media media, Source? specificSource)
+    {
+        if (specificSource == null || specificSource.IsDisable)
+        {
+            return;
+        }
+
+        var link = media.Sources.FirstOrDefault(s => s.SourceId == specificSource.Id);
+
+        if (link?.Status == MediaStatus.Skipped)
+        {
+            var unskipItem = new ToolStripMenuItem($"Снять пропуск ({specificSource.TitleFull})", UnskipIcon);
+            unskipItem.Click += (_, _) => HandleUnsetSkipped(media, specificSource.Id);
+            contextMenu.Items.Add(unskipItem);
+            return;
+        }
+
+        if (link != null && link.Status is MediaStatus.Ok or MediaStatus.PartialOk)
+        {
+            return;
+        }
+
+        var skipItem = new ToolStripMenuItem($"Пропустить (не переносить в {specificSource.TitleFull})", SkipIcon);
+        skipItem.Click += (_, _) => HandleSetSkipped(media, specificSource.Id);
+        contextMenu.Items.Add(skipItem);
+    }
+
+    private void HandleSetSkipped(Media media, string sourceId)
+    {
+        if (_orcestrator == null)
+        {
+            return;
+        }
+
+        _orcestrator.SetSourceSkipped(media, sourceId);
+        RefreshData();
+    }
+
+    private void HandleUnsetSkipped(Media media, string sourceId)
+    {
+        if (_orcestrator == null)
+        {
+            return;
+        }
+
+        _orcestrator.UnsetSourceSkipped(media, sourceId);
+        RefreshData();
+    }
+
     private void AddDeleteMenuItems(Media media, Source? specificSource)
     {
         if (specificSource != null)
         {
             var sourceLink = media.Sources.FirstOrDefault(s => s.SourceId == specificSource.Id);
 
-            if (sourceLink == null || specificSource.IsDisable)
+            if (sourceLink == null || specificSource.IsDisable || sourceLink.Status == MediaStatus.Skipped)
             {
                 return;
             }
@@ -449,6 +597,11 @@ public partial class MediaMatrixGridControl
 
             foreach (var sourceLink in media.Sources)
             {
+                if (sourceLink.Status == MediaStatus.Skipped)
+                {
+                    continue;
+                }
+
                 var source = _orcestrator!.GetSources()
                     .FirstOrDefault(s => s.Id == sourceLink.SourceId);
 
@@ -560,6 +713,79 @@ public partial class MediaMatrixGridControl
         finally
         {
             action.Finish();
+        }
+    }
+
+    private Task HandleBatchSetSkippedAsync(List<Media> mediaList, Source source)
+    {
+        _logger?.LogInformation("Запуск пакетной пометки пропуска: {Count} медиа в '{Source}'",
+            mediaList.Count, source.TitleFull);
+
+        return RunBatchOperationAsync("Помечено пропуском", "Пакетная пометка завершена с ошибками", mediaList, media =>
+        {
+            _orcestrator!.SetSourceSkipped(media, source.Id);
+            return Task.CompletedTask;
+        });
+    }
+
+    private Task HandleBatchUnsetSkippedAsync(List<Media> mediaList, Source source)
+    {
+        _logger?.LogInformation("Запуск пакетного снятия пропуска: {Count} медиа в '{Source}'",
+            mediaList.Count, source.TitleFull);
+
+        return RunBatchOperationAsync("Снят пропуск", "Пакетное снятие завершено с ошибками", mediaList, media =>
+        {
+            _orcestrator!.UnsetSourceSkipped(media, source.Id);
+            return Task.CompletedTask;
+        });
+    }
+
+    private Task HandleBatchSkipPlanAsync(List<(Media media, string sourceId)> pairs)
+    {
+        _logger?.LogInformation("Запуск пакетного пропуска несинхронизированных пар: {Count}", pairs.Count);
+
+        RunBatchSkipPairs("Помечено пропуском", "Пакетный пропуск завершён с ошибками", pairs,
+            (media, sourceId) => _orcestrator!.SetSourceSkipped(media, sourceId));
+
+        return Task.CompletedTask;
+    }
+
+    private Task HandleBatchUnskipAllAsync(List<(Media media, string sourceId)> links)
+    {
+        _logger?.LogInformation("Запуск пакетного снятия всех пометок пропуска: {Count}", links.Count);
+
+        RunBatchSkipPairs("Снят пропуск", "Пакетное снятие пропуска завершено с ошибками", links,
+            (media, sourceId) => _orcestrator!.UnsetSourceSkipped(media, sourceId));
+
+        return Task.CompletedTask;
+    }
+
+    private void RunBatchSkipPairs(string bodyPrefix, string errorTitle, List<(Media media, string sourceId)> pairs, Action<Media, string> action)
+    {
+        UpdateLoadingIndicator(true);
+        var errors = new List<(Media media, Exception ex)>();
+
+        try
+        {
+            foreach (var (media, sourceId) in pairs)
+            {
+                try
+                {
+                    action(media, sourceId);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Ошибка пакетной операции пропуска для '{Title}' → {SourceId}", media.Title, sourceId);
+                    errors.Add((media, ex));
+                }
+            }
+
+            ShowBatchErrors(bodyPrefix, errorTitle, pairs.Count - errors.Count, pairs.Count, errors);
+        }
+        finally
+        {
+            UpdateLoadingIndicator(false);
+            RefreshData();
         }
     }
 

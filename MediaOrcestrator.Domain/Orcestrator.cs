@@ -361,6 +361,59 @@ public class Orcestrator(
         logger.LogInformation("Очищено {Count} метаданных для медиа {MediaTitle}", count, media.Title);
     }
 
+    public void SetSourceSkipped(Media media, string sourceId)
+    {
+        var link = media.Sources.FirstOrDefault(x => x.SourceId == sourceId);
+
+        if (link == null)
+        {
+            link = new()
+            {
+                MediaId = media.Id,
+                Media = media,
+                SourceId = sourceId,
+                ExternalId = string.Empty,
+                Title = media.Title,
+                Description = media.Description ?? string.Empty,
+                Status = MediaStatus.Skipped,
+                SortNumber = 0,
+            };
+
+            media.Sources.Add(link);
+        }
+        else
+        {
+            link.Status = MediaStatus.Skipped;
+            link.StatusMessage = null;
+        }
+
+        UpdateMedia(media);
+        logger.LogInformation("Медиа '{MediaTitle}' помечено как пропускаемое для источника {SourceId}", media.Title, sourceId);
+    }
+
+    public void UnsetSourceSkipped(Media media, string sourceId)
+    {
+        var link = media.Sources.FirstOrDefault(x => x.SourceId == sourceId);
+
+        if (link is not { Status: MediaStatus.Skipped })
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(link.ExternalId))
+        {
+            media.Sources.Remove(link);
+        }
+        else
+        {
+            link.Status = MediaStatus.Ok;
+            link.StatusMessage = null;
+        }
+
+        UpdateMedia(media);
+        logger.LogInformation("С медиа '{MediaTitle}' снята пометка пропуска для источника {SourceId}", media.Title, sourceId);
+    }
+
     public void RemoveMedia(Media media)
     {
         db.GetCollection<Media>("medias").Delete(media.Id);

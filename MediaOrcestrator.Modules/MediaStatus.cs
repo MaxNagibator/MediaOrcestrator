@@ -16,6 +16,8 @@ public abstract class MediaStatus
     public const string None = "None";
     public const string Missing = "Missing";
     public const string Error = "Error";
+    public const string Skipped = "Skipped";
+
     public abstract string Id { get; }
     public abstract string Text { get; }
     public abstract string IconText { get; }
@@ -121,4 +123,15 @@ public class MediaStatusPartialOk : MediaStatus
     public override string IconText => "!";
 
     public override Color IconColor => Color.DarkOrange;
+}
+
+public class MediaStatusSkipped : MediaStatus
+{
+    public override string Id => Skipped;
+
+    public override string Text => "Пропущено";
+
+    public override string IconText => "⊘";
+
+    public override Color IconColor => Color.DimGray;
 }
