@@ -10,7 +10,7 @@ public class OptimizedMediaGridView : DataGridView
     private const int FirstSourceColumnIndex = 1;
     private const int SourceTitleMaxLength = 20;
 
-    private readonly List<int> _selectionOrder = [];
+    private readonly List<Media> _selectionOrder = [];
     private Font? _statusFont;
     private Font? _headerFont;
     private GridState? _savedState;
@@ -266,26 +266,21 @@ public class OptimizedMediaGridView : DataGridView
 
     public List<Media> GetSelectedMediaBySelectionOrder()
     {
-        var result = new List<Media>();
-        foreach (var idx in _selectionOrder)
-        {
-            if (Rows[idx].Tag is Media media)
-            {
-                result.Add(media);
-            }
-        }
-
-        return result;
+        return [.._selectionOrder];
     }
 
     private void UpdateSelectionOrder()
     {
-        var selectedIndices = SelectedRows.Cast<DataGridViewRow>().Select(r => r.Index).ToHashSet();
-        _selectionOrder.RemoveAll(i => !selectedIndices.Contains(i));
+        var selectedMedias = SelectedRows.Cast<DataGridViewRow>()
+            .Select(r => r.Tag as Media)
+            .OfType<Media>()
+            .ToHashSet();
 
-        foreach (var idx in selectedIndices.Where(i => !_selectionOrder.Contains(i)))
+        _selectionOrder.RemoveAll(m => !selectedMedias.Contains(m));
+
+        foreach (var media in selectedMedias.Where(m => !_selectionOrder.Contains(m)))
         {
-            _selectionOrder.Add(idx);
+            _selectionOrder.Add(media);
         }
     }
 
