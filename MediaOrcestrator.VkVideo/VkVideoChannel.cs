@@ -257,11 +257,6 @@ public sealed class VkVideoChannel(
         var service = await CreateServiceAsync(settings);
         var (ownerId, videoId) = ParseExternalId(externalId);
 
-        var frameSize = await videoTranscoder.GetVideoFrameSizeAsync(tempMedia.DataPath, cancellationToken)
-                        ?? throw new NonRetriableException("Не удалось определить размер кадра видео — невозможно выбрать режим обновления превью (обычное / shorts)");
-
-        var isShorts = frameSize.Width < frameSize.Height;
-
         var errorMessage = "";
 
         try
@@ -278,6 +273,7 @@ public sealed class VkVideoChannel(
         {
             try
             {
+                var isShorts = await ResolveIsShortsAsync(tempMedia, service, ownerId, videoId, cancellationToken);
                 await service.UploadThumbnailAsync(isShorts, ownerId, videoId, tempMedia.TempPreviewPath);
             }
             catch (Exception ex)
@@ -596,6 +592,33 @@ public sealed class VkVideoChannel(
     private static string GetAuthStatePath(Dictionary<string, string> settings)
     {
         return Path.Combine(settings["_system_state_path"], "auth_state");
+    }
+
+    private async Task<bool> ResolveIsShortsAsync(
+        MediaDto tempMedia,
+        VkVideoService service,
+        long ownerId,
+        long videoId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(tempMedia.TempDataPath) && File.Exists(tempMedia.TempDataPath))
+        {
+            var frameSize = await videoTranscoder.GetVideoFrameSizeAsync(tempMedia.TempDataPath, cancellationToken);
+            if (frameSize is (> 0, > 0))
+            {
+                return frameSize.Value.IsPortrait;
+            }
+        }
+
+        var video = await service.GetVideoByIdAsync(ownerId, videoId)
+                    ?? throw new NonRetriableException("Не удалось получить видео из VK для определения ориентации (обычное / shorts)");
+
+        if (video.Width <= 0 || video.Height <= 0)
+        {
+            throw new NonRetriableException("VK не вернул размер кадра видео — невозможно выбрать режим обновления превью (обычное / shorts)");
+        }
+
+        return video.Width < video.Height;
     }
 
     private async Task<VkVideoService> CreateServiceAsync(Dictionary<string, string> settings)
