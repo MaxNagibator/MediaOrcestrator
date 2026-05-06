@@ -2,10 +2,11 @@
 using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
-using SixLabors.ImageSharp.Formats.Bmp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.ComponentModel;
 using System.Diagnostics;
-using Image = SixLabors.ImageSharp.Image;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 
 namespace MediaOrcestrator.Runner;
 
@@ -21,6 +22,7 @@ public partial class MediaDetailForm : Form
     private readonly Font _groupFont;
     private readonly Font _boldFont;
     private readonly Font _regularFont;
+    private bool _commentsRendered;
 
     public MediaDetailForm(Media media, Orcestrator orcestrator, ActionHolder actionHolder, CommentsService? commentsService = null, ILogger? logger = null)
     {
@@ -46,20 +48,32 @@ public partial class MediaDetailForm : Form
         uiDescriptionLabel.Text = media.Description ?? "";
 
         var sourceDict = orcestrator.GetSources().ToDictionary(s => s.Id);
-        TryLoadPreview(media);
         PopulateSources(media, sourceDict);
+        TryLoadPreview(media);
 
         uiCommentsBrowser.FetchRequested += async (_, req) =>
         {
             await FetchForLinkAsync(req.SourceId, req.ExternalId);
+            _commentsRendered = true;
             RenderComments();
         };
 
-        RenderComments();
+        uiTabControl.Selected += OnTabSelected;
 
         uiTitleLabel.ContextMenuStrip = CreateCopyMenu(uiTitleLabel);
         uiDescriptionLabel.ContextMenuStrip = CreateCopyMenu(uiDescriptionLabel);
         uiHeaderPanel_Resize(null, EventArgs.Empty);
+    }
+
+    private void OnTabSelected(object? sender, TabControlEventArgs e)
+    {
+        if (e.TabPage != uiCommentsTab || _commentsRendered)
+        {
+            return;
+        }
+
+        _commentsRendered = true;
+        RenderComments();
     }
 
     private void uiHeaderPanel_Resize(object? sender, EventArgs e)
@@ -190,6 +204,51 @@ public partial class MediaDetailForm : Form
         return $"{bitsPerSecond / 1_000_000.0:F2} Мбит/с";
     }
 
+    private static Bitmap DecodeBitmap(byte[] bytes)
+    {
+        try
+        {
+            using var ms = new MemoryStream(bytes, false);
+            using var image = Image.FromStream(ms, false, false);
+            return new(image);
+        }
+        catch
+        {
+            return DecodeBitmapViaImageSharp(bytes);
+        }
+    }
+
+    private static Bitmap DecodeBitmapViaImageSharp(byte[] bytes)
+    {
+        using var image = SixLabors.ImageSharp.Image.Load<Bgra32>(bytes);
+        var pixels = new byte[image.Width * image.Height * 4];
+        image.CopyPixelDataTo(pixels);
+
+        var bitmap = new Bitmap(image.Width, image.Height, PixelFormat.Format32bppArgb);
+        var data = bitmap.LockBits(new(0, 0, image.Width, image.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var rowBytes = image.Width * 4;
+            if (data.Stride == rowBytes)
+            {
+                Marshal.Copy(pixels, 0, data.Scan0, pixels.Length);
+            }
+            else
+            {
+                for (var y = 0; y < image.Height; y++)
+                {
+                    Marshal.Copy(pixels, y * rowBytes, data.Scan0 + y * data.Stride, rowBytes);
+                }
+            }
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+
+        return bitmap;
+    }
+
     private void RenderComments()
     {
         if (_commentsService == null)
@@ -268,21 +327,8 @@ public partial class MediaDetailForm : Form
 
             if (File.Exists(path))
             {
-                try
-                {
-                    using var image = Image.Load(path);
-                    using var ms = new MemoryStream();
-                    image.Save(ms, new BmpEncoder());
-                    ms.Position = 0;
-                    uiPreviewBox.Image = new Bitmap(ms);
-                    AdjustPreviewSize();
-                    _logger?.LogDebug("Превью загружено: {Path}", path);
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogWarning(ex, "Не удалось загрузить превью: {Path}", path);
-                }
+                _ = LoadLocalPreviewAsync(path);
+                return;
             }
 
             if (!Uri.TryCreate(path, UriKind.Absolute, out var uri)
@@ -296,28 +342,29 @@ public partial class MediaDetailForm : Form
         }
     }
 
+    private async Task LoadLocalPreviewAsync(string path)
+    {
+        try
+        {
+            var bitmap = await Task.Run(() => DecodeBitmap(File.ReadAllBytes(path)));
+            ApplyPreview(bitmap);
+            _logger?.LogDebug("Превью загружено: {Path}", path);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Не удалось загрузить превью: {Path}", path);
+        }
+    }
+
     private async Task LoadOnlinePreviewAsync(string url)
     {
         try
         {
             using var httpClient = new HttpClient();
             var data = await httpClient.GetByteArrayAsync(url);
-            using var image = Image.Load(data);
-            using var ms = new MemoryStream();
-            await image.SaveAsync(ms, new BmpEncoder());
-            ms.Position = 0;
-            var bitmap = new Bitmap(ms);
-
-            if (!IsDisposed)
-            {
-                uiPreviewBox.Image = bitmap;
-                AdjustPreviewSize();
-                _logger?.LogDebug("Онлайн превью загружено: {Url}", url);
-            }
-            else
-            {
-                bitmap.Dispose();
-            }
+            var bitmap = await Task.Run(() => DecodeBitmap(data));
+            ApplyPreview(bitmap);
+            _logger?.LogDebug("Онлайн превью загружено: {Url}", url);
         }
         catch (Exception ex)
         {
@@ -325,7 +372,39 @@ public partial class MediaDetailForm : Form
         }
     }
 
+    private void ApplyPreview(Bitmap bitmap)
+    {
+        if (IsDisposed)
+        {
+            bitmap.Dispose();
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => ApplyPreview(bitmap));
+            return;
+        }
+
+        uiPreviewBox.Image?.Dispose();
+        uiPreviewBox.Image = bitmap;
+        AdjustPreviewSize();
+    }
+
     private void PopulateSources(Media media, Dictionary<string, Source> sourceDict)
+    {
+        uiContentPanel.SuspendLayout();
+        try
+        {
+            PopulateSourcesCore(media, sourceDict);
+        }
+        finally
+        {
+            uiContentPanel.ResumeLayout(true);
+        }
+    }
+
+    private void PopulateSourcesCore(Media media, Dictionary<string, Source> sourceDict)
     {
         if (media.Sources.Count == 0)
         {
@@ -347,6 +426,8 @@ public partial class MediaDetailForm : Form
             WrapContents = false,
             AutoScroll = true,
         };
+
+        flow.SuspendLayout();
 
         flow.Resize += (_, _) =>
         {
@@ -376,6 +457,8 @@ public partial class MediaDetailForm : Form
                 Padding = new(8, 4, 8, 8),
             };
 
+            groupBox.SuspendLayout();
+
             var innerFlow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -384,6 +467,8 @@ public partial class MediaDetailForm : Form
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowOnly,
             };
+
+            innerFlow.SuspendLayout();
 
             innerFlow.Controls.Add(CreateLabel($"{sourceLink.Title}",
                 _boldFont,
@@ -453,13 +538,16 @@ public partial class MediaDetailForm : Form
                 }
             }
 
+            innerFlow.ResumeLayout(false);
             groupBox.Controls.Add(innerFlow);
+            groupBox.ResumeLayout(false);
             flow.Controls.Add(groupBox);
 
             _logger?.LogDebug("Добавлен источник '{Source}': {MetaCount} метаданных",
                 sourceName, sourceMetadata.Count);
         }
 
+        flow.ResumeLayout(false);
         uiContentPanel.Controls.Add(flow);
     }
 }
