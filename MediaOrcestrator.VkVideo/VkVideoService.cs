@@ -81,17 +81,25 @@ public sealed class VkVideoService : IDisposable
         return response.Items.Count > 0 ? response.Items[0] : null;
     }
 
-    public async Task EditVideoAsync(long ownerId, long videoId, string title, string description)
+    public async Task EditVideoAsync(long ownerId, long videoId, string title, string description, SaveThumbResponse? thumb = null)
     {
         _logger.LogInformation("Редактирование видео {OwnerId}_{VideoId}", ownerId, videoId);
 
-        var result = await CallApiAsync<EditResponse>("video.edit", new()
+        var parameters = new Dictionary<string, string>
         {
             [OwnerIdKey] = ownerId.ToString(),
             [VideoIdKey] = videoId.ToString(),
             ["name"] = title,
             ["desc"] = description,
-        });
+        };
+
+        if (thumb != null)
+        {
+            parameters["thumb_id"] = thumb.PhotoId + "_" + thumb.PhotoOwnerId;
+            parameters["thumb_hash"] = thumb.PhotoHash;
+        }
+
+        var result = await CallApiAsync<EditResponse>("video.edit", parameters);
 
         if (result.Success != 1)
         {

@@ -258,35 +258,37 @@ public sealed class VkVideoChannel(
         var (ownerId, videoId) = ParseExternalId(externalId);
 
         var errorMessage = "";
-
-        try
-        {
-            await service.EditVideoAsync(ownerId, videoId, tempMedia.Title, tempMedia.Description);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Ошибка редактирования метаданных");
-            errorMessage += "Ошибка редактирования метаданных";
-        }
+        SaveThumbResponse? thumbResult = null;
+        var isShorts = false;
 
         if (!string.IsNullOrEmpty(tempMedia.TempPreviewPath) && File.Exists(tempMedia.TempPreviewPath))
         {
             try
             {
-                var isShorts = await ResolveIsShortsAsync(tempMedia, service, ownerId, videoId, cancellationToken);
+                isShorts = await ResolveIsShortsAsync(tempMedia, service, ownerId, videoId, cancellationToken);
                 var previewPath = PreparePreviewForUpload(tempMedia.TempPreviewPath, isShorts);
-                await service.UploadThumbnailAsync(isShorts, ownerId, videoId, previewPath);
+                thumbResult = await service.UploadThumbnailAsync(isShorts, ownerId, videoId, previewPath);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Ошибка загрузки превью");
-                if (errorMessage.Length > 0)
-                {
-                    errorMessage += Environment.NewLine;
-                }
-
                 errorMessage += "Ошибка загрузки превью";
             }
+        }
+
+        try
+        {
+            await service.EditVideoAsync(ownerId, videoId, tempMedia.Title, tempMedia.Description, isShorts ? null : thumbResult);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка редактирования метаданных");
+            if (errorMessage.Length > 0)
+            {
+                errorMessage += Environment.NewLine;
+            }
+
+            errorMessage += "Ошибка редактирования метаданных";
         }
 
         if (errorMessage.Length == 0)
