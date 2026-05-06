@@ -280,6 +280,60 @@ public partial class SourceSettingsForm : Form
         };
     }
 
+    private static ComboBox CreateComboBox()
+    {
+        return new()
+        {
+            Dock = DockStyle.Top,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Font = new("Segoe UI", 10F),
+        };
+    }
+
+    private static void SetControlValue(Control control, string value)
+    {
+        switch (control)
+        {
+            case TextBox textBox:
+                textBox.Text = value;
+                break;
+
+            case ComboBox comboBox:
+                var matchIndex = -1;
+
+                for (var i = 0; i < comboBox.Items.Count; i++)
+                {
+                    if (comboBox.Items[i] is ComboBoxItem item && item.Value == value)
+                    {
+                        matchIndex = i;
+                        break;
+                    }
+                }
+
+                if (matchIndex >= 0)
+                {
+                    comboBox.SelectedIndex = matchIndex;
+                }
+                else if (!string.IsNullOrEmpty(value))
+                {
+                    comboBox.Items.Add(new ComboBoxItem { Value = value, Label = value });
+                    comboBox.SelectedIndex = comboBox.Items.Count - 1;
+                }
+
+                break;
+
+            case Panel panel:
+                var inner = panel.Controls.OfType<TextBox>().FirstOrDefault();
+
+                if (inner != null)
+                {
+                    inner.Text = value;
+                }
+
+                break;
+        }
+    }
+
     private TableLayoutPanel CreateSettingsTable()
     {
         var table = new TableLayoutPanel
@@ -427,16 +481,6 @@ public partial class SourceSettingsForm : Form
         }
 
         return CreateTextBox(setting);
-    }
-
-    private static ComboBox CreateComboBox()
-    {
-        return new()
-        {
-            Dock = DockStyle.Top,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Font = new("Segoe UI", 10F),
-        };
     }
 
     private void PopulateComboBox(SourceSettings setting, ComboBox comboBox)
@@ -716,7 +760,7 @@ public partial class SourceSettingsForm : Form
 
         if (_sourceType is IAuthenticatable)
         {
-            copyAuthCheckBox = new CheckBox
+            copyAuthCheckBox = new()
             {
                 Text = "Копировать данные авторизации",
                 Dock = DockStyle.Bottom,
@@ -820,48 +864,6 @@ public partial class SourceSettingsForm : Form
         }
 
         return null;
-    }
-
-    private static void SetControlValue(Control control, string value)
-    {
-        switch (control)
-        {
-            case TextBox textBox:
-                textBox.Text = value;
-                break;
-            case ComboBox comboBox:
-                var matchIndex = -1;
-
-                for (var i = 0; i < comboBox.Items.Count; i++)
-                {
-                    if (comboBox.Items[i] is ComboBoxItem item && item.Value == value)
-                    {
-                        matchIndex = i;
-                        break;
-                    }
-                }
-
-                if (matchIndex >= 0)
-                {
-                    comboBox.SelectedIndex = matchIndex;
-                }
-                else if (!string.IsNullOrEmpty(value))
-                {
-                    comboBox.Items.Add(new ComboBoxItem { Value = value, Label = value });
-                    comboBox.SelectedIndex = comboBox.Items.Count - 1;
-                }
-
-                break;
-            case Panel panel:
-                var inner = panel.Controls.OfType<TextBox>().FirstOrDefault();
-
-                if (inner != null)
-                {
-                    inner.Text = value;
-                }
-
-                break;
-        }
     }
 
     private string[] FindDocFiles()

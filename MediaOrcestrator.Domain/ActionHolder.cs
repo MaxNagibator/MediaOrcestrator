@@ -4,7 +4,7 @@ namespace MediaOrcestrator.Domain;
 
 public class ActionHolder(ILogger<ActionHolder> logger)
 {
-    public Dictionary<Guid, RunningAction> Actions = new Dictionary<Guid, RunningAction>();
+    public Dictionary<Guid, RunningAction> Actions = new();
 
     public RunningAction Register(string name, string status, int progressMax, CancellationTokenSource ctx)
     {
@@ -18,6 +18,7 @@ public class ActionHolder(ILogger<ActionHolder> logger)
             CancellationTokenSource = ctx,
             Holder = this,
         };
+
         Actions.Add(id, act);
         return act;
     }
@@ -34,8 +35,12 @@ public class ActionHolder(ILogger<ActionHolder> logger)
 
     public void Cancel(Guid id)
     {
-        Actions[id].CancellationTokenSource.Cancel();
-        Actions.Remove(id);
+        if (!Actions.Remove(id, out var act))
+        {
+            return;
+        }
+
+        act.CancellationTokenSource.Cancel();
     }
 
     public class RunningAction

@@ -4,37 +4,6 @@ using System.Text.Json;
 
 public class CookieTransformator
 {
-    private class CookieData
-    {
-        // todo регистр нормально сделать :)
-        public string name { get; set; }
-        public string value { get; set; }
-        public string domain { get; set; }
-        public string path { get; set; }
-        public double expires { get; set; }
-        public bool httpOnly { get; set; }
-        public bool secure { get; set; }
-        public string sameSite { get; set; }
-    }
-
-    private class OriginData
-    {
-        public string origin { get; set; }
-        public List<StorageData> localStorage { get; set; }
-    }
-
-    private class StorageData
-    {
-        public string name { get; set; }
-        public string value { get; set; }
-    }
-
-    private class ChromeCookiesRoot
-    {
-        public List<CookieData> cookies { get; set; }
-        public List<OriginData> origins { get; set; }
-    }
-
     public static void Run(string playwrightCookiePath, string outputFile, ILogger _logger)
     {
         try
@@ -44,7 +13,7 @@ public class CookieTransformator
             {
                 PropertyNameCaseInsensitive = true,
                 ReadCommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true
+                AllowTrailingCommas = true,
             };
 
             var root = JsonSerializer.Deserialize<ChromeCookiesRoot>(playwrightCookieString, options);
@@ -89,11 +58,13 @@ public class CookieTransformator
                 foreach (var cookie in allCookies)
                 {
                     // domain: должен начинаться с точки для поддоменов
-                    string domain = cookie.domain;
+                    var domain = cookie.domain;
                     if (!string.IsNullOrEmpty(domain))
                     {
                         if (!domain.StartsWith('.'))
+                        {
                             domain = "." + domain;
+                        }
                     }
                     else
                     {
@@ -102,13 +73,13 @@ public class CookieTransformator
 
                     // flag: TRUE если кука для всех поддоменов
                     // В Chrome куки всегда для всех поддоменов если domain начинается с точки
-                    string flag = domain.StartsWith('.') ? "TRUE" : "FALSE";
+                    var flag = domain.StartsWith('.') ? "TRUE" : "FALSE";
 
                     // path: если нет, ставим корень
-                    string path = string.IsNullOrEmpty(cookie.path) ? "/" : cookie.path;
+                    var path = string.IsNullOrEmpty(cookie.path) ? "/" : cookie.path;
 
                     // secure
-                    string secure = cookie.secure ? "TRUE" : "FALSE";
+                    var secure = cookie.secure ? "TRUE" : "FALSE";
 
                     // expiration: Unix timestamp
                     long expiry = 0;
@@ -126,11 +97,11 @@ public class CookieTransformator
                     }
 
                     // Экранируем спецсимволы
-                    string name = EscapeField(cookie.name);
-                    string value = EscapeField(cookie.value);
+                    var name = EscapeField(cookie.name);
+                    var value = EscapeField(cookie.value);
 
                     // Формируем строку: domain\tflag\tpath\tsecure\texpiry\tname\tvalue
-                    string line = $"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{name}\t{value}";
+                    var line = $"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{name}\t{value}";
                     writer.WriteLine(line);
                 }
 
@@ -161,9 +132,12 @@ public class CookieTransformator
     ////    }
     ////}
 
-    static string EscapeField(string value)
+    private static string EscapeField(string value)
     {
-        if (string.IsNullOrEmpty(value)) return value;
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
 
         // Заменяем проблемные символы
         return value
@@ -171,5 +145,36 @@ public class CookieTransformator
             .Replace("\r", "\\r")
             .Replace("\n", "\\n")
             .Replace("\0", string.Empty); // нулевые байты нахуй
+    }
+
+    private class CookieData
+    {
+        // todo регистр нормально сделать :)
+        public string name { get; set; }
+        public string value { get; set; }
+        public string domain { get; set; }
+        public string path { get; set; }
+        public double expires { get; set; }
+        public bool httpOnly { get; set; }
+        public bool secure { get; set; }
+        public string sameSite { get; set; }
+    }
+
+    private class OriginData
+    {
+        public string origin { get; set; }
+        public List<StorageData> localStorage { get; set; }
+    }
+
+    private class StorageData
+    {
+        public string name { get; set; }
+        public string value { get; set; }
+    }
+
+    private class ChromeCookiesRoot
+    {
+        public List<CookieData> cookies { get; set; }
+        public List<OriginData> origins { get; set; }
     }
 }

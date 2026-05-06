@@ -346,6 +346,18 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         }
 
         media.TempDataPath = finalPath;
+
+        var thumbnailPath = Path.ChangeExtension(finalPath, ".jpg");
+        if (File.Exists(thumbnailPath))
+        {
+            media.TempPreviewPath = thumbnailPath;
+            logger.LogInformation("Превью сохранено через yt-dlp: {ThumbnailPath}", thumbnailPath);
+        }
+        else
+        {
+            logger.LogDebug("yt-dlp не сохранил превью рядом с видео: {ThumbnailPath}", thumbnailPath);
+        }
+
         return media;
     }
 

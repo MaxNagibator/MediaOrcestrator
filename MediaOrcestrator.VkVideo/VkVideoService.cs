@@ -17,9 +17,14 @@ public sealed class VkVideoService : IDisposable
     private const string OwnerIdKey = "owner_id";
     private const string VideoIdKey = "video_id";
 
+    private const int MinRequestIntervalMs = 350;
+    private const int RateLimitMaxRetries = 4;
+
     private readonly ILogger _logger;
     private readonly string _cookieString;
+    private readonly SemaphoreSlim _throttleLock = new(1, 1);
 
+    private DateTimeOffset _nextAllowedCallAt = DateTimeOffset.MinValue;
     private string? _accessToken;
     private DateTimeOffset _tokenExpires = DateTimeOffset.MinValue;
 
@@ -39,6 +44,7 @@ public sealed class VkVideoService : IDisposable
     public void Dispose()
     {
         HttpClient.Dispose();
+        _throttleLock.Dispose();
     }
 
     public async IAsyncEnumerable<VideoItem> GetMediaAsync(
@@ -804,8 +810,12 @@ public sealed class VkVideoService : IDisposable
 
     private async Task<T> CallApiInternalAsync<T>(string baseUrl, string method, Dictionary<string, string> parameters)
     {
-        for (var attempt = 0; attempt < 2; attempt++)
+        var challengeSolved = false;
+        var rateLimitHits = 0;
+
+        while (true)
         {
+            await ThrottleAsync();
             var token = await GetAccessTokenAsync();
 
             var requestParams = new Dictionary<string, string>(parameters)
@@ -825,11 +835,11 @@ public sealed class VkVideoService : IDisposable
 
             if (IsHtmlResponse(body))
             {
-                _logger.LogWarning("Ответ API {Method} — HTML (попытка {Attempt}/2). Статус: {StatusCode}",
-                    method, attempt + 1, response.StatusCode);
+                _logger.LogWarning("Ответ API {Method} — HTML. Статус: {StatusCode}", method, response.StatusCode);
 
-                if (attempt == 0 && await TrySolveChallengeAsync(response, body))
+                if (!challengeSolved && await TrySolveChallengeAsync(response, body))
                 {
+                    challengeSolved = true;
                     _logger.LogInformation("Повторяем запрос API {Method} после решения challenge...", method);
                     continue;
                 }
@@ -843,10 +853,41 @@ public sealed class VkVideoService : IDisposable
                 throw new HttpRequestException($"Ошибка API {method}: {response.StatusCode}");
             }
 
-            return ParseApiResponse<T>(body, method);
-        }
+            try
+            {
+                return ParseApiResponse<T>(body, method);
+            }
+            catch (VkApiException ex) when (ex.ErrorCode == 6 && rateLimitHits < RateLimitMaxRetries)
+            {
+                rateLimitHits++;
+                var delay = TimeSpan.FromMilliseconds(500 * Math.Pow(2, rateLimitHits - 1));
+                _logger.LogWarning("VK API {Method}: rate limit, попытка {Attempt}/{Max}. Ждём {Delay} мс",
+                    method, rateLimitHits, RateLimitMaxRetries, delay.TotalMilliseconds);
 
-        throw new InvalidOperationException($"Не удалось выполнить API запрос {method} после решения challenge.");
+                await Task.Delay(delay);
+            }
+        }
+    }
+
+    private async Task ThrottleAsync()
+    {
+        await _throttleLock.WaitAsync();
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var wait = _nextAllowedCallAt - now;
+            if (wait > TimeSpan.Zero)
+            {
+                await Task.Delay(wait);
+                now = DateTimeOffset.UtcNow;
+            }
+
+            _nextAllowedCallAt = now.AddMilliseconds(MinRequestIntervalMs);
+        }
+        finally
+        {
+            _throttleLock.Release();
+        }
     }
 
     private T ParseApiResponse<T>(string body, string method)

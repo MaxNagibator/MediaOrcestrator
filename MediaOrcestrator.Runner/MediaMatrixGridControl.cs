@@ -189,6 +189,88 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
+    private void uiConvertProgressBar_MouseDown(object sender, MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Right)
+        {
+            uiConvertCancelMenu.Show(Cursor.Position);
+        }
+    }
+
+    private static (List<Media> mediaData, List<Source> sources) ApplyFilters(
+        List<Media> allMedia,
+        List<Source> allSources,
+        FilterToolStripControl.FilterState filterState)
+    {
+        IEnumerable<Media> mediaQuery = allMedia;
+        var sources = allSources;
+
+        if (!string.IsNullOrEmpty(filterState.SearchText))
+        {
+            mediaQuery = mediaQuery.Where(x => x.Title != null && x.Title.Contains(filterState.SearchText, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (filterState.SourceFilter is { Count: > 0 })
+        {
+            sources = allSources.Where(x => filterState.SourceFilter.Contains(x.Id)).ToList();
+            // TODO: При таком варианте не учитывается направление связи
+            mediaQuery = mediaQuery.Where(m => m.Sources.Any(l => filterState.SourceFilter.Contains(l.SourceId)));
+        }
+
+        if (filterState.StatusFilter != null)
+        {
+            var status = filterState.StatusFilter;
+            var sourceFilter = filterState.SourceFilter;
+            mediaQuery = sourceFilter is { Count: > 0 }
+                ? mediaQuery.Where(m => m.Sources.Any(s => sourceFilter.Contains(s.SourceId) && s.Status == status))
+                : mediaQuery.Where(m => m.Sources.Any(s => s.Status == status));
+        }
+
+        return (mediaQuery.ToList(), sources);
+    }
+
+    private static List<MetadataColumnInfo> BuildMetadataColumns(List<Media> mediaData, List<Source> sources)
+    {
+        // TODO: Жидкое место
+        var sourceNameMap = sources.ToDictionary(s => s.Id, s => s.Title);
+
+        var pairs = mediaData
+            .SelectMany(m => m.Metadata)
+            .Where(m => m.SourceId != null)
+            .GroupBy(m => (m.Key, m.SourceId))
+            .Select(g => g.First())
+            .ToList();
+
+        var duplicateKeys = pairs
+            .GroupBy(m => m.Key)
+            .Where(g => g.Select(m => m.SourceId).Distinct().Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet();
+
+        var result = new List<MetadataColumnInfo>();
+
+        foreach (var group in pairs.GroupBy(m => m.Key).OrderBy(g => g.Key))
+        {
+            if (duplicateKeys.Contains(group.Key))
+            {
+                foreach (var meta in group.OrderBy(m => m.SourceId))
+                {
+                    var sourceName = sourceNameMap.GetValueOrDefault(meta.SourceId!, meta.SourceId!);
+                    var displayName = (meta.DisplayName ?? meta.Key) + $" ({sourceName})";
+                    var columnId = $"{meta.Key} ({sourceName})";
+                    result.Add(new(columnId, meta.Key, meta.SourceId, displayName, meta.DisplayType));
+                }
+            }
+            else
+            {
+                var meta = group.First();
+                result.Add(new(meta.Key, meta.Key, null, meta.DisplayName ?? meta.Key, meta.DisplayType));
+            }
+        }
+
+        return result;
+    }
+
     private void MergeSelectedMedia(List<Media> selectedMediaList)
     {
         if (_mergeService == null || _orcestrator == null)
@@ -254,38 +336,6 @@ public partial class MediaMatrixGridControl : UserControl
         }
     }
 
-    private static (List<Media> mediaData, List<Source> sources) ApplyFilters(
-        List<Media> allMedia,
-        List<Source> allSources,
-        FilterToolStripControl.FilterState filterState)
-    {
-        IEnumerable<Media> mediaQuery = allMedia;
-        var sources = allSources;
-
-        if (!string.IsNullOrEmpty(filterState.SearchText))
-        {
-            mediaQuery = mediaQuery.Where(x => x.Title != null && x.Title.Contains(filterState.SearchText, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (filterState.SourceFilter is { Count: > 0 })
-        {
-            sources = allSources.Where(x => filterState.SourceFilter.Contains(x.Id)).ToList();
-            // TODO: При таком варианте не учитывается направление связи
-            mediaQuery = mediaQuery.Where(m => m.Sources.Any(l => filterState.SourceFilter.Contains(l.SourceId)));
-        }
-
-        if (filterState.StatusFilter != null)
-        {
-            var status = filterState.StatusFilter;
-            var sourceFilter = filterState.SourceFilter;
-            mediaQuery = sourceFilter is { Count: > 0 }
-                ? mediaQuery.Where(m => m.Sources.Any(s => sourceFilter.Contains(s.SourceId) && s.Status == status))
-                : mediaQuery.Where(m => m.Sources.Any(s => s.Status == status));
-        }
-
-        return (mediaQuery.ToList(), sources);
-    }
-
     private void UpdateLoadingIndicator(bool isLoading)
     {
         if (uiLoadingLabel.InvokeRequired)
@@ -312,56 +362,6 @@ public partial class MediaMatrixGridControl : UserControl
         {
             uiTotalCountLabel.Text = $"Всего: {total}";
             uiFilteredCountLabel.Text = $"Отфильтровано: {filtered}";
-        }
-    }
-
-    private static List<MetadataColumnInfo> BuildMetadataColumns(List<Media> mediaData, List<Source> sources)
-    {
-        // TODO: Жидкое место
-        var sourceNameMap = sources.ToDictionary(s => s.Id, s => s.Title);
-
-        var pairs = mediaData
-            .SelectMany(m => m.Metadata)
-            .Where(m => m.SourceId != null)
-            .GroupBy(m => (m.Key, m.SourceId))
-            .Select(g => g.First())
-            .ToList();
-
-        var duplicateKeys = pairs
-            .GroupBy(m => m.Key)
-            .Where(g => g.Select(m => m.SourceId).Distinct().Count() > 1)
-            .Select(g => g.Key)
-            .ToHashSet();
-
-        var result = new List<MetadataColumnInfo>();
-
-        foreach (var group in pairs.GroupBy(m => m.Key).OrderBy(g => g.Key))
-        {
-            if (duplicateKeys.Contains(group.Key))
-            {
-                foreach (var meta in group.OrderBy(m => m.SourceId))
-                {
-                    var sourceName = sourceNameMap.GetValueOrDefault(meta.SourceId!, meta.SourceId!);
-                    var displayName = (meta.DisplayName ?? meta.Key) + $" ({sourceName})";
-                    var columnId = $"{meta.Key} ({sourceName})";
-                    result.Add(new(columnId, meta.Key, meta.SourceId, displayName, meta.DisplayType));
-                }
-            }
-            else
-            {
-                var meta = group.First();
-                result.Add(new(meta.Key, meta.Key, null, meta.DisplayName ?? meta.Key, meta.DisplayType));
-            }
-        }
-
-        return result;
-    }
-
-    private void uiConvertProgressBar_MouseDown(object sender, MouseEventArgs e)
-    {
-        if (e.Button == MouseButtons.Right)
-        {
-            uiConvertCancelMenu.Show(Cursor.Position);
         }
     }
 }

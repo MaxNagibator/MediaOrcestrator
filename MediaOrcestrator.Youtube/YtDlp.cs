@@ -24,6 +24,8 @@ public sealed partial class YtDlp(string path, string ffmpegPath, string jsRunti
             "--newline",
             "--no-colors",
             "--ffmpeg-location", ffmpegPath,
+            "--write-thumbnail",
+            "--convert-thumbnails", "jpg",
             "-o", outputPath,
         };
 

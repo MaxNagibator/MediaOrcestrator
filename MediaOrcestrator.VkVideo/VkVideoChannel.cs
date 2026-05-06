@@ -13,8 +13,7 @@ public sealed class VkVideoChannel(
     : ISourceType, IAuthenticatable, ISupportsComments
 {
     private readonly SemaphoreSlim _serviceLock = new(1, 1);
-    private VkVideoService? _cachedService;
-    private string? _cachedAuthStatePath;
+    private readonly Dictionary<string, VkVideoService> _cachedServices = new(StringComparer.OrdinalIgnoreCase);
 
     public string Name => "VkVideo";
 
@@ -257,11 +256,6 @@ public sealed class VkVideoChannel(
         var service = await CreateServiceAsync(settings);
         var (ownerId, videoId) = ParseExternalId(externalId);
 
-        var frameSize = await videoTranscoder.GetVideoFrameSizeAsync(tempMedia.DataPath, cancellationToken)
-                        ?? throw new NonRetriableException("Не удалось определить размер кадра видео — невозможно выбрать режим обновления превью (обычное / shorts)");
-
-        var isShorts = frameSize.Width < frameSize.Height;
-
         var errorMessage = "";
 
         try
@@ -278,6 +272,7 @@ public sealed class VkVideoChannel(
         {
             try
             {
+                var isShorts = await ResolveIsShortsAsync(tempMedia, service, ownerId, videoId, cancellationToken);
                 await service.UploadThumbnailAsync(isShorts, ownerId, videoId, tempMedia.TempPreviewPath);
             }
             catch (Exception ex)
@@ -355,9 +350,7 @@ public sealed class VkVideoChannel(
         var result = await ui.OpenBrowserAsync("https://cabinet.vkvideo.ru/", authStatePath);
         if (result != null)
         {
-            _cachedService?.Dispose();
-            _cachedService = null;
-            _cachedAuthStatePath = null;
+            await InvalidateServiceAsync(authStatePath);
             logger.LogInformation("VK Video: авторизация сохранена в {Path}", result);
             await ui.ShowMessageAsync("Авторизация VK Video сохранена!");
         }
@@ -598,6 +591,33 @@ public sealed class VkVideoChannel(
         return Path.Combine(settings["_system_state_path"], "auth_state");
     }
 
+    private async Task<bool> ResolveIsShortsAsync(
+        MediaDto tempMedia,
+        VkVideoService service,
+        long ownerId,
+        long videoId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(tempMedia.TempDataPath) && File.Exists(tempMedia.TempDataPath))
+        {
+            var frameSize = await videoTranscoder.GetVideoFrameSizeAsync(tempMedia.TempDataPath, cancellationToken);
+            if (frameSize is (> 0, > 0))
+            {
+                return frameSize.Value.IsPortrait;
+            }
+        }
+
+        var video = await service.GetVideoByIdAsync(ownerId, videoId)
+                    ?? throw new NonRetriableException("Не удалось получить видео из VK для определения ориентации (обычное / shorts)");
+
+        if (video.Width <= 0 || video.Height <= 0)
+        {
+            throw new NonRetriableException("VK не вернул размер кадра видео — невозможно выбрать режим обновления превью (обычное / shorts)");
+        }
+
+        return video.Width < video.Height;
+    }
+
     private async Task<VkVideoService> CreateServiceAsync(Dictionary<string, string> settings)
     {
         var authStatePath = GetAuthStatePath(settings);
@@ -605,9 +625,9 @@ public sealed class VkVideoChannel(
         await _serviceLock.WaitAsync();
         try
         {
-            if (_cachedService != null && _cachedAuthStatePath == authStatePath)
+            if (_cachedServices.TryGetValue(authStatePath, out var cached))
             {
-                return _cachedService;
+                return cached;
             }
 
             if (!File.Exists(authStatePath))
@@ -633,11 +653,25 @@ public sealed class VkVideoChannel(
                 }
             }
 
-            var oldService = _cachedService;
-            _cachedService = new(string.Join("; ", cookiePairs), serviceLogger);
-            _cachedAuthStatePath = authStatePath;
-            oldService?.Dispose();
-            return _cachedService;
+            var service = new VkVideoService(string.Join("; ", cookiePairs), serviceLogger);
+            _cachedServices[authStatePath] = service;
+            return service;
+        }
+        finally
+        {
+            _serviceLock.Release();
+        }
+    }
+
+    private async Task InvalidateServiceAsync(string authStatePath)
+    {
+        await _serviceLock.WaitAsync();
+        try
+        {
+            if (_cachedServices.Remove(authStatePath, out var existing))
+            {
+                existing.Dispose();
+            }
         }
         finally
         {

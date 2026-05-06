@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -7,6 +7,34 @@ namespace MediaOrcestrator.Domain;
 
 public class ToolInstaller(IReleaseProvider releaseProvider, ILogger<ToolInstaller> logger)
 {
+    public static string? FindExecutableInToolDir(string toolDir, ToolDescriptor descriptor)
+    {
+        if (!Directory.Exists(toolDir))
+        {
+            return null;
+        }
+
+        if (descriptor.ArchiveExecutablePath is not null)
+        {
+            return ArchiveExtractor.FindExecutable(toolDir, descriptor.ArchiveExecutablePath)
+                   ?? ArchiveExtractor.FindExecutable(toolDir, Path.GetFileName(descriptor.ArchiveExecutablePath));
+        }
+
+        var exeName = descriptor.AssetPattern.Contains('*')
+            ? null
+            : descriptor.AssetPattern;
+
+        if (exeName is null)
+        {
+            var searchPattern = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "*.exe" : "*";
+            var exeFiles = Directory.GetFiles(toolDir, searchPattern);
+            return exeFiles.Length == 1 ? exeFiles[0] : null;
+        }
+
+        var path = Path.Combine(toolDir, exeName);
+        return File.Exists(path) ? path : null;
+    }
+
     public async Task<string?> InstallAsync(
         string toolName,
         ToolDescriptor descriptor,
@@ -20,8 +48,7 @@ public class ToolInstaller(IReleaseProvider releaseProvider, ILogger<ToolInstall
 
         EnsureToolNotRunning(toolName, currentPath, toolDir);
 
-        var release = await releaseProvider.GetLatestReleaseAsync(
-            descriptor.GitHubRepo, descriptor.AssetPattern, cancellationToken);
+        var release = await releaseProvider.GetLatestReleaseAsync(descriptor.GitHubRepo, descriptor.AssetPattern, cancellationToken);
 
         if (release?.AssetUrl is null)
         {
@@ -79,34 +106,6 @@ public class ToolInstaller(IReleaseProvider releaseProvider, ILogger<ToolInstall
         }
     }
 
-    public static string? FindExecutableInToolDir(string toolDir, ToolDescriptor descriptor)
-    {
-        if (!Directory.Exists(toolDir))
-        {
-            return null;
-        }
-
-        if (descriptor.ArchiveExecutablePath is not null)
-        {
-            return ArchiveExtractor.FindExecutable(toolDir, descriptor.ArchiveExecutablePath)
-                   ?? ArchiveExtractor.FindExecutable(toolDir, Path.GetFileName(descriptor.ArchiveExecutablePath));
-        }
-
-        var exeName = descriptor.AssetPattern.Contains('*')
-            ? null
-            : descriptor.AssetPattern;
-
-        if (exeName is null)
-        {
-            var searchPattern = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "*.exe" : "*";
-            var exeFiles = Directory.GetFiles(toolDir, searchPattern);
-            return exeFiles.Length == 1 ? exeFiles[0] : null;
-        }
-
-        var path = Path.Combine(toolDir, exeName);
-        return File.Exists(path) ? path : null;
-    }
-
     private static void SwapDirectories(
         string toolDir,
         string backupDir,
@@ -128,8 +127,7 @@ public class ToolInstaller(IReleaseProvider releaseProvider, ILogger<ToolInstall
 
                 if (exePath is null)
                 {
-                    throw new FileNotFoundException(
-                        $"Исполняемый файл не найден в архиве по паттерну '{descriptor.ArchiveExecutablePath}'");
+                    throw new FileNotFoundException($"Исполняемый файл не найден в архиве по паттерну '{descriptor.ArchiveExecutablePath}'");
                 }
 
                 var exeDir = Path.GetDirectoryName(exePath)!;
@@ -179,8 +177,7 @@ public class ToolInstaller(IReleaseProvider releaseProvider, ILogger<ToolInstall
             {
                 if (process.MainModule?.FileName?.StartsWith(toolDir, StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    throw new InvalidOperationException(
-                        $"Инструмент '{toolName}' сейчас используется (PID {process.Id}). Дождитесь завершения операции перед обновлением.");
+                    throw new InvalidOperationException($"Инструмент '{toolName}' сейчас используется (PID {process.Id}). Дождитесь завершения операции перед обновлением.");
                 }
             }
             catch (InvalidOperationException)

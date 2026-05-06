@@ -1,4 +1,4 @@
-using LiteDB;
+﻿using LiteDB;
 using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Domain;
@@ -13,6 +13,12 @@ public sealed class StateManager(string stateRoot, LiteDatabase db, ILogger<Stat
         new("VkVideo", "auth_state_path", LegacyMigrationKind.SingleFile, "auth_state"),
         new("Telegram", "session_path", LegacyMigrationKind.SingleFile, "telegram.session"),
     ];
+
+    private enum LegacyMigrationKind
+    {
+        SingleFile = 0,
+        GoogleOAuthDir = 1,
+    }
 
     public string StateRoot => stateRoot;
 
@@ -206,10 +212,4 @@ public sealed class StateManager(string stateRoot, LiteDatabase db, ILogger<Stat
     }
 
     private sealed record LegacyStateMapping(string TypeId, string LegacyKey, LegacyMigrationKind Kind, string TargetName);
-
-    private enum LegacyMigrationKind
-    {
-        SingleFile = 0,
-        GoogleOAuthDir = 1,
-    }
 }

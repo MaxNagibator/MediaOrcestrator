@@ -428,7 +428,7 @@ public partial class MediaDetailForm : Form
                 }
             }
 
-            if (source?.Type != null)
+            if (source?.Type != null && !string.IsNullOrEmpty(sourceLink.ExternalId))
             {
                 var uri = source.Type.GetExternalUri(sourceLink.ExternalId, source.Settings);
                 if (uri != null)
