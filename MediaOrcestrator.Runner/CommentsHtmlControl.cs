@@ -20,6 +20,7 @@ public partial class CommentsHtmlControl : UserControl
     private ILogger? _logger;
     private bool _invertMediaSort;
     private bool _invertCommentSort;
+    private bool _loaded;
 
     public CommentsHtmlControl()
     {
@@ -82,6 +83,16 @@ public partial class CommentsHtmlControl : UserControl
         PopulateSortCombos();
         ReloadSourcesCombo();
         UpdateForceFetchButtonState();
+    }
+
+    public void EnsureLoaded()
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        _loaded = true;
         ApplyFilters();
     }
 
@@ -270,7 +281,7 @@ public partial class CommentsHtmlControl : UserControl
 
     private void ApplyFilters()
     {
-        if (_orcestrator == null || _commentsService == null)
+        if (!_loaded || _orcestrator == null || _commentsService == null)
         {
             return;
         }

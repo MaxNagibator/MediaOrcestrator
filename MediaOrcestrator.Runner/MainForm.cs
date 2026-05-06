@@ -90,6 +90,8 @@ public partial class MainForm : Form
             _serviceProvider.GetRequiredService<ActionHolder>(),
             _serviceProvider.GetRequiredService<ILogger<CommentsHtmlControl>>());
 
+        uiMainTabControl.Selected += OnMainTabSelected;
+
         if (uiClearTypeComboBox.Items.Count > 0)
         {
             uiClearTypeComboBox.SelectedIndex = 0;
@@ -108,6 +110,18 @@ public partial class MainForm : Form
 
         CheckToolUpdatesInBackground();
         CheckAppUpdateInBackground();
+    }
+
+    private void OnMainTabSelected(object? sender, TabControlEventArgs e)
+    {
+        if (e.TabPage == uiCommentsTabPage)
+        {
+            uiCommentsViewControl.EnsureLoaded();
+        }
+        else if (e.TabPage == uiCommentsHtmlTabPage)
+        {
+            uiCommentsHtmlControl.EnsureLoaded();
+        }
     }
 
     private async void uiSyncButton_Click(object sender, EventArgs e)

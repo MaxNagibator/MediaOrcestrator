@@ -14,6 +14,7 @@ public partial class CommentsViewControl : UserControl
     private CommentsService? _commentsService;
     private ActionHolder? _actionHolder;
     private ILogger<CommentsViewControl>? _logger;
+    private bool _loaded;
 
     public CommentsViewControl()
     {
@@ -34,6 +35,16 @@ public partial class CommentsViewControl : UserControl
         ConfigureColumns();
         ReloadSourcesCombo();
         UpdateForceFetchButtonState();
+    }
+
+    public void EnsureLoaded()
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        _loaded = true;
         ApplyFilters();
     }
 
