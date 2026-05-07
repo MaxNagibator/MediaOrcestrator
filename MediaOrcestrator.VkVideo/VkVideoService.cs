@@ -81,17 +81,25 @@ public sealed class VkVideoService : IDisposable
         return response.Items.Count > 0 ? response.Items[0] : null;
     }
 
-    public async Task EditVideoAsync(long ownerId, long videoId, string title, string description)
+    public async Task EditVideoAsync(long ownerId, long videoId, string title, string description, SaveThumbResponse? thumb = null)
     {
         _logger.LogInformation("Редактирование видео {OwnerId}_{VideoId}", ownerId, videoId);
 
-        var result = await CallApiAsync<EditResponse>("video.edit", new()
+        var parameters = new Dictionary<string, string>
         {
             [OwnerIdKey] = ownerId.ToString(),
             [VideoIdKey] = videoId.ToString(),
             ["name"] = title,
             ["desc"] = description,
-        });
+        };
+
+        if (thumb != null)
+        {
+            parameters["thumb_id"] = thumb.PhotoId + "_" + thumb.PhotoOwnerId;
+            parameters["thumb_hash"] = thumb.PhotoHash;
+        }
+
+        var result = await CallApiAsync<EditResponse>("video.edit", parameters);
 
         if (result.Success != 1)
         {
@@ -316,6 +324,97 @@ public sealed class VkVideoService : IDisposable
         }
 
         return CallApiInternalAsync<VkCommentsResponse>(ApiBase, "video.getComments", parameters);
+    }
+
+    public Task<VkCommentsResponse> GetVideoCommentAsync(long ownerId, long commentId)
+    {
+        return CallApiAsync<VkCommentsResponse>("video.getComment", new()
+        {
+            ["comment_id"] = commentId.ToString(CultureInfo.InvariantCulture),
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["extended"] = "1",
+            ["fields"] = "photo_100,first_name_dat",
+        });
+    }
+
+    public Task<long> CreateVideoCommentAsync(
+        long ownerId,
+        long videoId,
+        long? replyToComment,
+        string message)
+    {
+        var parameters = new Dictionary<string, string>
+        {
+            ["video_id"] = videoId.ToString(CultureInfo.InvariantCulture),
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["from_group"] = "0",
+            ["reply_to_comment"] = replyToComment?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            ["access_key"] = string.Empty,
+            ["from_owner_id"] = string.Empty,
+            ["message"] = message,
+            ["attachments"] = string.Empty,
+        };
+
+        return CallApiAsync<long>("video.createComment", parameters);
+    }
+
+    public Task EditVideoCommentAsync(long ownerId, long commentId, string message)
+    {
+        return CallApiAsync<int>("video.editComment", new()
+        {
+            ["comment_id"] = commentId.ToString(CultureInfo.InvariantCulture),
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["message"] = message,
+            ["attachments"] = string.Empty,
+        });
+    }
+
+    public Task DeleteVideoCommentAsync(long ownerId, long commentId)
+    {
+        return CallApiAsync<int>("video.deleteComment", new()
+        {
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["comment_id"] = commentId.ToString(CultureInfo.InvariantCulture),
+        });
+    }
+
+    public Task RestoreVideoCommentAsync(long ownerId, long commentId)
+    {
+        return CallApiAsync<int>("video.restoreComment", new()
+        {
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["comment_id"] = commentId.ToString(CultureInfo.InvariantCulture),
+        });
+    }
+
+    public async Task<int> LikeVideoCommentAsync(long ownerId, long commentId)
+    {
+        var response = await CallApiAsync<VkLikesAddResponse>("likes.add", new()
+        {
+            ["type"] = "video_comment",
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["item_id"] = commentId.ToString(CultureInfo.InvariantCulture),
+            ["from_group"] = string.Empty,
+            ["track_code"] = string.Empty,
+            ["ref"] = string.Empty,
+        });
+
+        return response.Likes;
+    }
+
+    public async Task<int> UnlikeVideoCommentAsync(long ownerId, long commentId)
+    {
+        var response = await CallApiAsync<VkLikesAddResponse>("likes.delete", new()
+        {
+            ["type"] = "video_comment",
+            ["owner_id"] = ownerId.ToString(CultureInfo.InvariantCulture),
+            ["item_id"] = commentId.ToString(CultureInfo.InvariantCulture),
+            ["from_group"] = string.Empty,
+            ["track_code"] = string.Empty,
+            ["ref"] = string.Empty,
+        });
+
+        return response.Likes;
     }
 
     private static MultipartFormDataContent BuildThumbnailForm(string thumbnailPath)

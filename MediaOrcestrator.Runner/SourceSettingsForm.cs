@@ -11,6 +11,7 @@ public partial class SourceSettingsForm : Form
     private IEnumerable<SourceSettings> _settingsKeys = [];
     private List<Source> _availableSources = [];
     private Source? _editSource;
+    private Source? _templateSource;
     private ISourceType? _sourceType;
     private ILogger? _logger;
     private Button? _authButton;
@@ -26,30 +27,47 @@ public partial class SourceSettingsForm : Form
 
     public Dictionary<string, string>? Settings { get; private set; }
 
-    public void SetSettings(IEnumerable<SourceSettings> settingsKeys, ISourceType? sourceType = null, ILogger? logger = null)
+    public static Dictionary<string, string>? ShowAdd(
+        ISourceType plugin,
+        StateManager stateManager,
+        string newSourceId,
+        IEnumerable<Source> availableSources,
+        ILogger logger)
     {
-        _settingsKeys = settingsKeys;
-        _sourceType = sourceType;
-        _logger = logger;
+        using var form = new SourceSettingsForm();
+        form.SetSettings(plugin.SettingsKeys, plugin, logger);
+        form.SetSystemContext(stateManager, newSourceId);
+        form.SetAvailableSources(availableSources);
+        return form.ShowDialog() == DialogResult.OK ? form.Settings : null;
     }
 
-    public void SetSystemContext(StateManager stateManager, string sourceId)
+    public static bool ShowEdit(
+        Source source,
+        ISourceType sourceType,
+        IEnumerable<Source> availableSources,
+        ILogger logger)
     {
-        _stateManager = stateManager;
-        _pendingSourceId = sourceId;
+        using var form = new SourceSettingsForm();
+        form.SetSettings(sourceType.SettingsKeys, sourceType, logger);
+        form.SetEditSource(source);
+        form.SetAvailableSources(availableSources);
+        return form.ShowDialog() == DialogResult.OK;
     }
 
-    public void SetAvailableSources(IEnumerable<Source> sources)
+    public static Dictionary<string, string>? ShowDuplicate(
+        Source template,
+        ISourceType sourceType,
+        StateManager stateManager,
+        string newSourceId,
+        IEnumerable<Source> availableSources,
+        ILogger logger)
     {
-        _availableSources = sources.ToList();
-    }
-
-    public void SetEditSource(Source source)
-    {
-        _editSource = source;
-        _pendingSourceId = source.Id;
-        uiNameTextBox.Text = source.Title;
-        uiCreateButton.Text = "Сохранить изменения";
+        using var form = new SourceSettingsForm();
+        form.SetSettings(sourceType.SettingsKeys, sourceType, logger);
+        form.SetSystemContext(stateManager, newSourceId);
+        form.SetAvailableSources(availableSources);
+        form.SetTemplateSource(template);
+        return form.ShowDialog() == DialogResult.OK ? form.Settings : null;
     }
 
     private void SourceSettingsForm_Load(object sender, EventArgs e)
@@ -133,6 +151,11 @@ public partial class SourceSettingsForm : Form
             var card = CreateSettingCard(setting);
             settingsTable.RowStyles.Add(new(SizeType.AutoSize));
             settingsTable.Controls.Add(card, 0, settingsTable.RowCount++);
+        }
+
+        if (_templateSource != null)
+        {
+            ApplyCopiedSettings(_templateSource, true);
         }
 
         if (_sourceType is IAuthenticatable authForStatus && _logger != null)
@@ -332,6 +355,39 @@ public partial class SourceSettingsForm : Form
 
                 break;
         }
+    }
+
+    private void SetSettings(IEnumerable<SourceSettings> settingsKeys, ISourceType? sourceType = null, ILogger? logger = null)
+    {
+        _settingsKeys = settingsKeys;
+        _sourceType = sourceType;
+        _logger = logger;
+    }
+
+    private void SetSystemContext(StateManager stateManager, string sourceId)
+    {
+        _stateManager = stateManager;
+        _pendingSourceId = sourceId;
+    }
+
+    private void SetAvailableSources(IEnumerable<Source> sources)
+    {
+        _availableSources = sources.ToList();
+    }
+
+    private void SetEditSource(Source source)
+    {
+        _editSource = source;
+        _pendingSourceId = source.Id;
+        uiNameTextBox.Text = source.Title;
+        uiCreateButton.Text = "Сохранить изменения";
+    }
+
+    private void SetTemplateSource(Source source)
+    {
+        _templateSource = source;
+        uiNameTextBox.Text = source.Title + " (копия)";
+        uiCreateButton.Text = "Создать копию";
     }
 
     private TableLayoutPanel CreateSettingsTable()

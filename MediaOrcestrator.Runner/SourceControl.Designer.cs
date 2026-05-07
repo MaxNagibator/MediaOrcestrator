@@ -28,25 +28,30 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             uiMainLayout = new TableLayoutPanel();
             uiSourceContainer = new Panel();
             uiTitleLabel = new Label();
             uiTypeLabel = new Label();
             uiEditButton = new Button();
+            uiDuplicateButton = new Button();
             uiDeleteButton = new Button();
+            uiToolTip = new ToolTip(components);
             uiMainLayout.SuspendLayout();
             uiSourceContainer.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // uiMainLayout
-            // 
-            uiMainLayout.ColumnCount = 3;
+            //
+            uiMainLayout.ColumnCount = 4;
             uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
-            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
+            uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40F));
             uiMainLayout.Controls.Add(uiSourceContainer, 0, 0);
             uiMainLayout.Controls.Add(uiEditButton, 1, 0);
-            uiMainLayout.Controls.Add(uiDeleteButton, 2, 0);
+            uiMainLayout.Controls.Add(uiDuplicateButton, 2, 0);
+            uiMainLayout.Controls.Add(uiDeleteButton, 3, 0);
             uiMainLayout.Dock = DockStyle.Fill;
             uiMainLayout.Location = new Point(0, 0);
             uiMainLayout.Name = "uiMainLayout";
@@ -86,27 +91,44 @@
             uiTypeLabel.Size = new Size(1080, 15);
             uiTypeLabel.TabIndex = 4;
             uiTypeLabel.Text = "Type";
-            // 
+            //
             // uiEditButton
-            // 
+            //
             uiEditButton.Anchor = AnchorStyles.None;
-            uiEditButton.Location = new Point(996, 19);
+            uiEditButton.Font = new Font("Segoe MDL2 Assets", 11F);
+            uiEditButton.Location = new Point(1016, 17);
             uiEditButton.Name = "uiEditButton";
-            uiEditButton.Size = new Size(87, 23);
+            uiEditButton.Size = new Size(32, 28);
             uiEditButton.TabIndex = 2;
-            uiEditButton.Text = "edit";
+            uiEditButton.Text = "";
             uiEditButton.UseVisualStyleBackColor = true;
+            uiToolTip.SetToolTip(uiEditButton, "Изменить");
             uiEditButton.Click += uiEditButton_Click;
-            // 
+            //
+            // uiDuplicateButton
+            //
+            uiDuplicateButton.Anchor = AnchorStyles.None;
+            uiDuplicateButton.Font = new Font("Segoe MDL2 Assets", 11F);
+            uiDuplicateButton.Location = new Point(1056, 17);
+            uiDuplicateButton.Name = "uiDuplicateButton";
+            uiDuplicateButton.Size = new Size(32, 28);
+            uiDuplicateButton.TabIndex = 3;
+            uiDuplicateButton.Text = "";
+            uiDuplicateButton.UseVisualStyleBackColor = true;
+            uiToolTip.SetToolTip(uiDuplicateButton, "Дублировать");
+            uiDuplicateButton.Click += uiDuplicateButton_Click;
+            //
             // uiDeleteButton
-            // 
+            //
             uiDeleteButton.Anchor = AnchorStyles.None;
-            uiDeleteButton.Location = new Point(1096, 19);
+            uiDeleteButton.Font = new Font("Segoe MDL2 Assets", 11F);
+            uiDeleteButton.Location = new Point(1096, 17);
             uiDeleteButton.Name = "uiDeleteButton";
-            uiDeleteButton.Size = new Size(87, 23);
-            uiDeleteButton.TabIndex = 3;
-            uiDeleteButton.Text = "delete";
+            uiDeleteButton.Size = new Size(32, 28);
+            uiDeleteButton.TabIndex = 4;
+            uiDeleteButton.Text = "";
             uiDeleteButton.UseVisualStyleBackColor = true;
+            uiToolTip.SetToolTip(uiDeleteButton, "Удалить");
             uiDeleteButton.Click += uiDeleteButton_Click;
             // 
             // MediaSourceControl
@@ -131,6 +153,8 @@
         private System.Windows.Forms.Label uiTitleLabel;
         private System.Windows.Forms.Label uiTypeLabel;
         private System.Windows.Forms.Button uiEditButton;
+        private System.Windows.Forms.Button uiDuplicateButton;
         private System.Windows.Forms.Button uiDeleteButton;
+        private System.Windows.Forms.ToolTip uiToolTip;
     }
 }

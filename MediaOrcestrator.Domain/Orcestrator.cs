@@ -875,7 +875,22 @@ public class Orcestrator(
         try
         {
             var dto = await plugin.GetMediaByIdAsync(sourceLink.ExternalId, source.Settings, ct);
-            if (dto is { Metadata.Count: > 0 })
+            if (dto is null)
+            {
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(dto.Title))
+            {
+                sourceLink.Title = dto.Title;
+            }
+
+            if (dto.Description is not null)
+            {
+                sourceLink.Description = dto.Description;
+            }
+
+            if (dto.Metadata is { Count: > 0 })
             {
                 foreach (var item in dto.Metadata)
                 {

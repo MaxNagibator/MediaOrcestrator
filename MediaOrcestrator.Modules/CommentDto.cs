@@ -61,6 +61,21 @@ public sealed class CommentDto
     public bool LikedByAuthor { get; set; }
 
     /// <summary>
+    /// Текущий авторизованный пользователь/группа уже поставили лайк этому комментарию.
+    /// </summary>
+    public bool LikedByMe { get; set; }
+
+    /// <summary>
+    /// Текущий пользователь может править этот комментарий через <see cref="ISupportsCommentMutations" />.
+    /// </summary>
+    public bool CanEdit { get; set; }
+
+    /// <summary>
+    /// Текущий пользователь может удалить этот комментарий через <see cref="ISupportsCommentMutations" />.
+    /// </summary>
+    public bool CanDelete { get; set; }
+
+    /// <summary>
     /// Дополнительные поля, специфичные для источника.
     /// </summary>
     public Dictionary<string, string>? Raw { get; set; }

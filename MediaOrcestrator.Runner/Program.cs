@@ -110,38 +110,63 @@ file static class Program
 
             Log.Information("Приложение запускается...");
             CheckUpdaterLog();
-            var services = new ServiceCollection();
-            services.AddSingleton(logControl);
-            services.AddSingleton(settingsManager);
-            ConfigureServices(services, databasePath);
-            services.AddSingleton(sp =>
-                new TempManager(tempPath,
-                    sp.GetRequiredService<LiteDatabase>(),
-                    sp.GetRequiredService<ILogger<TempManager>>()));
 
-            services.AddSingleton(sp =>
-                new StateManager(statePath,
-                    sp.GetRequiredService<LiteDatabase>(),
-                    sp.GetRequiredService<ILogger<StateManager>>()));
+            var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "—";
+            const int ExpectedStartupSpans = 10;
+            using var splash = new SplashTransaction(version, "Запуск приложения", ExpectedStartupSpans, Log.ForContext<SplashTransaction>());
+
+            var services = new ServiceCollection();
+
+            using (splash.StartSpan("Подготовка сервисов..."))
+            {
+                services.AddSingleton(logControl);
+                services.AddSingleton(settingsManager);
+                ConfigureServices(services, databasePath);
+
+                services.AddSingleton(sp =>
+                    new TempManager(tempPath,
+                        sp.GetRequiredService<LiteDatabase>(),
+                        sp.GetRequiredService<ILogger<TempManager>>()));
+
+                services.AddSingleton(sp =>
+                    new StateManager(statePath,
+                        sp.GetRequiredService<LiteDatabase>(),
+                        sp.GetRequiredService<ILogger<StateManager>>()));
+            }
 
             using var serviceProvider = services.BuildServiceProvider();
             _runningServiceProvider = serviceProvider;
-            var mainForm = serviceProvider.GetRequiredService<MainForm>();
 
             var orcestrator = serviceProvider.GetRequiredService<Orcestrator>();
-            orcestrator.Init(pluginPath);
 
-            var backupService = serviceProvider.GetRequiredService<DatabaseBackupService>();
-            backupService.ValidateLog();
-            backupService.Backup(BackupTrigger.Startup);
-            backupService.StartScheduled(TimeSpan.FromHours(6));
+            using (splash.StartSpan("Загрузка плагинов..."))
+            {
+                orcestrator.Init(pluginPath);
+            }
 
-            var tempManager = serviceProvider.GetRequiredService<TempManager>();
-            tempManager.MigrateOldTempPaths();
-            tempManager.CleanAll();
+            using (splash.StartSpan("Резервное копирование базы данных..."))
+            {
+                var backupService = serviceProvider.GetRequiredService<DatabaseBackupService>();
+                backupService.ValidateLog();
+                backupService.Backup(BackupTrigger.Startup);
+                backupService.StartScheduled(TimeSpan.FromHours(6));
+            }
 
-            var stateManager = serviceProvider.GetRequiredService<StateManager>();
-            stateManager.MigrateLegacyStatePaths();
+            using (splash.StartSpan("Подготовка временных файлов..."))
+            {
+                var tempManager = serviceProvider.GetRequiredService<TempManager>();
+                tempManager.MigrateOldTempPaths();
+                tempManager.CleanAll();
+            }
+
+            using (splash.StartSpan("Подготовка состояния источников..."))
+            {
+                var stateManager = serviceProvider.GetRequiredService<StateManager>();
+                stateManager.MigrateLegacyStatePaths();
+            }
+
+            var mainForm = serviceProvider.GetRequiredService<MainForm>();
+            mainForm.StartupCompleted = splash.Dispose;
 
             Task.Run(async () =>
             {

@@ -35,6 +35,16 @@ public partial class MainForm : Form
         uiPublishTabPage.Controls.Add(_publishControl);
     }
 
+    public Action? StartupCompleted { get; set; }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+
+        TopMost = true;
+        TopMost = false;
+    }
+
     private void MainForm_Load(object sender, EventArgs e)
     {
         Text = $"Медиа оркестратор v{_updateManager.CurrentVersion}";
@@ -43,48 +53,82 @@ public partial class MainForm : Form
         uiRelationsGraphControl.DeleteRequested += OnGraphDeleteRequested;
         uiRelationsGraphControl.CreateRequested += OnGraphCreateRequested;
         uiRelationsGraphControl.RefreshRequested += (_, _) => DrawRelations();
-        DrawSources();
-        DrawRelations();
-        // TODO: SetZalupaV2
-        uiMediaMatrixGridControl.Initialize(new(_orcestrator,
-            _serviceProvider.GetRequiredService<SyncRetryRunner>(),
-            _serviceProvider.GetRequiredService<ILogger<MediaMatrixGridControl>>(),
-            _serviceProvider.GetRequiredService<SettingsManager>(),
-            _serviceProvider.GetRequiredService<BatchRenameService>(),
-            _serviceProvider.GetRequiredService<BatchPreviewService>(),
-            _serviceProvider.GetRequiredService<CoverGenerator>(),
-            _serviceProvider.GetRequiredService<CoverTemplateStore>(),
-            _serviceProvider.GetRequiredService<MediaMergeService>(),
-            _serviceProvider.GetRequiredService<ActionHolder>(),
-            _serviceProvider.GetRequiredService<CommentsService>(),
-            _serviceProvider.GetRequiredService<ILoggerFactory>()));
 
-        uiMediaMatrixGridControl.RefreshData();
+        using (Splash.Current.StartSpan("Подготовка списка источников..."))
+        {
+            DrawSources();
+        }
 
-        uiCommentsViewControl.Initialize(_orcestrator,
-            _serviceProvider.GetRequiredService<CommentsService>(),
-            _serviceProvider.GetRequiredService<ActionHolder>(),
-            _serviceProvider.GetRequiredService<ILogger<CommentsViewControl>>());
+        using (Splash.Current.StartSpan("Подготовка связей между источниками..."))
+        {
+            DrawRelations();
+        }
 
-        uiCommentsHtmlControl.Initialize(_orcestrator,
-            _serviceProvider.GetRequiredService<CommentsService>(),
-            _serviceProvider.GetRequiredService<ActionHolder>(),
-            _serviceProvider.GetRequiredService<ILogger<CommentsHtmlControl>>());
+        using (Splash.Current.StartSpan("Загрузка медиа-матрицы..."))
+        {
+            // TODO: SetZalupaV2
+            uiMediaMatrixGridControl.Initialize(new(_orcestrator,
+                _serviceProvider.GetRequiredService<SyncRetryRunner>(),
+                _serviceProvider.GetRequiredService<ILogger<MediaMatrixGridControl>>(),
+                _serviceProvider.GetRequiredService<SettingsManager>(),
+                _serviceProvider.GetRequiredService<BatchRenameService>(),
+                _serviceProvider.GetRequiredService<BatchPreviewService>(),
+                _serviceProvider.GetRequiredService<CoverGenerator>(),
+                _serviceProvider.GetRequiredService<CoverTemplateStore>(),
+                _serviceProvider.GetRequiredService<MediaMergeService>(),
+                _serviceProvider.GetRequiredService<ActionHolder>(),
+                _serviceProvider.GetRequiredService<CommentsService>(),
+                _serviceProvider.GetRequiredService<ILoggerFactory>()));
+
+            uiMediaMatrixGridControl.RefreshData();
+        }
+
+        using (Splash.Current.StartSpan("Подготовка комментариев..."))
+        {
+            uiCommentsViewControl.Initialize(_orcestrator,
+                _serviceProvider.GetRequiredService<CommentsService>(),
+                _serviceProvider.GetRequiredService<ActionHolder>(),
+                _serviceProvider.GetRequiredService<ILogger<CommentsViewControl>>());
+
+            uiCommentsHtmlControl.Initialize(_orcestrator,
+                _serviceProvider.GetRequiredService<CommentsService>(),
+                _serviceProvider.GetRequiredService<ActionHolder>(),
+                _serviceProvider.GetRequiredService<ILogger<CommentsHtmlControl>>());
+        }
+
+        uiMainTabControl.Selected += OnMainTabSelected;
 
         if (uiClearTypeComboBox.Items.Count > 0)
         {
             uiClearTypeComboBox.SelectedIndex = 0;
         }
 
-        var planner = _serviceProvider.GetRequiredService<SyncPlanner>();
-        uiSyncTreeControl.Initialize(planner,
-            _orcestrator,
-            _serviceProvider.GetRequiredService<SyncRetryRunner>(),
-            _serviceProvider.GetRequiredService<ActionHolder>(),
-            _serviceProvider.GetRequiredService<ILogger<SyncTreeControl>>());
+        using (Splash.Current.StartSpan("Подготовка плана синхронизации..."))
+        {
+            var planner = _serviceProvider.GetRequiredService<SyncPlanner>();
+            uiSyncTreeControl.Initialize(planner,
+                _orcestrator,
+                _serviceProvider.GetRequiredService<SyncRetryRunner>(),
+                _serviceProvider.GetRequiredService<ActionHolder>(),
+                _serviceProvider.GetRequiredService<ILogger<SyncTreeControl>>());
+        }
+
+        StartupCompleted?.Invoke();
 
         CheckToolUpdatesInBackground();
         CheckAppUpdateInBackground();
+    }
+
+    private void OnMainTabSelected(object? sender, TabControlEventArgs e)
+    {
+        if (e.TabPage == uiCommentsTabPage)
+        {
+            uiCommentsViewControl.EnsureLoaded();
+        }
+        else if (e.TabPage == uiCommentsHtmlTabPage)
+        {
+            uiCommentsHtmlControl.EnsureLoaded();
+        }
     }
 
     private async void uiSyncButton_Click(object sender, EventArgs e)
@@ -116,11 +160,10 @@ public partial class MainForm : Form
 
         // TODO: Немного шляпная тема мне кажется
         var newSourceId = Guid.NewGuid().ToString();
-        using var settingsForm = new SourceSettingsForm();
-        settingsForm.SetSettings(selectedPlugin.SettingsKeys, selectedPlugin, _logger);
-        settingsForm.SetSystemContext(_serviceProvider.GetRequiredService<StateManager>(), newSourceId);
-        settingsForm.SetAvailableSources(_orcestrator.GetSources());
-        if (settingsForm.ShowDialog() != DialogResult.OK || settingsForm.Settings == null)
+        var stateManager = _serviceProvider.GetRequiredService<StateManager>();
+        var settings = SourceSettingsForm.ShowAdd(selectedPlugin, stateManager, newSourceId, _orcestrator.GetSources(), _logger);
+
+        if (settings == null)
         {
             return;
         }
@@ -131,7 +174,7 @@ public partial class MainForm : Form
             return;
         }
 
-        _orcestrator.AddSource(newSourceId, selectedPlugin.Name, settingsForm.Settings);
+        _orcestrator.AddSource(newSourceId, selectedPlugin.Name, settings);
         DrawSources();
     }
 
@@ -562,30 +605,33 @@ public partial class MainForm : Form
         uiMediaSourcePanel.Controls.Clear();
         foreach (var source in _orcestrator.GetSources())
         {
-            var control = _serviceProvider.GetRequiredService<SourceControl>();
-            control.SetMediaSource(source);
-            control.Dock = DockStyle.Top;
-            control.SourceDeleted += (_, _) => DrawSources();
-            control.SourceUpdated += (_, _) => DrawSources();
-
-            uiMediaSourcePanel.Controls.Add(control);
-            control.SendToBack();
-
-            uiRelationFromComboBox.Items.Add(source);
-            uiRelationToComboBox.Items.Add(source);
-
-            var row = new AuditSourceRow
+            using (Splash.Current.StartSpan(source.TitleFull))
             {
-                Width = uiAuditSourcesPanel.ClientSize.Width - 6,
-                Margin = new(3),
-            };
+                var control = _serviceProvider.GetRequiredService<SourceControl>();
+                control.SetMediaSource(source);
+                control.Dock = DockStyle.Top;
+                control.SourceDeleted += (_, _) => DrawSources();
+                control.SourceUpdated += (_, _) => DrawSources();
 
-            row.SetSource(source);
-            row.SetBusy(_isSyncRunning);
-            row.SyncRequested += OnAuditRowSyncRequested;
+                uiMediaSourcePanel.Controls.Add(control);
+                control.SendToBack();
 
-            uiAuditSourcesPanel.Controls.Add(row);
-            _auditRows[source.Id] = row;
+                uiRelationFromComboBox.Items.Add(source);
+                uiRelationToComboBox.Items.Add(source);
+
+                var row = new AuditSourceRow
+                {
+                    Width = uiAuditSourcesPanel.ClientSize.Width - 6,
+                    Margin = new(3),
+                };
+
+                row.SetSource(source);
+                row.SetBusy(_isSyncRunning);
+                row.SyncRequested += OnAuditRowSyncRequested;
+
+                uiAuditSourcesPanel.Controls.Add(row);
+                _auditRows[source.Id] = row;
+            }
         }
 
         DrawRelations();
@@ -672,14 +718,17 @@ public partial class MainForm : Form
 
         foreach (var rel in relations)
         {
-            var control = _serviceProvider.GetRequiredService<RelationControl>();
-            control.SetRelation(rel);
-            control.RelationDeleted += (_, _) => DrawRelations();
-            control.RelationSelectionChanged += (_, _) => uiMediaMatrixGridControl.RefreshData();
-            control.Dock = DockStyle.Top;
+            using (Splash.Current.StartSpan($"{rel.From.TitleFull} → {rel.To.TitleFull}"))
+            {
+                var control = _serviceProvider.GetRequiredService<RelationControl>();
+                control.SetRelation(rel);
+                control.RelationDeleted += (_, _) => DrawRelations();
+                control.RelationSelectionChanged += (_, _) => uiMediaMatrixGridControl.RefreshData();
+                control.Dock = DockStyle.Top;
 
-            uiRelationsPanel.Controls.Add(control);
-            control.SendToBack();
+                uiRelationsPanel.Controls.Add(control);
+                control.SendToBack();
+            }
         }
 
         uiRelationsGraphControl.SetRelations(relations);

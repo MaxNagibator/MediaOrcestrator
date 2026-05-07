@@ -46,6 +46,9 @@ public sealed class CommentRecord
     public bool IsDeleted { get; set; }
     public bool IsAuthor { get; set; }
     public bool LikedByAuthor { get; set; }
+    public bool LikedByMe { get; set; }
+    public bool CanEdit { get; set; }
+    public bool CanDelete { get; set; }
 
     /// <summary>
     /// Дополнительные поля, специфичные для источника.

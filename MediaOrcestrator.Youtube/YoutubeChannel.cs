@@ -13,6 +13,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
     private readonly YoutubeAuthService _authService = new(logger);
     private readonly YoutubeExplodeReadService _explodeService = new(logger);
+    private readonly YoutubeYtDlpReadService _ytDlpReadService = new(logger);
 
     private YoutubeUploadService? _uploadService;
     private YoutubeApiReadService? _apiReadService;
@@ -249,21 +250,49 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
         if (YoutubeAuthService.IsConfigured(settings))
         {
-            return await ApiReadService.GetVideoByIdAsync(externalId, settings, cancellationToken);
+            try
+            {
+                var apiResult = await ApiReadService.GetVideoByIdAsync(externalId, settings, cancellationToken);
+
+                if (apiResult is not null)
+                {
+                    return apiResult;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "YouTube API не смог получить видео {VideoId}, пробую yt-dlp fallback", externalId);
+            }
+        }
+        else
+        {
+            logger.LogInformation("YouTube API не настроен, пробую yt-dlp fallback для видео {VideoId}", externalId);
         }
 
-        logger.LogWarning("YouTube API не настроен для fallback. Видео {VideoId} не получено", externalId);
+        try
+        {
+            var ytDlp = BuildYtDlp(settings);
+            return await _ytDlpReadService.GetVideoByIdAsync(externalId, ytDlp, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "yt-dlp не смог получить метаданные видео {VideoId}", externalId);
+        }
+
         return null;
     }
 
     public async Task<MediaDto> DownloadAsync(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Начало загрузки видео с YouTube. ID: {VideoId}", videoId);
-
-        var media = await GetMediaByIdAsync(videoId, settings, cancellationToken)
-                    ?? throw new InvalidOperationException($"Видео не найдено: {videoId}");
-
-        logger.LogDebug("Получена информация о видео. Название: '{Title}'", media.Title);
 
         var tempPath = settings["_system_temp_path"];
         var guid = Guid.NewGuid().ToString();
@@ -272,25 +301,7 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
         logger.LogDebug("Создана временная директория: {TempPath}", Path.GetDirectoryName(finalPath));
 
-        var ytDlpPath = toolPathProvider.GetToolPath(WellKnownTools.YtDlp)
-                        ?? throw new InvalidOperationException("yt-dlp не установлен. Установите через панель управления инструментами.");
-
-        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg)
-                         ?? throw new InvalidOperationException("ffmpeg не установлен. Установите через панель управления инструментами.");
-
-        var jsRuntime = settings.GetValueOrDefault("js_runtime", "none");
-        var denoPath = toolPathProvider.GetToolPath(WellKnownTools.Deno);
-        var jsRuntimeDir = jsRuntime is "deno" && denoPath is not null
-            ? Path.GetDirectoryName(denoPath)
-            : null;
-
-        var cookiePath = GetAuthStatePath(settings);
-        if (!File.Exists(cookiePath))
-        {
-            cookiePath = "";
-        }
-
-        var ytDlp = new YtDlp(ytDlpPath, ffmpegPath, jsRuntime, jsRuntimeDir, cookiePath);
+        var ytDlp = BuildYtDlp(settings);
 
         object progressLock = new();
         double oldPercent = -1;
@@ -329,10 +340,12 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
         logger.LogInformation("Запуск загрузки через yt-dlp. URL: https://www.youtube.com/watch?v={VideoId}", videoId);
 
+        YtDlpVideoInfo? info;
+
         try
         {
             var rateLimitBytes = SpeedLimitHelper.ParseDownloadBytesPerSecond(settings);
-            await ytDlp.DownloadAsync(string.Format(VideoUrlTemplate, videoId), finalPath, progress, rateLimitBytes, cancellationToken);
+            info = await ytDlp.DownloadAsync(string.Format(VideoUrlTemplate, videoId), finalPath, progress, rateLimitBytes, cancellationToken);
             logger.LogInformation("Видео успешно загружено. ID: {VideoId}, Путь: {FilePath}", videoId, finalPath);
         }
         catch (OperationCanceledException)
@@ -343,6 +356,21 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
         {
             logger.LogError(ex, "Ошибка при загрузке видео через yt-dlp. ID: {VideoId}", videoId);
             throw;
+        }
+
+        MediaDto media;
+
+        if (info is not null)
+        {
+            media = _ytDlpReadService.BuildMediaDto(videoId, info);
+            logger.LogDebug("Метаданные видео получены из info.json yt-dlp. Название: '{Title}'", media.Title);
+        }
+        else
+        {
+            logger.LogWarning("yt-dlp не сохранил info.json, запрашиваю метаданные отдельным вызовом");
+
+            media = await GetMediaByIdAsync(videoId, settings, cancellationToken)
+                    ?? throw new InvalidOperationException($"Видео не найдено: {videoId}");
         }
 
         media.TempDataPath = finalPath;
@@ -492,5 +520,28 @@ public class YoutubeChannel(ILogger<YoutubeChannel> logger, IToolPathProvider to
 
             writer.WriteLine($"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{name}\t{value}");
         }
+    }
+
+    private YtDlp BuildYtDlp(Dictionary<string, string> settings)
+    {
+        var ytDlpPath = toolPathProvider.GetToolPath(WellKnownTools.YtDlp)
+                        ?? throw new InvalidOperationException("yt-dlp не установлен. Установите через панель управления инструментами.");
+
+        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg)
+                         ?? throw new InvalidOperationException("ffmpeg не установлен. Установите через панель управления инструментами.");
+
+        var jsRuntime = settings.GetValueOrDefault("js_runtime", "none");
+        var denoPath = toolPathProvider.GetToolPath(WellKnownTools.Deno);
+        var jsRuntimeDir = jsRuntime is "deno" && denoPath is not null
+            ? Path.GetDirectoryName(denoPath)
+            : null;
+
+        var cookiePath = GetAuthStatePath(settings);
+        if (!File.Exists(cookiePath))
+        {
+            cookiePath = "";
+        }
+
+        return new(ytDlpPath, ffmpegPath, jsRuntime, jsRuntimeDir, cookiePath);
     }
 }

@@ -40,8 +40,12 @@ public partial class MediaMatrixGridControl : UserControl
         _actionHolder = context.ActionHolder;
         _commentsService = context.CommentsService;
         _loggerFactory = context.LoggerFactory;
-        uiFilterControl.SetSettingsManager(context.SettingsManager);
-        uiFilterControl.PopulateRelationsFilter(context.Orcestrator);
+
+        using (Splash.Current.StartSpan("Фильтр"))
+        {
+            uiFilterControl.SetSettingsManager(context.SettingsManager);
+            uiFilterControl.PopulateRelationsFilter(context.Orcestrator);
+        }
     }
 
     public void PopulateRelationsFilter()

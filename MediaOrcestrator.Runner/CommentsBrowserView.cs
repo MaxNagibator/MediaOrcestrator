@@ -1,6 +1,8 @@
 ﻿using MediaOrcestrator.Domain;
 using MediaOrcestrator.Domain.Comments;
+using MediaOrcestrator.Modules;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -33,6 +35,27 @@ public sealed record CommentsRenderOptions
 
 public sealed record CommentsBrowserFetchRequest(string SourceId, string ExternalId);
 
+public sealed record CommentsBrowserCommentRequest(string SourceId, string ExternalMediaId, string ExternalCommentId);
+
+public enum CommentMutationKind
+{
+    None = 0,
+    Create = 1,
+    Edit = 2,
+    Delete = 3,
+    Restore = 4,
+    Like = 5,
+    Unlike = 6,
+}
+
+public sealed record CommentMutationRequest(
+    CommentMutationKind Kind,
+    string SourceId,
+    string ExternalMediaId,
+    string? ExternalCommentId,
+    string? ParentExternalCommentId,
+    string Text);
+
 public sealed partial class CommentsBrowserView : UserControl
 {
     private const string TemplateResourceName = "MediaOrcestrator.Runner.Resources.comments.template.html";
@@ -49,11 +72,69 @@ public sealed partial class CommentsBrowserView : UserControl
     public CommentsBrowserView()
     {
         InitializeComponent();
+        ScriptingBridge bridge = new(this);
+        uiWebBrowser.ObjectForScripting = bridge;
     }
 
     public event EventHandler<CommentsBrowserFetchRequest>? FetchRequested;
 
     public event EventHandler<string>? MediaRequested;
+
+    public event EventHandler<CommentMutationRequest>? MutationRequested;
+
+    public event EventHandler<CommentsBrowserCommentRequest>? OpenCommentExternalRequested;
+
+    public event EventHandler<CommentsBrowserFetchRequest>? OpenExternalRequested;
+
+    public static string BuildGroupKey(Media? media, string sourceId, string externalMediaId)
+    {
+        return media?.Id ?? $"__orphan__|{sourceId}|{externalMediaId}";
+    }
+
+    public bool TryApplyLikeUpdate(string commentRecordId, bool likedByMe, int likeCount)
+    {
+        return InvokeApply("__applyLike", commentRecordId, likedByMe, likeCount);
+    }
+
+    public bool TryApplyEdit(string commentRecordId, string newText)
+    {
+        return InvokeApply("__applyEdit", commentRecordId, newText);
+    }
+
+    public bool TryApplyDeleted(string commentRecordId, bool isDeleted)
+    {
+        return InvokeApply("__applyDeleted", commentRecordId, isDeleted);
+    }
+
+    public bool TryApplyCreate(
+        Orcestrator orcestrator,
+        CommentRecord newRecord,
+        string groupKey,
+        string? parentCompositeId)
+    {
+        var doc = uiWebBrowser.Document;
+        if (doc == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var sourcesById = orcestrator.GetSources().ToDictionary(x => x.Id);
+            var sourceTitles = sourcesById.ToDictionary(x => x.Key, x => x.Value.TitleFull);
+            var dto = MapRecordToDto(newRecord, sourcesById, sourceTitles);
+            var json = JsonSerializer.Serialize(dto, JsonOptions);
+
+            var result = doc.InvokeScript("__applyCreate",
+                [json, groupKey, parentCompositeId ?? string.Empty]);
+
+            return result is true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     public void Render(
         Orcestrator orcestrator,
@@ -62,7 +143,8 @@ public sealed partial class CommentsBrowserView : UserControl
     {
         options ??= new();
 
-        var sourceTitles = orcestrator.GetSources().ToDictionary(x => x.Id, x => x.TitleFull);
+        var sourcesById = orcestrator.GetSources().ToDictionary(x => x.Id);
+        var sourceTitles = sourcesById.ToDictionary(x => x.Key, x => x.Value.TitleFull);
         var linkByKey = new Dictionary<(string SourceId, string ExternalId), (Media Media, int SortNumber)>();
 
         foreach (var media in orcestrator.GetMedias())
@@ -112,18 +194,33 @@ public sealed partial class CommentsBrowserView : UserControl
                         r.PublishedAt.ToLocalTime().ToString("g"),
                         r.LikeCount.GetValueOrDefault(),
                         r.IsDeleted,
-                        r.IsDeleted ? null : r.Text,
+                        r.Text,
                         r.IsAuthor,
                         r.LikedByAuthor,
-                        sourceTitles.GetValueOrDefault(r.SourceId) ?? r.SourceId))
+                        sourceTitles.GetValueOrDefault(r.SourceId) ?? r.SourceId,
+                        r.SourceId,
+                        r.ExternalMediaId,
+                        r.ExternalCommentId,
+                        HasCommentPermalink(sourcesById, r),
+                        HasMutations(sourcesById, r.SourceId),
+                        r.CanEdit,
+                        r.CanDelete,
+                        HasLikes(sourcesById, r.SourceId),
+                        r.LikedByMe))
                     .ToList();
 
                 var sources = grp
                     .OrderBy(s => s.SourceTitle, StringComparer.OrdinalIgnoreCase)
-                    .Select(s => new MediaSourceDto(s.SourceId, s.ExternalMediaId, s.SourceTitle, s.Records.Count))
+                    .Select(s => new MediaSourceDto(s.SourceId,
+                        s.ExternalMediaId,
+                        s.SourceTitle,
+                        s.Records.Count,
+                        HasExternalLink(sourcesById, s.SourceId, s.ExternalMediaId),
+                        HasMutations(sourcesById, s.SourceId)))
                     .ToList();
 
-                var dto = new GroupDto(media?.Id,
+                var dto = new GroupDto(grp.Key,
+                    media?.Id,
                     title,
                     media == null,
                     allRecords.Count,
@@ -158,7 +255,12 @@ public sealed partial class CommentsBrowserView : UserControl
         var groups = sortedGroups.Select(g => g.Group).ToList();
 
         var json = JsonSerializer.Serialize(new RenderData(options.Search, groups), JsonOptions);
-        uiWebBrowser.DocumentText = HtmlTemplate.Replace("{{data}}", json);
+        uiWebBrowser.DocumentText = HtmlTemplate.Replace("{{data}}", EscapeForInlineScript(json));
+    }
+
+    private static string EscapeForInlineScript(string json)
+    {
+        return json.Replace("</", @"<\/", StringComparison.Ordinal);
     }
 
     private void uiWebBrowser_Navigating(object? sender, WebBrowserNavigatingEventArgs e)
@@ -183,7 +285,58 @@ public sealed partial class CommentsBrowserView : UserControl
             case "fetch" when segments.Length >= 2:
                 FetchRequested?.Invoke(this, new(segments[0], segments[1]));
                 break;
+
+            case "open" when segments.Length >= 2:
+                OpenExternalRequested?.Invoke(this, new(segments[0], segments[1]));
+                break;
+
+            case "comment" when segments.Length >= 3:
+                OpenCommentExternalRequested?.Invoke(this, new(segments[0], segments[1], segments[2]));
+                break;
         }
+    }
+
+    private static bool HasExternalLink(Dictionary<string, Source> sourcesById, string sourceId, string externalId)
+    {
+        if (string.IsNullOrEmpty(externalId))
+        {
+            return false;
+        }
+
+        if (!sourcesById.TryGetValue(sourceId, out var source) || source.Type == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return source.Type.GetExternalUri(externalId, source.Settings) != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool HasMutations(Dictionary<string, Source> sourcesById, string sourceId)
+    {
+        return sourcesById.TryGetValue(sourceId, out var source) && source.Type is ISupportsCommentMutations;
+    }
+
+    private static bool HasLikes(Dictionary<string, Source> sourcesById, string sourceId)
+    {
+        return sourcesById.TryGetValue(sourceId, out var source) && source.Type is ISupportsCommentLikes;
+    }
+
+    private static bool HasCommentPermalink(Dictionary<string, Source> sourcesById, CommentRecord record)
+    {
+        if (string.IsNullOrEmpty(record.ExternalMediaId) || string.IsNullOrEmpty(record.ExternalCommentId))
+        {
+            return false;
+        }
+
+        return sourcesById.TryGetValue(record.SourceId, out var source)
+               && source.Type is ISupportsCommentPermalinks;
     }
 
     private static string? ComposedParentId(CommentRecord r)
@@ -329,9 +482,95 @@ public sealed partial class CommentsBrowserView : UserControl
         return reader.ReadToEnd();
     }
 
+    private bool InvokeApply(string functionName, params object[] args)
+    {
+        var doc = uiWebBrowser.Document;
+        if (doc == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var result = doc.InvokeScript(functionName, args);
+            return result is true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private CommentDto MapRecordToDto(
+        CommentRecord r,
+        Dictionary<string, Source> sourcesById,
+        Dictionary<string, string> sourceTitles)
+    {
+        return new(r.Id,
+            ComposedParentId(r),
+            string.IsNullOrEmpty(r.AuthorName) ? null : r.AuthorName,
+            string.IsNullOrEmpty(r.AuthorAvatarUrl) ? null : r.AuthorAvatarUrl,
+            r.PublishedAt.ToLocalTime().ToString("g"),
+            r.LikeCount.GetValueOrDefault(),
+            r.IsDeleted,
+            r.Text,
+            r.IsAuthor,
+            r.LikedByAuthor,
+            sourceTitles.GetValueOrDefault(r.SourceId) ?? r.SourceId,
+            r.SourceId,
+            r.ExternalMediaId,
+            r.ExternalCommentId,
+            HasCommentPermalink(sourcesById, r),
+            HasMutations(sourcesById, r.SourceId),
+            r.CanEdit,
+            r.CanDelete,
+            HasLikes(sourcesById, r.SourceId),
+            r.LikedByMe);
+    }
+
+    private void RaiseMutation(CommentMutationRequest request)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => MutationRequested?.Invoke(this, request));
+            return;
+        }
+
+        MutationRequested?.Invoke(this, request);
+    }
+
+    [ComVisible(true)]
+    public sealed class ScriptingBridge
+    {
+        private readonly CommentsBrowserView _owner;
+
+        internal ScriptingBridge(CommentsBrowserView owner)
+        {
+            _owner = owner;
+        }
+
+        public void OnAction(string kind, string sourceId, string externalMediaId, string externalCommentId, string parentExternalCommentId, string text)
+        {
+            if (!Enum.TryParse<CommentMutationKind>(kind, true, out var parsed))
+            {
+                return;
+            }
+
+            var request = new CommentMutationRequest(parsed,
+                sourceId ?? string.Empty,
+                externalMediaId ?? string.Empty,
+                string.IsNullOrEmpty(externalCommentId) ? null : externalCommentId,
+                string.IsNullOrEmpty(parentExternalCommentId) ? null : parentExternalCommentId,
+                text ?? string.Empty);
+
+            _owner.RaiseMutation(request);
+        }
+    }
+
     private sealed record RenderData(string Search, List<GroupDto> Groups);
 
     private sealed record GroupDto(
+        string Key,
         string? MediaId,
         string MediaTitle,
         bool MediaMissing,
@@ -343,7 +582,9 @@ public sealed partial class CommentsBrowserView : UserControl
         string SourceId,
         string ExternalId,
         string SourceTitle,
-        int Count);
+        int Count,
+        bool HasExternalLink,
+        bool HasMutations);
 
     private sealed record CommentDto(
         string Id,
@@ -356,5 +597,14 @@ public sealed partial class CommentsBrowserView : UserControl
         string? Text,
         bool IsAuthor,
         bool LikedByAuthor,
-        string? Source);
+        string? Source,
+        string SourceId,
+        string ExternalMediaId,
+        string ExternalCommentId,
+        bool HasPermalink,
+        bool HasMutations,
+        bool CanEdit,
+        bool CanDelete,
+        bool HasLikes,
+        bool LikedByMe);
 }

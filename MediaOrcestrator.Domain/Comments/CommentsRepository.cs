@@ -82,6 +82,16 @@ public sealed class CommentsRepository
         return Collection.Count();
     }
 
+    public CommentRecord? GetById(string id)
+    {
+        return Collection.FindById(id);
+    }
+
+    public void Upsert(CommentRecord record)
+    {
+        Collection.Upsert(record);
+    }
+
     public void ReplaceAll(string sourceId, string externalMediaId, IReadOnlyList<CommentRecord> records)
     {
         _db.BeginTrans();

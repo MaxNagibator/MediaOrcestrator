@@ -2,6 +2,7 @@
 using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using Timer = System.Windows.Forms.Timer;
 
 namespace MediaOrcestrator.Runner;
@@ -19,6 +20,7 @@ public partial class CommentsHtmlControl : UserControl
     private ILogger? _logger;
     private bool _invertMediaSort;
     private bool _invertCommentSort;
+    private bool _loaded;
 
     public CommentsHtmlControl()
     {
@@ -42,6 +44,29 @@ public partial class CommentsHtmlControl : UserControl
                     req.SourceId, req.ExternalId);
             }
         };
+
+        uiBrowserView.OpenExternalRequested += (_, req) => OpenExternal(req.SourceId, req.ExternalId);
+        uiBrowserView.OpenCommentExternalRequested += (_, req) => OpenCommentExternal(req.SourceId, req.ExternalMediaId, req.ExternalCommentId);
+
+        uiBrowserView.MutationRequested += async (_, req) =>
+        {
+            try
+            {
+                await HandleMutationAsync(req);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Не удалось обработать операцию {Kind} ({Source}/{Media}/{Comment})",
+                    req.Kind, req.SourceId, req.ExternalMediaId, req.ExternalCommentId);
+
+                MessageBox.Show($"Не удалось выполнить операцию: {ex.Message}",
+                    "Ошибка",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+
+                ApplyFilters();
+            }
+        };
     }
 
     public void Initialize(
@@ -55,9 +80,27 @@ public partial class CommentsHtmlControl : UserControl
         _actionHolder = actionHolder;
         _logger = logger;
 
-        PopulateSortCombos();
-        ReloadSourcesCombo();
+        using (Splash.Current.StartSpan("Сортировки"))
+        {
+            PopulateSortCombos();
+        }
+
+        using (Splash.Current.StartSpan("Список источников"))
+        {
+            ReloadSourcesCombo();
+        }
+
         UpdateForceFetchButtonState();
+    }
+
+    public void EnsureLoaded()
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        _loaded = true;
         ApplyFilters();
     }
 
@@ -134,6 +177,32 @@ public partial class CommentsHtmlControl : UserControl
         }
 
         await FetchAllForSourceAsync(source);
+    }
+
+    private static string? FindRootCommentId(IReadOnlyList<CommentRecord> comments, string externalCommentId)
+    {
+        var byId = comments.ToDictionary(c => c.ExternalCommentId);
+        if (!byId.TryGetValue(externalCommentId, out var current))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(current.ParentExternalCommentId))
+        {
+            return null;
+        }
+
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var rootId = current.ParentExternalCommentId;
+
+        while (byId.TryGetValue(rootId!, out var parent)
+               && !string.IsNullOrEmpty(parent.ParentExternalCommentId)
+               && visited.Add(rootId!))
+        {
+            rootId = parent.ParentExternalCommentId;
+        }
+
+        return rootId;
     }
 
     private void PopulateSortCombos()
@@ -220,7 +289,7 @@ public partial class CommentsHtmlControl : UserControl
 
     private void ApplyFilters()
     {
-        if (_orcestrator == null || _commentsService == null)
+        if (!_loaded || _orcestrator == null || _commentsService == null)
         {
             return;
         }
@@ -294,6 +363,230 @@ public partial class CommentsHtmlControl : UserControl
 
         var detail = new MediaDetailForm(media, _orcestrator, _actionHolder, _commentsService, _logger);
         detail.Show(this);
+    }
+
+    private void OpenExternal(string sourceId, string externalId)
+    {
+        if (_orcestrator == null)
+        {
+            return;
+        }
+
+        var source = _orcestrator.GetSources().FirstOrDefault(s => s.Id == sourceId);
+        if (source?.Type == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var uri = source.Type.GetExternalUri(externalId, source.Settings);
+            if (uri == null)
+            {
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo(uri.ToString())
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Не удалось открыть медиа в источнике ({Source}/{External})",
+                sourceId, externalId);
+        }
+    }
+
+    private void OpenCommentExternal(string sourceId, string externalMediaId, string externalCommentId)
+    {
+        if (_orcestrator == null || _commentsService == null)
+        {
+            return;
+        }
+
+        var source = _orcestrator.GetSources().FirstOrDefault(s => s.Id == sourceId);
+        if (source?.Type is not ISupportsCommentPermalinks permalinks)
+        {
+            return;
+        }
+
+        var allComments = _commentsService.GetByMedia(sourceId, externalMediaId);
+        var rootCommentId = FindRootCommentId(allComments, externalCommentId);
+
+        try
+        {
+            var uri = permalinks.GetCommentExternalUri(externalMediaId,
+                externalCommentId,
+                rootCommentId,
+                source.Settings);
+
+            if (uri == null)
+            {
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo(uri.ToString())
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Не удалось открыть комментарий в источнике ({Source}/{Media}/{Comment})",
+                sourceId, externalMediaId, externalCommentId);
+        }
+    }
+
+    private async Task HandleMutationAsync(CommentMutationRequest request)
+    {
+        if (_orcestrator == null || _commentsService == null || _actionHolder == null)
+        {
+            return;
+        }
+
+        var source = _orcestrator.GetSources().FirstOrDefault(s => s.Id == request.SourceId);
+        if (source == null)
+        {
+            return;
+        }
+
+        var isLikeOp = request.Kind is CommentMutationKind.Like or CommentMutationKind.Unlike;
+        var supportsRequiredFeature = isLikeOp
+            ? source.Type is ISupportsCommentLikes
+            : source.Type is ISupportsCommentMutations;
+
+        if (!supportsRequiredFeature)
+        {
+            MessageBox.Show(isLikeOp
+                    ? "Источник не поддерживает лайки на комментариях."
+                    : "Источник не поддерживает изменение комментариев.",
+                "Операция недоступна",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            return;
+        }
+
+        var media = _orcestrator.GetMedias()
+            .FirstOrDefault(m => m.Sources.Any(l => l.SourceId == request.SourceId && l.ExternalId == request.ExternalMediaId));
+
+        var link = media?.Sources.FirstOrDefault(l => l.SourceId == request.SourceId && l.ExternalId == request.ExternalMediaId);
+        if (media == null || link == null)
+        {
+            MessageBox.Show("Медиа не найдено локально.",
+                "Операция недоступна",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            return;
+        }
+
+        var label = request.Kind switch
+        {
+            CommentMutationKind.Create => "Отправка комментария",
+            CommentMutationKind.Edit => "Изменение комментария",
+            CommentMutationKind.Delete => "Удаление комментария",
+            CommentMutationKind.Restore => "Восстановление комментария",
+            CommentMutationKind.Like => "Лайк комментария",
+            CommentMutationKind.Unlike => "Снятие лайка",
+            _ => "Комментарий",
+        };
+
+        var cts = new CancellationTokenSource();
+        var action = _actionHolder.Register($"{label}: «{media.Title}»", "Запущена", 1, cts);
+
+        var patchedInPlace = false;
+
+        try
+        {
+            switch (request.Kind)
+            {
+                case CommentMutationKind.Create:
+                    {
+                        var record = await Task.Run(() =>
+                                _commentsService.CreateCommentAsync(source, link, request.ParentExternalCommentId, request.Text, cts.Token),
+                            cts.Token);
+
+                        var groupKey = CommentsBrowserView.BuildGroupKey(media, source.Id, link.ExternalId);
+                        var parentCompositeId = string.IsNullOrEmpty(request.ParentExternalCommentId)
+                            ? null
+                            : $"{source.Id}|{link.ExternalId}|{request.ParentExternalCommentId}";
+
+                        patchedInPlace = uiBrowserView.TryApplyCreate(_orcestrator, record, groupKey, parentCompositeId);
+                        break;
+                    }
+
+                case CommentMutationKind.Edit:
+                    {
+                        var commentId = request.ExternalCommentId
+                                        ?? throw new InvalidOperationException("Edit без commentId");
+
+                        var record = await Task.Run(() =>
+                                _commentsService.EditCommentAsync(source, link, commentId, request.Text, cts.Token),
+                            cts.Token);
+
+                        patchedInPlace = uiBrowserView.TryApplyEdit(record.Id, record.Text);
+                        break;
+                    }
+
+                case CommentMutationKind.Delete:
+                    {
+                        var commentId = request.ExternalCommentId
+                                        ?? throw new InvalidOperationException("Delete без commentId");
+
+                        await Task.Run(() =>
+                                _commentsService.DeleteCommentAsync(source, link, commentId, cts.Token),
+                            cts.Token);
+
+                        var recordId = $"{source.Id}|{link.ExternalId}|{commentId}";
+                        patchedInPlace = uiBrowserView.TryApplyDeleted(recordId, true);
+                        break;
+                    }
+
+                case CommentMutationKind.Restore:
+                    {
+                        var commentId = request.ExternalCommentId
+                                        ?? throw new InvalidOperationException("Restore без commentId");
+
+                        await Task.Run(() =>
+                                _commentsService.RestoreCommentAsync(source, link, commentId, cts.Token),
+                            cts.Token);
+
+                        var recordId = $"{source.Id}|{link.ExternalId}|{commentId}";
+                        patchedInPlace = uiBrowserView.TryApplyDeleted(recordId, false);
+                        break;
+                    }
+
+                case CommentMutationKind.Like:
+                case CommentMutationKind.Unlike:
+                    {
+                        var liked = request.Kind == CommentMutationKind.Like;
+                        var commentId = request.ExternalCommentId
+                                        ?? throw new InvalidOperationException($"{request.Kind} без commentId");
+
+                        var newCount = await Task.Run(() =>
+                                _commentsService.LikeCommentAsync(source, link, commentId, liked, cts.Token),
+                            cts.Token);
+
+                        var recordId = $"{source.Id}|{link.ExternalId}|{commentId}";
+                        patchedInPlace = uiBrowserView.TryApplyLikeUpdate(recordId, liked, newCount);
+                        break;
+                    }
+            }
+
+            action.Status = $"{source.TitleFull}: ок";
+        }
+        finally
+        {
+            action.ProgressPlus();
+            action.Finish();
+        }
+
+        if (!patchedInPlace)
+        {
+            ApplyFilters();
+        }
     }
 
     private async Task FetchForExternalAsync(string sourceId, string externalId)

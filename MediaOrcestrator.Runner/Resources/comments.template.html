@@ -194,6 +194,24 @@
             color: #888;
         }
 
+        .permalink {
+            font-size: 11px;
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 8px;
+            text-decoration: none;
+            color: #1a4f9b;
+            border: 1px solid #cfdbec;
+            border-radius: 9px;
+            background: #eef3fb;
+        }
+
+        .permalink:hover {
+            color: #fff;
+            border-color: #1a4f9b;
+            background: #1a4f9b;
+        }
+
         .likes {
             font-size: 11px;
             display: inline-block;
@@ -237,6 +255,87 @@
 
         .mention:hover {
             text-decoration: underline;
+        }
+
+        .compose {
+            padding: 10px 14px 0 14px;
+        }
+
+        .compose textarea, .reply-form textarea, .edit-form textarea {
+            font-family: inherit;
+            font-size: 13px;
+            display: block;
+            box-sizing: border-box;
+            width: 100%;
+            min-height: 60px;
+            padding: 6px 8px;
+            resize: vertical;
+            border: 1px solid #cfd6df;
+            border-radius: 4px;
+            background: #fff;
+        }
+
+        .form-actions {
+            margin-top: 6px;
+        }
+
+        .form-actions select {
+            margin-right: 6px;
+            padding: 3px 6px;
+        }
+
+        .form-actions button {
+            font-size: 12px;
+            margin-right: 6px;
+            padding: 4px 14px;
+            cursor: pointer;
+            color: #fff;
+            border: 1px solid #1a4f9b;
+            border-radius: 3px;
+            background: #1a4f9b;
+        }
+
+        .form-actions button.secondary {
+            color: #1a4f9b;
+            border-color: #cfdbec;
+            background: #eef3fb;
+        }
+
+        .form-actions button[disabled] {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .actions {
+            font-size: 11px;
+            margin-top: 4px;
+            color: #888;
+        }
+
+        .actions button {
+            font-size: 11px;
+            margin-right: 8px;
+            padding: 0;
+            cursor: pointer;
+            color: #1a4f9b;
+            border: none;
+            background: transparent;
+        }
+
+        .actions button:hover {
+            text-decoration: underline;
+        }
+
+        .actions button.like-btn {
+            color: #c43b3b;
+        }
+
+        .actions button.like-btn.liked {
+            font-weight: 600;
+        }
+
+        .reply-form, .edit-form {
+            margin-top: 6px;
         }
 
         mark {
@@ -283,17 +382,23 @@
                         tokens.push({ kind: "text", value: value.substring(last, m.index) });
                     }
                     if (m[1]) {
-                        var url = (m[1] === "id" ? "https://vk.com/id" : "https://vk.com/" + m[1]) + m[2];
-                        tokens.push({ kind: "mention", url: url, name: m[3] });
+                        var mentionUrl = (m[1] === "id" ? "https://vk.com/id" : "https://vk.com/" + m[1]) + m[2];
+                        var mentionToken = { kind: "mention" };
+                        mentionToken.url = mentionUrl;
+                        mentionToken.name = m[3];
+                        tokens.push(mentionToken);
                     } else {
-                        var raw = m[0];
-                        var trail = "";
-                        var t = raw.match(TRAIL_RE);
+                        var rawText = m[0];
+                        var trailing = "";
+                        var t = rawText.match(TRAIL_RE);
                         if (t) {
-                            trail = t[0];
-                            raw = raw.substring(0, raw.length - trail.length);
+                            trailing = t[0];
+                            rawText = rawText.substring(0, rawText.length - trailing.length);
                         }
-                        tokens.push({ kind: "url", url: raw, trail: trail });
+                        var urlToken = { kind: "url" };
+                        urlToken.url = rawText;
+                        urlToken.trail = trailing;
+                        tokens.push(urlToken);
                     }
                     last = m.index + m[0].length;
                     if (m[0].length === 0) TOKEN_RE.lastIndex++;
@@ -362,7 +467,10 @@
                         childrenByParent[c.parent].push(c);
                     }
                 }
-                return { byId: byId, childrenByParent: childrenByParent };
+                var index = {};
+                index.byId = byId;
+                index.childrenByParent = childrenByParent;
+                return index;
             }
 
             function initialOf(name) {
@@ -377,6 +485,243 @@
                 var h = 0;
                 for (var i = 0; i < s.length; i++) h = h * 31 + s.charCodeAt(i) & 0x7fffffff;
                 return h % 6 + 1;
+            }
+
+            function notify(kind, sourceId, externalMediaId, externalCommentId, parentExternalCommentId, payload) {
+                try {
+                    window.external.OnAction(
+                        kind,
+                        sourceId || "",
+                        externalMediaId || "",
+                        externalCommentId || "",
+                        parentExternalCommentId || "",
+                        payload || "");
+                } catch (err) {
+                    alert("Не удалось отправить запрос: " + err);
+                }
+            }
+
+            function buildForm(initialText, placeholder, submitLabel, onSubmit, onCancel) {
+                var form = el("div", "edit-form");
+                var area = el("textarea");
+                area.value = initialText || "";
+                if (placeholder) area.setAttribute("placeholder", placeholder);
+                form.appendChild(area);
+
+                var caret = (initialText || "").length;
+
+                var actions = el("div", "form-actions");
+
+                var submitBtn = el("button");
+                submitBtn.appendChild(text(submitLabel));
+                actions.appendChild(submitBtn);
+
+                var cancelBtn = el("button", "secondary");
+                cancelBtn.appendChild(text("Отмена"));
+                actions.appendChild(cancelBtn);
+
+                form.appendChild(actions);
+
+                submitBtn.onclick = function () {
+                    var value = area.value;
+                    if (!value || !value.replace(/\s+/g, "")) {
+                        area.focus();
+                        return;
+                    }
+                    submitBtn.setAttribute("disabled", "disabled");
+                    cancelBtn.setAttribute("disabled", "disabled");
+                    onSubmit(value);
+                };
+
+                cancelBtn.onclick = function () {
+                    onCancel();
+                };
+
+                setTimeout(function () {
+                    area.focus();
+                    try {
+                        if (typeof area.setSelectionRange === "function") {
+                            area.setSelectionRange(caret, caret);
+                        } else if (area.createTextRange) {
+                            var range = area.createTextRange();
+                            range.collapse(true);
+                            range.moveEnd("character", caret);
+                            range.moveStart("character", caret);
+                            range.select();
+                        }
+                    } catch (err) {
+                    }
+                }, 0);
+                return form;
+            }
+
+            function replyPrefix(author) {
+                var name = (author || "").replace(/^\s+|\s+$/g, "");
+                return name ? name + ", " : "";
+            }
+
+            function renderActions(c, bodyHost, formHost) {
+                if (!c.hasMutations && !c.hasLikes) return null;
+
+                var bar = el("div", "actions");
+
+                if (c.hasLikes && !c.deleted) {
+                    var likeBtn = el("button", "like-btn" + (c.likedByMe ? " liked" : ""));
+                    var label = c.likedByMe ? "♥ Не нравится" : "♡ Нравится";
+                    likeBtn.appendChild(text(label));
+                    likeBtn.onclick = function () {
+                        notify(c.likedByMe ? "Unlike" : "Like",
+                            c.sourceId, c.externalMediaId, c.externalCommentId, "", "");
+                    };
+                    bar.appendChild(likeBtn);
+                }
+
+                if (!c.hasMutations) {
+                    return bar.childNodes.length ? bar : null;
+                }
+
+                if (!c.deleted) {
+                    var replyBtn = el("button");
+                    replyBtn.appendChild(text("Ответить"));
+                    replyBtn.onclick = function () {
+                        while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
+                        var form = buildForm(replyPrefix(c.author), "Ответ для " + (c.author || ""), "Отправить",
+                            function (value) {
+                                notify("Create", c.sourceId, c.externalMediaId, "", c.externalCommentId, value);
+                            },
+                            function () {
+                                while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
+                            });
+                        formHost.appendChild(form);
+                    };
+                    bar.appendChild(replyBtn);
+                }
+
+                if (c.canEdit && !c.deleted) {
+                    var editBtn = el("button");
+                    editBtn.appendChild(text("Изменить"));
+                    editBtn.onclick = function () {
+                        var originalText = bodyHost.__originalText || "";
+                        bodyHost.style.display = "none";
+                        while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
+                        var form = buildForm(originalText, "", "Сохранить",
+                            function (value) {
+                                notify("Edit", c.sourceId, c.externalMediaId, c.externalCommentId, "", value);
+                            },
+                            function () {
+                                while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
+                                bodyHost.style.display = "";
+                            });
+                        formHost.appendChild(form);
+                    };
+                    bar.appendChild(editBtn);
+                }
+
+                if (c.canDelete && !c.deleted) {
+                    var deleteBtn = el("button");
+                    deleteBtn.appendChild(text("Удалить"));
+                    deleteBtn.onclick = function () {
+                        notify("Delete", c.sourceId, c.externalMediaId, c.externalCommentId, "", "");
+                    };
+                    bar.appendChild(deleteBtn);
+                }
+
+                if (c.canDelete && c.deleted) {
+                    var restoreBtn = el("button");
+                    restoreBtn.appendChild(text("Восстановить"));
+                    restoreBtn.onclick = function () {
+                        notify("Restore", c.sourceId, c.externalMediaId, c.externalCommentId, "", "");
+                    };
+                    bar.appendChild(restoreBtn);
+                }
+
+                return bar.childNodes.length ? bar : null;
+            }
+
+            function renderCompose(g) {
+                var mutating = [];
+                var sources = g.sources || [];
+                for (var i = 0; i < sources.length; i++) {
+                    if (sources[i].hasMutations) mutating.push(sources[i]);
+                }
+                if (mutating.length === 0) return null;
+
+                var box = el("div", "compose");
+                var formHost = el("div", "form-host");
+                box.appendChild(formHost);
+
+                var triggerBar = el("div", "actions");
+                var triggerBtn = el("button");
+                triggerBtn.appendChild(text("Написать комментарий"));
+                triggerBar.appendChild(triggerBtn);
+                box.appendChild(triggerBar);
+
+                triggerBtn.onclick = function () {
+                    triggerBar.style.display = "none";
+                    while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
+
+                    var area = el("textarea");
+                    area.setAttribute("placeholder", "Новый комментарий...");
+                    formHost.appendChild(area);
+
+                    var actions = el("div", "form-actions");
+
+                    var sourceSelect = null;
+                    if (mutating.length > 1) {
+                        sourceSelect = el("select");
+                        for (var s = 0; s < mutating.length; s++) {
+                            var opt = el("option");
+                            opt.value = mutating[s].sourceId + "|" + mutating[s].externalId;
+                            opt.appendChild(text(mutating[s].sourceTitle));
+                            sourceSelect.appendChild(opt);
+                        }
+                        actions.appendChild(sourceSelect);
+                    }
+
+                    var submitBtn = el("button");
+                    submitBtn.appendChild(text("Отправить"));
+                    actions.appendChild(submitBtn);
+
+                    var cancelBtn = el("button", "secondary");
+                    cancelBtn.appendChild(text("Отмена"));
+                    actions.appendChild(cancelBtn);
+
+                    formHost.appendChild(actions);
+
+                    submitBtn.onclick = function () {
+                        var value = area.value;
+                        if (!value || !value.replace(/\s+/g, "")) {
+                            area.focus();
+                            return;
+                        }
+
+                        var picked = mutating[0];
+                        if (sourceSelect) {
+                            var parts = sourceSelect.value.split("|");
+                            for (var k = 0; k < mutating.length; k++) {
+                                if (mutating[k].sourceId === parts[0] && mutating[k].externalId === parts[1]) {
+                                    picked = mutating[k];
+                                    break;
+                                }
+                            }
+                        }
+
+                        submitBtn.setAttribute("disabled", "disabled");
+                        cancelBtn.setAttribute("disabled", "disabled");
+                        notify("Create", picked.sourceId, picked.externalId, "", "", value);
+                    };
+
+                    cancelBtn.onclick = function () {
+                        while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
+                        triggerBar.style.display = "";
+                    };
+
+                    setTimeout(function () {
+                        area.focus();
+                    }, 0);
+                };
+
+                return box;
             }
 
             function renderAvatar(c) {
@@ -400,6 +745,7 @@
 
             function renderComment(c, childrenByParent, showSource) {
                 var div = el("div", "comment" + (c.deleted ? " deleted" : ""));
+                div._commentId = c.id;
 
                 div.appendChild(renderAvatar(c));
 
@@ -418,6 +764,18 @@
                 var date = el("span", "date");
                 date.appendChild(text(c.date));
                 head.appendChild(date);
+
+                if (c.hasPermalink) {
+                    var permalink = el("a", "permalink");
+                    permalink.setAttribute("href",
+                        "app://comment/"
+                        + encodeURIComponent(c.sourceId)
+                        + "/" + encodeURIComponent(c.externalMediaId)
+                        + "/" + encodeURIComponent(c.externalCommentId));
+                    permalink.setAttribute("title", "Открыть комментарий в источнике");
+                    permalink.appendChild(text("перейти"));
+                    head.appendChild(permalink);
+                }
 
                 if (c.likes > 0) {
                     var likes = el("span", "likes");
@@ -446,7 +804,16 @@
                 } else {
                     appendLinkified(body, c.text || "", data.search);
                 }
+                body.__originalText = c.text || "";
                 div.appendChild(body);
+
+                var formHost = el("div", "form-host");
+                div.appendChild(formHost);
+
+                div._data = c;
+
+                var actionsBar = renderActions(c, body, formHost);
+                if (actionsBar) div.appendChild(actionsBar);
 
                 var children = childrenByParent[c.id];
                 if (children && children.length) {
@@ -462,17 +829,28 @@
 
             function renderGroup(g) {
                 var media = el("div", "media");
+                media._groupKey = g.key;
 
                 var head = el("div", "media-head");
 
                 var actions = el("div", "media-actions");
                 var sources = g.sources || [];
                 var multipleSources = sources.length > 1;
+                media._multipleSources = multipleSources;
                 for (var si = 0; si < sources.length; si++) {
                     var s = sources[si];
+                    if (s.hasExternalLink) {
+                        var open = el("a");
+                        open.setAttribute("href",
+                            "app://open/" + encodeURIComponent(s.sourceId) + "/" + encodeURIComponent(s.externalId));
+                        open.setAttribute("title", "Открыть медиа в источнике " + s.sourceTitle);
+                        open.appendChild(text(multipleSources ? "открыть " + s.sourceTitle : "открыть"));
+                        actions.appendChild(open);
+                    }
                     var refresh = el("a");
                     refresh.setAttribute("href",
                         "app://fetch/" + encodeURIComponent(s.sourceId) + "/" + encodeURIComponent(s.externalId));
+                    refresh.setAttribute("title", "Перезагрузить комментарии из " + s.sourceTitle);
                     refresh.appendChild(text(multipleSources ? "обновить " + s.sourceTitle : "обновить"));
                     actions.appendChild(refresh);
                 }
@@ -501,6 +879,9 @@
                 head.appendChild(meta);
 
                 media.appendChild(head);
+
+                var compose = renderCompose(g);
+                if (compose) media.appendChild(compose);
 
                 var threads = el("div", "threads");
                 var idx = buildIndex(g.comments);
@@ -535,6 +916,215 @@
             }
 
             render();
+
+            function findCommentDiv(id) {
+                var nodes = document.getElementsByClassName("comment");
+                for (var i = 0; i < nodes.length; i++) {
+                    if (nodes[i]._commentId === id) return nodes[i];
+                }
+                return null;
+            }
+
+            function findDirectChildByClass(parent, cls) {
+                var kids = parent.children || parent.childNodes;
+                for (var i = 0; i < kids.length; i++) {
+                    var k = kids[i];
+                    if (k && k.nodeType === 1 && (k.className || "") === cls) return k;
+                }
+                return null;
+            }
+
+            function rebuildActions(div) {
+                var c = div._data;
+                if (!c) return;
+                var body = findDirectChildByClass(div, "body");
+                var formHost = findDirectChildByClass(div, "form-host");
+                if (!body || !formHost) return;
+
+                var oldActions = findDirectChildByClass(div, "actions");
+                var newActions = renderActions(c, body, formHost);
+                if (oldActions) oldActions.parentNode.removeChild(oldActions);
+                if (newActions) {
+                    var replies = findDirectChildByClass(div, "replies");
+                    if (replies) {
+                        div.insertBefore(newActions, replies);
+                    } else {
+                        div.appendChild(newActions);
+                    }
+                }
+            }
+
+            function clearChildren(node) {
+                while (node.firstChild) node.removeChild(node.firstChild);
+            }
+
+            window.__applyEdit = function (id, newText) {
+                try {
+                    var div = findCommentDiv(id);
+                    if (!div || !div._data) return false;
+
+                    div._data.text = newText;
+
+                    var body = findDirectChildByClass(div, "body");
+                    if (body) {
+                        clearChildren(body);
+                        appendLinkified(body, newText, data.search);
+                        body.__originalText = newText;
+                        body.style.display = "";
+                    }
+
+                    var formHost = findDirectChildByClass(div, "form-host");
+                    if (formHost) clearChildren(formHost);
+
+                    rebuildActions(div);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            };
+
+            window.__applyDeleted = function (id, isDeleted) {
+                try {
+                    var div = findCommentDiv(id);
+                    if (!div || !div._data) return false;
+
+                    div._data.deleted = isDeleted;
+                    div.className = "comment" + (isDeleted ? " deleted" : "");
+
+                    var body = findDirectChildByClass(div, "body");
+                    if (body) {
+                        clearChildren(body);
+                        if (isDeleted) {
+                            body.appendChild(document.createTextNode("[удалён]"));
+                        } else {
+                            appendLinkified(body, body.__originalText || div._data.text || "", data.search);
+                        }
+                        body.style.display = "";
+                    }
+
+                    var formHost = findDirectChildByClass(div, "form-host");
+                    if (formHost) clearChildren(formHost);
+
+                    rebuildActions(div);
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            };
+
+            window.__applyCreate = function (json, groupKey, parentCompositeId) {
+                try {
+                    var c = JSON.parse(json);
+
+                    if (findCommentDiv(c.id)) {
+                        return true;
+                    }
+
+                    var mediaNodes = document.getElementsByClassName("media");
+                    var mediaDiv = null;
+                    for (var i = 0; i < mediaNodes.length; i++) {
+                        if (mediaNodes[i]._groupKey === groupKey) {
+                            mediaDiv = mediaNodes[i];
+                            break;
+                        }
+                    }
+                    if (!mediaDiv) return false;
+
+                    var threads = findDirectChildByClass(mediaDiv, "threads");
+                    if (!threads) return false;
+
+                    var multipleSources = !!mediaDiv._multipleSources;
+
+                    if (parentCompositeId) {
+                        var parent = findCommentDiv(parentCompositeId);
+                        if (!parent) return false;
+
+                        var replies = findDirectChildByClass(parent, "replies");
+                        if (!replies) {
+                            replies = el("div", "replies");
+                            parent.appendChild(replies);
+                        }
+                        replies.appendChild(renderComment(c, {}, multipleSources));
+
+                        var parentFormHost = findDirectChildByClass(parent, "form-host");
+                        if (parentFormHost) clearChildren(parentFormHost);
+                    } else {
+                        threads.appendChild(renderComment(c, {}, multipleSources));
+
+                        var compose = findDirectChildByClass(mediaDiv, "compose");
+                        if (compose) {
+                            var fh = findDirectChildByClass(compose, "form-host");
+                            var trig = findDirectChildByClass(compose, "actions");
+                            if (fh) clearChildren(fh);
+                            if (trig) trig.style.display = "";
+                        }
+                    }
+
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            };
+
+            window.__applyLike = function (id, liked, count) {
+                try {
+                    var nodes = document.getElementsByClassName("comment");
+                    for (var i = 0; i < nodes.length; i++) {
+                        var node = nodes[i];
+                        if (node._commentId !== id) continue;
+
+                        var directKids = node.children || node.childNodes;
+                        var actionsNode = null;
+                        var headNode = null;
+                        for (var k = 0; k < directKids.length; k++) {
+                            var kid = directKids[k];
+                            if (!kid || kid.nodeType !== 1) continue;
+                            var cls = kid.className || "";
+                            if (cls === "actions") actionsNode = kid;
+                            else if (cls === "head") headNode = kid;
+                        }
+
+                        if (actionsNode) {
+                            var btns = actionsNode.getElementsByTagName("button");
+                            for (var j = 0; j < btns.length; j++) {
+                                var b = btns[j];
+                                if ((b.className || "").indexOf("like-btn") < 0) continue;
+                                while (b.firstChild) b.removeChild(b.firstChild);
+                                b.appendChild(document.createTextNode(liked ? "♥ Не нравится" : "♡ Нравится"));
+                                b.className = "like-btn" + (liked ? " liked" : "");
+                                break;
+                            }
+                        }
+
+                        if (headNode) {
+                            var existing = null;
+                            var headKids = headNode.children || headNode.childNodes;
+                            for (var h = 0; h < headKids.length; h++) {
+                                var hk = headKids[h];
+                                if (hk && hk.nodeType === 1 && (hk.className || "") === "likes") {
+                                    existing = hk;
+                                    break;
+                                }
+                            }
+                            if (count > 0) {
+                                if (!existing) {
+                                    existing = document.createElement("span");
+                                    existing.className = "likes";
+                                    headNode.appendChild(existing);
+                                }
+                                while (existing.firstChild) existing.removeChild(existing.firstChild);
+                                existing.appendChild(document.createTextNode("♥ " + count));
+                            } else if (existing) {
+                                existing.parentNode.removeChild(existing);
+                            }
+                        }
+
+                        return true;
+                    }
+                } catch (e) {
+                }
+                return false;
+            };
         })();
     </script>
 </body>
