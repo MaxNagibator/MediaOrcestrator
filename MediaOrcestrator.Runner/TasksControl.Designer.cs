@@ -41,7 +41,7 @@ partial class TasksControl
         uiHeaderLabel = new Label();
         uiCancelAllButton = new Button();
         uiBodyPanel = new Panel();
-        uiTasksFlowLayoutPanel = new FlowLayoutPanel();
+        uiTasksFlowLayoutPanel = new DoubleBufferedFlowLayoutPanel();
         uiEmptyStateLabel = new Label();
         uiTasksToolTip = new ToolTip(components);
         uiRootLayout.SuspendLayout();
@@ -172,7 +172,7 @@ partial class TasksControl
     private Label uiHeaderLabel;
     private Button uiCancelAllButton;
     private Panel uiBodyPanel;
-    private FlowLayoutPanel uiTasksFlowLayoutPanel;
+    private DoubleBufferedFlowLayoutPanel uiTasksFlowLayoutPanel;
     private Label uiEmptyStateLabel;
     private ToolTip uiTasksToolTip;
 }

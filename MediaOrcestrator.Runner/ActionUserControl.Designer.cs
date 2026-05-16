@@ -36,15 +36,29 @@ partial class ActionUserControl
     private void InitializeComponent()
     {
         components = new System.ComponentModel.Container();
+        uiAccentStrip = new Panel();
         uiLayout = new TableLayoutPanel();
+        uiTitlePanel = new TableLayoutPanel();
         uiNameLabel = new Label();
+        uiSubtitleLabel = new Label();
         uiStatusLabel = new Label();
         uiProgressBar = new ProgressBar();
         uiProgressLabel = new Label();
         uiCancelButton = new Button();
         uiActionToolTip = new ToolTip(components);
         uiLayout.SuspendLayout();
+        uiTitlePanel.SuspendLayout();
         SuspendLayout();
+        //
+        // uiAccentStrip
+        //
+        uiAccentStrip.BackColor = Color.Silver;
+        uiAccentStrip.Dock = DockStyle.Left;
+        uiAccentStrip.Location = new Point(0, 0);
+        uiAccentStrip.Margin = new Padding(0);
+        uiAccentStrip.Name = "uiAccentStrip";
+        uiAccentStrip.Size = new Size(4, 42);
+        uiAccentStrip.TabIndex = 1;
         //
         // uiLayout
         //
@@ -54,7 +68,7 @@ partial class ActionUserControl
         uiLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200F));
         uiLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        uiLayout.Controls.Add(uiNameLabel, 0, 0);
+        uiLayout.Controls.Add(uiTitlePanel, 0, 0);
         uiLayout.Controls.Add(uiStatusLabel, 1, 0);
         uiLayout.Controls.Add(uiProgressBar, 2, 0);
         uiLayout.Controls.Add(uiProgressLabel, 3, 0);
@@ -68,16 +82,45 @@ partial class ActionUserControl
         uiLayout.Size = new Size(663, 34);
         uiLayout.TabIndex = 0;
         //
+        // uiTitlePanel
+        //
+        uiTitlePanel.Anchor = AnchorStyles.Left;
+        uiTitlePanel.AutoSize = true;
+        uiTitlePanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        uiTitlePanel.ColumnCount = 1;
+        uiTitlePanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        uiTitlePanel.Controls.Add(uiNameLabel, 0, 0);
+        uiTitlePanel.Controls.Add(uiSubtitleLabel, 0, 1);
+        uiTitlePanel.Margin = new Padding(0, 0, 8, 0);
+        uiTitlePanel.Name = "uiTitlePanel";
+        uiTitlePanel.RowCount = 2;
+        uiTitlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        uiTitlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        uiTitlePanel.Size = new Size(80, 30);
+        uiTitlePanel.TabIndex = 0;
+        //
         // uiNameLabel
         //
         uiNameLabel.Anchor = AnchorStyles.Left;
         uiNameLabel.AutoSize = true;
         uiNameLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-        uiNameLabel.Margin = new Padding(0, 0, 8, 0);
+        uiNameLabel.Margin = new Padding(0);
         uiNameLabel.Name = "uiNameLabel";
         uiNameLabel.Size = new Size(80, 15);
         uiNameLabel.TabIndex = 0;
         uiNameLabel.Text = "Имя задачи";
+        //
+        // uiSubtitleLabel
+        //
+        uiSubtitleLabel.Anchor = AnchorStyles.Left;
+        uiSubtitleLabel.AutoEllipsis = true;
+        uiSubtitleLabel.AutoSize = true;
+        uiSubtitleLabel.ForeColor = SystemColors.GrayText;
+        uiSubtitleLabel.Margin = new Padding(0, 1, 0, 0);
+        uiSubtitleLabel.Name = "uiSubtitleLabel";
+        uiSubtitleLabel.Size = new Size(0, 15);
+        uiSubtitleLabel.TabIndex = 1;
+        uiSubtitleLabel.TextAlign = ContentAlignment.MiddleLeft;
         //
         // uiStatusLabel
         //
@@ -132,10 +175,13 @@ partial class ActionUserControl
         BackColor = SystemColors.Window;
         BorderStyle = BorderStyle.FixedSingle;
         Controls.Add(uiLayout);
+        Controls.Add(uiAccentStrip);
         Margin = new Padding(0, 0, 0, 6);
         MinimumSize = new Size(0, 42);
         Name = "ActionUserControl";
         Size = new Size(663, 42);
+        uiTitlePanel.ResumeLayout(false);
+        uiTitlePanel.PerformLayout();
         uiLayout.ResumeLayout(false);
         uiLayout.PerformLayout();
         ResumeLayout(false);
@@ -143,8 +189,11 @@ partial class ActionUserControl
 
     #endregion
 
+    private Panel uiAccentStrip;
     private TableLayoutPanel uiLayout;
+    private TableLayoutPanel uiTitlePanel;
     private Label uiNameLabel;
+    private Label uiSubtitleLabel;
     private Label uiStatusLabel;
     private ProgressBar uiProgressBar;
     private Label uiProgressLabel;

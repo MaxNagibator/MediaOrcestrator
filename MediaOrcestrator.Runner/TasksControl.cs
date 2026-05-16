@@ -6,6 +6,8 @@ public sealed partial class TasksControl : UserControl
 {
     private const int IndentStep = 18;
 
+    private readonly Dictionary<Guid, ActionUserControl> _rows = [];
+
     private ActionHolder? _actionHolder;
 
     public TasksControl()
@@ -99,26 +101,38 @@ public sealed partial class TasksControl : UserControl
         uiTasksFlowLayoutPanel.SuspendLayout();
         try
         {
-            foreach (Control control in uiTasksFlowLayoutPanel.Controls)
-            {
-                control.Dispose();
-            }
+            var present = snapshot.Select(a => a.Id).ToHashSet();
 
-            uiTasksFlowLayoutPanel.Controls.Clear();
+            foreach (var (id, row) in _rows.Where(kv => !present.Contains(kv.Key)).ToArray())
+            {
+                _rows.Remove(id);
+                uiTasksFlowLayoutPanel.Controls.Remove(row);
+                row.Dispose();
+            }
 
             var rowWidth = CalculateRowWidth();
             var indentStep = LogicalToDeviceUnits(IndentStep);
-            foreach (var action in snapshot)
+            for (var i = 0; i < snapshot.Count; i++)
             {
+                var action = snapshot[i];
                 var indent = indentStep * Math.Max(action.Depth, 0);
-                var row = new ActionUserControl
-                {
-                    Width = Math.Max(rowWidth - indent, 0),
-                    Margin = new(indent, 0, 0, 6),
-                };
 
-                row.SetAction(action);
-                uiTasksFlowLayoutPanel.Controls.Add(row);
+                if (!_rows.TryGetValue(action.Id, out var row))
+                {
+                    row = new();
+                    row.SetAction(action);
+                    _rows[action.Id] = row;
+                    uiTasksFlowLayoutPanel.Controls.Add(row);
+                }
+
+                var margin = new Padding(indent, 0, 0, 6);
+                if (row.Margin != margin)
+                {
+                    row.Margin = margin;
+                }
+
+                row.Width = Math.Max(rowWidth - indent, 0);
+                uiTasksFlowLayoutPanel.Controls.SetChildIndex(row, i);
             }
         }
         finally

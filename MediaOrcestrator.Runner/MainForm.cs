@@ -520,6 +520,20 @@ public partial class MainForm : Form
             _logger.LogInformation("Синхронизация через UI завершена.");
             uiMediaMatrixGridControl.RefreshData();
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Синхронизация через UI отменена пользователем.");
+            if (targetRow != null)
+            {
+                targetRow.ReportProgress("Отменено");
+            }
+            else
+            {
+                uiBulkProgressLabel.Text = "Отменено";
+            }
+
+            uiMediaMatrixGridControl.RefreshData();
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Ошибка при синхронизации через UI.");

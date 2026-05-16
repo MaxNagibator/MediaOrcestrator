@@ -76,7 +76,13 @@ public class Orcestrator(
             await Parallel.ForEachAsync(sources, async (mediaSource, cancellationToken) =>
             {
                 var ctx = new CancellationTokenSource();
-                var action = actionHolder.Register("Синхронизация " + mediaSource.TitleFull + " isFull=" + isFull + " onlyNew=" + onlyNew, "Запущена", 0, ctx);
+                var syncMode = onlyNew ? "Только новые" : isFull ? "Полная синхронизация" : "Обновление";
+                var lastSync = mediaSource.LastSyncedAt == null
+                    ? "не синхронизировано"
+                    : $"синхр.: {mediaSource.LastSyncedAt.Value.ToLocalTime():dd.MM.yyyy HH:mm}";
+
+                var subtitle = $"{mediaSource.TypeId} · {lastSync}";
+                var action = actionHolder.Register("Синхронизация: " + mediaSource.TitleFull, syncMode, 0, ctx, subtitle);
 
                 var plugin = sourceTypes.Values.FirstOrDefault(x => x.Name == mediaSource.TypeId);
 
@@ -99,7 +105,11 @@ public class Orcestrator(
                         progress?.Report($"«{mediaSource.TitleFull}»: получено {foundIds.Count}");
                     }
 
-                    action.Status = $"получено {foundIds.Count}";
+                    if (foundIds.Count % 10 == 0)
+                    {
+                        action.Status = $"Сбор: получено {foundIds.Count}";
+                        action.SetProgress(foundIds.Count);
+                    }
 
                     var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.ExternalId == s.Id);
                     if (foundMediaSource == null)
@@ -183,7 +193,17 @@ public class Orcestrator(
                     }
                 }
 
+                action.Status = $"Сбор: получено {foundIds.Count}";
+                action.SetProgress(foundIds.Count);
+
+                if (mediaList.Count > 0)
+                {
+                    action.ProgressMax = mediaList.Count;
+                    action.SetProgress(0);
+                }
+
                 var sortNumber = cache.GetMedia(mediaSource.Id).Select(x => x.SortNumber).DefaultIfEmpty(1).Max();
+                var saved = 0;
                 foreach (var s in mediaList)
                 {
                     var mediaId = Guid.NewGuid().ToString();
@@ -220,6 +240,10 @@ public class Orcestrator(
                     mediaCol.Insert(myMedia);
                     mediaAll.Add(myMedia);
                     cache.GetMedia(mediaSource.Id).Add(newMediaSource);
+
+                    saved++;
+                    action.SetProgress(saved);
+                    action.Status = $"Сохранение {saved} / {mediaList.Count}";
                 }
 
                 if (!onlyNew)
