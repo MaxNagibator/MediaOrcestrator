@@ -93,6 +93,23 @@ public sealed partial class ActionUserControl : UserControl
         _action.Cancel();
     }
 
+    private void uiDetailsButton_Click(object sender, EventArgs e)
+    {
+        if (_action == null)
+        {
+            return;
+        }
+
+        var error = _action.Error;
+        if (string.IsNullOrEmpty(error))
+        {
+            return;
+        }
+
+        using var form = new TaskErrorForm(_action.Name, error);
+        form.ShowDialog(this);
+    }
+
     private static Color AccentFor(ActionKind kind)
     {
         return kind switch
@@ -174,6 +191,7 @@ public sealed partial class ActionUserControl : UserControl
             uiSubtitleLabel.ForeColor = CanceledForeColor;
             HideProgress();
             uiCancelButton.Visible = false;
+            uiDetailsButton.Visible = false;
             return;
         }
 
@@ -187,6 +205,7 @@ public sealed partial class ActionUserControl : UserControl
                 uiSubtitleLabel.ForeColor = _defaultSubtitleForeColor;
                 HideProgress();
                 uiCancelButton.Visible = false;
+                uiDetailsButton.Visible = !string.IsNullOrEmpty(_action.Error);
                 return;
 
             case ActionState.Succeeded:
@@ -197,6 +216,7 @@ public sealed partial class ActionUserControl : UserControl
                 uiSubtitleLabel.ForeColor = _defaultSubtitleForeColor;
                 HideProgress();
                 uiCancelButton.Visible = false;
+                uiDetailsButton.Visible = false;
                 return;
         }
 
@@ -204,6 +224,7 @@ public sealed partial class ActionUserControl : UserControl
         uiNameLabel.ForeColor = _defaultNameForeColor;
         uiSubtitleLabel.ForeColor = _defaultSubtitleForeColor;
         uiCancelButton.Visible = true;
+        uiDetailsButton.Visible = false;
 
         uiAccentStrip.BackColor = AccentFor(_action.Kind);
         uiStatusLabel.ForeColor = _defaultStatusForeColor;

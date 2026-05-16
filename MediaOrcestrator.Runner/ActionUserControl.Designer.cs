@@ -45,6 +45,7 @@ partial class ActionUserControl
         uiProgressBar = new ProgressBar();
         uiProgressLabel = new Label();
         uiCancelButton = new Button();
+        uiDetailsButton = new Button();
         uiActionToolTip = new ToolTip(components);
         uiLayout.SuspendLayout();
         uiTitlePanel.SuspendLayout();
@@ -73,6 +74,7 @@ partial class ActionUserControl
         uiLayout.Controls.Add(uiProgressBar, 2, 0);
         uiLayout.Controls.Add(uiProgressLabel, 3, 0);
         uiLayout.Controls.Add(uiCancelButton, 4, 0);
+        uiLayout.Controls.Add(uiDetailsButton, 4, 0);
         uiLayout.Dock = DockStyle.Fill;
         uiLayout.Location = new Point(0, 0);
         uiLayout.Name = "uiLayout";
@@ -168,6 +170,21 @@ partial class ActionUserControl
         uiCancelButton.UseVisualStyleBackColor = true;
         uiCancelButton.Click += uiCancelButton_Click;
         //
+        // uiDetailsButton
+        //
+        uiDetailsButton.Anchor = AnchorStyles.Right;
+        uiDetailsButton.AutoSize = true;
+        uiDetailsButton.Margin = new Padding(0);
+        uiDetailsButton.Name = "uiDetailsButton";
+        uiDetailsButton.Padding = new Padding(10, 4, 10, 4);
+        uiDetailsButton.Size = new Size(82, 30);
+        uiDetailsButton.TabIndex = 5;
+        uiDetailsButton.Text = "Подробнее";
+        uiActionToolTip.SetToolTip(uiDetailsButton, "Показать текст ошибки");
+        uiDetailsButton.UseVisualStyleBackColor = true;
+        uiDetailsButton.Visible = false;
+        uiDetailsButton.Click += uiDetailsButton_Click;
+        //
         // ActionUserControl
         //
         AutoScaleDimensions = new SizeF(7F, 15F);
@@ -198,5 +215,6 @@ partial class ActionUserControl
     private ProgressBar uiProgressBar;
     private Label uiProgressLabel;
     private Button uiCancelButton;
+    private Button uiDetailsButton;
     private ToolTip uiActionToolTip;
 }

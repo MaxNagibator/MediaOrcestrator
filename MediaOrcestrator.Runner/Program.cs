@@ -527,6 +527,8 @@ file static class Program
         services.AddSingleton<CoverTemplateStore>();
         services.AddSingleton<BatchPreviewService>();
         services.AddSingleton<SyncPlanner>();
+        services.AddSingleton<WindowsTaskbarProgress>();
+        services.AddSingleton<MainFormTaskbarController>();
         services.AddTransient<MainForm>();
 
         services.AddTransient<SourceControl>();
