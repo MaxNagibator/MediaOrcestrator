@@ -16,6 +16,11 @@ public class ActionHolderTests
         return holder.Snapshot().Any(a => a.Id == id);
     }
 
+    private static bool IsCompleted(ActionHolder holder, Guid id)
+    {
+        return holder.CompletedSnapshot().Any(a => a.Id == id);
+    }
+
     [Test]
     public void Регистрация_создаёт_активное_действие_в_реестре()
     {
@@ -36,6 +41,25 @@ public class ActionHolderTests
     }
 
     [Test]
+    public void Регистрация_переводит_действие_в_состояние_Running()
+    {
+        var holder = CreateHolder();
+        using var cts = new CancellationTokenSource();
+
+        var before = DateTime.Now.AddSeconds(-1);
+        var act = holder.Register("test", "Старт", 0, cts, kind: ActionKind.Download);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(act.State, Is.EqualTo(ActionState.Running));
+            Assert.That(act.Kind, Is.EqualTo(ActionKind.Download));
+            Assert.That(act.StartedAt, Is.GreaterThanOrEqualTo(before));
+            Assert.That(act.FinishedAt, Is.Null);
+            Assert.That(act.Error, Is.Null);
+        }
+    }
+
+    [Test]
     public void Завершение_не_отменяет_токен()
     {
         var holder = CreateHolder();
@@ -48,7 +72,64 @@ public class ActionHolderTests
     }
 
     [Test]
-    public void Завершение_удаляет_действие_из_реестра()
+    public void Успешное_завершение_переводит_в_Succeeded()
+    {
+        var holder = CreateHolder();
+        var cts = new CancellationTokenSource();
+        var act = holder.Register("test", "Старт", 0, cts);
+
+        var before = DateTime.Now.AddSeconds(-1);
+        act.Finish();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(act.State, Is.EqualTo(ActionState.Succeeded));
+            Assert.That(act.Status, Is.EqualTo("Выполнено"));
+            Assert.That(act.Error, Is.Null);
+            Assert.That(act.FinishedAt, Is.Not.Null);
+            Assert.That(act.FinishedAt, Is.GreaterThanOrEqualTo(before));
+        }
+    }
+
+    [Test]
+    public void Провал_переводит_в_Failed_и_сохраняет_ошибку()
+    {
+        var holder = CreateHolder();
+        var cts = new CancellationTokenSource();
+        var act = holder.Register("test", "Старт", 0, cts);
+        var exception = new InvalidOperationException("что-то сломалось");
+
+        act.Fail("Ошибка: что-то сломалось", exception);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(act.State, Is.EqualTo(ActionState.Failed));
+            Assert.That(act.Status, Is.EqualTo("Ошибка: что-то сломалось"));
+            Assert.That(act.Error, Does.Contain("что-то сломалось"));
+            Assert.That(act.FinishedAt, Is.Not.Null);
+            Assert.That(IsCompleted(holder, act.Id), Is.True);
+            Assert.That(ContainsAction(holder, act.Id), Is.False);
+        }
+    }
+
+    [Test]
+    public void Провал_без_исключения_кладёт_сообщение_в_ошибку()
+    {
+        var holder = CreateHolder();
+        var cts = new CancellationTokenSource();
+        var act = holder.Register("test", "Старт", 0, cts);
+
+        act.Fail("Что-то пошло не так");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(act.State, Is.EqualTo(ActionState.Failed));
+            Assert.That(act.Error, Is.EqualTo("Что-то пошло не так"));
+        }
+    }
+
+    [Test]
+    public void Завершённое_действие_уходит_из_активного_снимка_в_историю()
     {
         var holder = CreateHolder();
         var cts = new CancellationTokenSource();
@@ -56,7 +137,23 @@ public class ActionHolderTests
 
         act.Finish();
 
-        Assert.That(ContainsAction(holder, act.Id), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ContainsAction(holder, act.Id), Is.False);
+            Assert.That(IsCompleted(holder, act.Id), Is.True);
+        }
+    }
+
+    [Test]
+    public void Снимок_не_содержит_завершённое_действие()
+    {
+        var holder = CreateHolder();
+        using var cts = new CancellationTokenSource();
+        var act = holder.Register("test", "Старт", 0, cts);
+
+        act.Finish();
+
+        Assert.That(holder.Snapshot(), Is.Empty);
     }
 
     [Test]
@@ -79,7 +176,7 @@ public class ActionHolderTests
     }
 
     [Test]
-    public void Отмена_отменяет_токен_и_удаляет_действие()
+    public void Отмена_отменяет_токен_и_переводит_в_Cancelled()
     {
         var holder = CreateHolder();
         var cts = new CancellationTokenSource();
@@ -90,8 +187,10 @@ public class ActionHolderTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(cts.IsCancellationRequested, Is.True);
+            Assert.That(act.State, Is.EqualTo(ActionState.Cancelled));
             Assert.That(act.Status, Is.EqualTo("Отменено"));
             Assert.That(ContainsAction(holder, act.Id), Is.False);
+            Assert.That(IsCompleted(holder, act.Id), Is.True);
         }
     }
 
@@ -108,6 +207,7 @@ public class ActionHolderTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(act.Status, Is.EqualTo("X"));
+            Assert.That(act.State, Is.EqualTo(ActionState.Succeeded));
             Assert.That(ContainsAction(holder, act.Id), Is.False);
         }
     }
@@ -126,11 +226,12 @@ public class ActionHolderTests
         {
             Assert.That(cts.IsCancellationRequested, Is.False);
             Assert.That(act.Status, Is.EqualTo("Готово"));
+            Assert.That(act.State, Is.EqualTo(ActionState.Succeeded));
         }
     }
 
     [Test]
-    public void Завершение_после_отмены_сохраняет_статус_отмены()
+    public void Завершение_после_отмены_сохраняет_состояние_отмены()
     {
         var holder = CreateHolder();
         var cts = new CancellationTokenSource();
@@ -139,7 +240,159 @@ public class ActionHolderTests
         act.Cancel();
         act.Finish();
 
-        Assert.That(act.Status, Is.EqualTo("Отменено"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(act.Status, Is.EqualTo("Отменено"));
+            Assert.That(act.State, Is.EqualTo(ActionState.Cancelled));
+        }
+    }
+
+    [Test]
+    public void MarkCancelled_не_трогает_токен_но_ставит_Cancelled()
+    {
+        var holder = CreateHolder();
+        var cts = new CancellationTokenSource();
+        var act = holder.Register("test", "Старт", 0, cts);
+
+        act.MarkCancelled();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cts.IsCancellationRequested, Is.False);
+            Assert.That(act.State, Is.EqualTo(ActionState.Cancelled));
+            Assert.That(act.Status, Is.EqualTo("Отменено"));
+            Assert.That(IsCompleted(holder, act.Id), Is.True);
+        }
+    }
+
+    [Test]
+    public void Число_активных_не_учитывает_завершённые()
+    {
+        var holder = CreateHolder();
+        using var cts1 = new CancellationTokenSource();
+        using var cts2 = new CancellationTokenSource();
+        using var cts3 = new CancellationTokenSource();
+
+        var a = holder.Register("a", "Старт", 0, cts1);
+        holder.Register("b", "Старт", 0, cts2);
+        holder.Register("c", "Старт", 0, cts3);
+
+        Assert.That(holder.ActiveCount, Is.EqualTo(3));
+
+        a.Finish();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(holder.ActiveCount, Is.EqualTo(2));
+            Assert.That(holder.Snapshot(), Has.Count.EqualTo(2));
+            Assert.That(holder.CompletedSnapshot(), Has.Count.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public void Завершённые_отсортированы_по_убыванию_времени_завершения()
+    {
+        var holder = CreateHolder();
+        using var cts1 = new CancellationTokenSource();
+        using var cts2 = new CancellationTokenSource();
+        using var cts3 = new CancellationTokenSource();
+
+        var first = holder.Register("first", "Старт", 0, cts1);
+        var second = holder.Register("second", "Старт", 0, cts2);
+        var third = holder.Register("third", "Старт", 0, cts3);
+
+        first.Finish();
+        Thread.Sleep(5);
+        second.Finish();
+        Thread.Sleep(5);
+        third.Finish();
+
+        var names = holder.CompletedSnapshot().Select(a => a.Name).ToArray();
+
+        Assert.That(names, Is.EqualTo(["third", "second", "first"]));
+    }
+
+    [Test]
+    public void ClearCompleted_чистит_историю()
+    {
+        var holder = CreateHolder();
+        using var cts1 = new CancellationTokenSource();
+        using var cts2 = new CancellationTokenSource();
+
+        holder.Register("a", "Старт", 0, cts1).Finish();
+        holder.Register("b", "Старт", 0, cts2).Fail("упало");
+
+        Assert.That(holder.CompletedSnapshot(), Has.Count.EqualTo(2));
+
+        holder.ClearCompleted();
+
+        Assert.That(holder.CompletedSnapshot(), Is.Empty);
+    }
+
+    [Test]
+    public void Remove_убирает_одну_завершённую_задачу()
+    {
+        var holder = CreateHolder();
+        using var cts1 = new CancellationTokenSource();
+        using var cts2 = new CancellationTokenSource();
+
+        var a = holder.Register("a", "Старт", 0, cts1);
+        var b = holder.Register("b", "Старт", 0, cts2);
+        a.Finish();
+        b.Finish();
+
+        holder.Remove(a.Id);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(IsCompleted(holder, a.Id), Is.False);
+            Assert.That(IsCompleted(holder, b.Id), Is.True);
+        }
+    }
+
+    [Test]
+    public void Dismiss_убирает_одну_завершённую_задачу()
+    {
+        var holder = CreateHolder();
+        using var cts = new CancellationTokenSource();
+
+        var a = holder.Register("a", "Старт", 0, cts);
+        a.Finish();
+
+        holder.Dismiss(a);
+
+        Assert.That(IsCompleted(holder, a.Id), Is.False);
+    }
+
+    [Test]
+    public void История_вытесняет_самую_старую_при_достижении_потолка()
+    {
+        var holder = CreateHolder();
+        const int Cap = 50;
+        const int Total = Cap + 10;
+
+        ActionHolder.RunningAction firstAction = null!;
+        for (var i = 0; i < Total; i++)
+        {
+            using var cts = new CancellationTokenSource();
+            var act = holder.Register($"task-{i}", "Старт", 0, cts);
+            if (i == 0)
+            {
+                firstAction = act;
+            }
+
+            act.Finish();
+            Thread.Sleep(1);
+        }
+
+        var completed = holder.CompletedSnapshot();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(completed, Has.Count.EqualTo(Cap));
+            Assert.That(completed.Any(a => a.Id == firstAction.Id), Is.False);
+            Assert.That(completed.Select(a => a.Name), Does.Contain($"task-{Total - 1}"));
+        }
     }
 
     [Test]
@@ -227,7 +480,7 @@ public class ActionHolderTests
 
         act.Cancel();
 
-        handler.Received(1).Invoke(holder, Arg.Any<EventArgs>());
+        handler.Received().Invoke(holder, Arg.Any<EventArgs>());
     }
 
     [Test]
@@ -240,6 +493,20 @@ public class ActionHolderTests
         holder.Changed += handler;
 
         act.Finish();
+
+        handler.Received(1).Invoke(holder, Arg.Any<EventArgs>());
+    }
+
+    [Test]
+    public void ClearCompleted_порождает_событие_изменения_реестра()
+    {
+        var holder = CreateHolder();
+        using var cts = new CancellationTokenSource();
+        holder.Register("test", "Старт", 0, cts).Finish();
+        var handler = Substitute.For<EventHandler>();
+        holder.Changed += handler;
+
+        holder.ClearCompleted();
 
         handler.Received(1).Invoke(holder, Arg.Any<EventArgs>());
     }
@@ -287,18 +554,6 @@ public class ActionHolderTests
         var names = holder.Snapshot().Select(a => a.Name).ToArray();
 
         Assert.That(names, Is.EquivalentTo(["a", "b", "c"]));
-    }
-
-    [Test]
-    public void Снимок_не_содержит_завершённое_действие()
-    {
-        var holder = CreateHolder();
-        using var cts = new CancellationTokenSource();
-        var act = holder.Register("test", "Старт", 0, cts);
-
-        act.Finish();
-
-        Assert.That(holder.Snapshot(), Is.Empty);
     }
 
     [Test]
@@ -448,13 +703,16 @@ public class ActionHolderTests
         {
             Assert.That(ContainsAction(holder, parent.Id), Is.False);
             Assert.That(ContainsAction(holder, child.Id), Is.False);
+            Assert.That(IsCompleted(holder, parent.Id), Is.True);
+            Assert.That(IsCompleted(holder, child.Id), Is.True);
+            Assert.That(child.State, Is.EqualTo(ActionState.Cancelled));
             Assert.That(child.Status, Is.EqualTo("Отменено"));
             Assert.That(childCts.IsCancellationRequested, Is.True);
         }
     }
 
     [Test]
-    public void Потомок_завершённого_родителя_остаётся_в_снимке()
+    public void Потомок_завершённого_родителя_остаётся_в_активном_снимке()
     {
         var holder = CreateHolder();
         var parentCts = new CancellationTokenSource();
@@ -472,6 +730,7 @@ public class ActionHolderTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(ContainsAction(holder, parent.Id), Is.False);
+            Assert.That(IsCompleted(holder, parent.Id), Is.True);
             Assert.That(ContainsAction(holder, child.Id), Is.True);
         }
     }

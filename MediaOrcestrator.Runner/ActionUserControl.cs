@@ -9,11 +9,16 @@ public sealed partial class ActionUserControl : UserControl
     private static readonly Color CanceledBackColor = Color.Gainsboro;
     private static readonly Color CanceledForeColor = Color.DimGray;
     private static readonly Color StatusErrorColor = Color.IndianRed;
+    private static readonly Color SucceededBackColor = Color.FromArgb(0xF1, 0xF8, 0xF1);
+    private static readonly Color SucceededAccent = Color.FromArgb(0x2E, 0x8B, 0x57);
+    private static readonly Color SucceededForeColor = Color.FromArgb(0x55, 0x6B, 0x55);
+    private static readonly Color FailedBackColor = Color.FromArgb(0xFB, 0xEF, 0xEF);
 
     private static readonly Color SyncAccent = Color.FromArgb(0x2F, 0x6F, 0xB0);
     private static readonly Color DownloadAccent = Color.FromArgb(0x2E, 0x8B, 0x57);
     private static readonly Color UploadAccent = Color.FromArgb(0xC8, 0x86, 0x16);
     private static readonly Color TransferAccent = Color.FromArgb(0x6A, 0x5A, 0xCD);
+    private static readonly Color CommentsAccent = Color.FromArgb(0x00, 0x96, 0x88);
     private static readonly Color OtherAccent = Color.FromArgb(0x9E, 0x9E, 0x9E);
 
     private readonly Color _defaultBackColor;
@@ -34,15 +39,6 @@ public sealed partial class ActionUserControl : UserControl
         _defaultSubtitleForeColor = uiSubtitleLabel.ForeColor;
 
         Disposed += OnDisposed;
-    }
-
-    private enum ActionKind
-    {
-        Sync,
-        Download,
-        Upload,
-        Transfer,
-        Other,
     }
 
     public void SetAction(ActionHolder.RunningAction action)
@@ -97,31 +93,6 @@ public sealed partial class ActionUserControl : UserControl
         _action.Cancel();
     }
 
-    private static ActionKind ClassifyKind(string name)
-    {
-        if (name.StartsWith("Синхронизация", StringComparison.Ordinal))
-        {
-            return ActionKind.Sync;
-        }
-
-        if (name.StartsWith("Загрузка", StringComparison.Ordinal))
-        {
-            return ActionKind.Download;
-        }
-
-        if (name.StartsWith("Заливка", StringComparison.Ordinal))
-        {
-            return ActionKind.Upload;
-        }
-
-        if (name.StartsWith("Передача", StringComparison.Ordinal))
-        {
-            return ActionKind.Transfer;
-        }
-
-        return ActionKind.Other;
-    }
-
     private static Color AccentFor(ActionKind kind)
     {
         return kind switch
@@ -130,8 +101,38 @@ public sealed partial class ActionUserControl : UserControl
             ActionKind.Download => DownloadAccent,
             ActionKind.Upload => UploadAccent,
             ActionKind.Transfer => TransferAccent,
+            ActionKind.Comments => CommentsAccent,
             _ => OtherAccent,
         };
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        var totalSeconds = (int)Math.Round(duration.TotalSeconds);
+        if (totalSeconds < 0)
+        {
+            totalSeconds = 0;
+        }
+
+        if (totalSeconds < 60)
+        {
+            return $"за {totalSeconds} с";
+        }
+
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+        if (minutes < 60)
+        {
+            return seconds == 0
+                ? $"за {minutes} мин"
+                : $"за {minutes} мин {seconds} с";
+        }
+
+        var hours = minutes / 60;
+        minutes %= 60;
+        return minutes == 0
+            ? $"за {hours} ч"
+            : $"за {hours} ч {minutes} мин";
     }
 
     private void UpdateStatus()
@@ -141,11 +142,19 @@ public sealed partial class ActionUserControl : UserControl
             return;
         }
 
+        var state = _action.State;
         var status = _action.Status;
         uiNameLabel.Text = _action.Name;
         uiStatusLabel.Text = status;
 
         var subtitle = _action.Subtitle;
+        var isCompleted = state is ActionState.Succeeded or ActionState.Failed or ActionState.Cancelled;
+        if (isCompleted)
+        {
+            var duration = FormatDuration(_action.Duration);
+            subtitle = subtitle.Length > 0 ? $"{subtitle} · {duration}" : duration;
+        }
+
         var hasSubtitle = subtitle.Length > 0;
         uiSubtitleLabel.Text = subtitle;
         uiSubtitleLabel.Visible = hasSubtitle;
@@ -156,8 +165,7 @@ public sealed partial class ActionUserControl : UserControl
             Height = targetHeight;
         }
 
-        var isCanceled = _isCanceled || status.StartsWith("Отмен", StringComparison.Ordinal);
-        if (isCanceled)
+        if (state == ActionState.Cancelled || _isCanceled)
         {
             BackColor = CanceledBackColor;
             uiAccentStrip.BackColor = CanceledForeColor;
@@ -169,21 +177,35 @@ public sealed partial class ActionUserControl : UserControl
             return;
         }
 
+        switch (state)
+        {
+            case ActionState.Failed:
+                BackColor = FailedBackColor;
+                uiAccentStrip.BackColor = StatusErrorColor;
+                uiNameLabel.ForeColor = _defaultNameForeColor;
+                uiStatusLabel.ForeColor = StatusErrorColor;
+                uiSubtitleLabel.ForeColor = _defaultSubtitleForeColor;
+                HideProgress();
+                uiCancelButton.Visible = false;
+                return;
+
+            case ActionState.Succeeded:
+                BackColor = SucceededBackColor;
+                uiAccentStrip.BackColor = SucceededAccent;
+                uiNameLabel.ForeColor = _defaultNameForeColor;
+                uiStatusLabel.ForeColor = SucceededForeColor;
+                uiSubtitleLabel.ForeColor = _defaultSubtitleForeColor;
+                HideProgress();
+                uiCancelButton.Visible = false;
+                return;
+        }
+
         BackColor = _defaultBackColor;
         uiNameLabel.ForeColor = _defaultNameForeColor;
         uiSubtitleLabel.ForeColor = _defaultSubtitleForeColor;
         uiCancelButton.Visible = true;
 
-        if (status.StartsWith("Ошибк", StringComparison.Ordinal))
-        {
-            uiAccentStrip.BackColor = StatusErrorColor;
-            uiStatusLabel.ForeColor = StatusErrorColor;
-            HideProgress();
-            uiCancelButton.Visible = false;
-            return;
-        }
-
-        uiAccentStrip.BackColor = AccentFor(ClassifyKind(_action.Name));
+        uiAccentStrip.BackColor = AccentFor(_action.Kind);
         uiStatusLabel.ForeColor = _defaultStatusForeColor;
 
         var progressMax = _action.ProgressMax;

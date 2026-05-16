@@ -6,9 +6,13 @@ public sealed partial class TasksControl : UserControl
 {
     private const int IndentStep = 18;
 
+    private static readonly TimeSpan AutoHideDelay = TimeSpan.FromSeconds(8);
+
     private readonly Dictionary<Guid, ActionUserControl> _rows = [];
+    private readonly Dictionary<Guid, ActionUserControl> _completedRows = [];
 
     private ActionHolder? _actionHolder;
+    private bool _completedCollapsed;
 
     public TasksControl()
     {
@@ -47,16 +51,12 @@ public sealed partial class TasksControl : UserControl
 
     private void uiTasksFlowLayoutPanel_SizeChanged(object sender, EventArgs e)
     {
-        var rowWidth = CalculateRowWidth();
-        if (rowWidth <= 0)
-        {
-            return;
-        }
+        ResizeRows(uiTasksFlowLayoutPanel);
+    }
 
-        foreach (Control control in uiTasksFlowLayoutPanel.Controls)
-        {
-            control.Width = Math.Max(rowWidth - control.Margin.Left, 0);
-        }
+    private void uiCompletedFlowLayoutPanel_SizeChanged(object sender, EventArgs e)
+    {
+        ResizeRows(uiCompletedFlowLayoutPanel);
     }
 
     private void uiCancelAllButton_Click(object sender, EventArgs e)
@@ -89,6 +89,47 @@ public sealed partial class TasksControl : UserControl
         }
     }
 
+    private void uiCompletedHeaderButton_Click(object sender, EventArgs e)
+    {
+        _completedCollapsed = !_completedCollapsed;
+        Rebuild();
+    }
+
+    private void uiClearCompletedButton_Click(object sender, EventArgs e)
+    {
+        _actionHolder?.ClearCompleted();
+    }
+
+    private void uiAutoHideTimer_Tick(object sender, EventArgs e)
+    {
+        if (_actionHolder == null)
+        {
+            return;
+        }
+
+        var now = DateTime.Now;
+        var stale = _actionHolder.CompletedSnapshot()
+            .Where(a => a is { State: ActionState.Succeeded, FinishedAt: not null }
+                        && now - a.FinishedAt.Value >= AutoHideDelay)
+            .ToArray();
+
+        foreach (var action in stale)
+        {
+            _actionHolder.Dismiss(action);
+        }
+    }
+
+    private static int CalculateRowWidth(DoubleBufferedFlowLayoutPanel panel)
+    {
+        var width = panel.ClientSize.Width - panel.Padding.Horizontal;
+        if (panel.VerticalScroll.Visible)
+        {
+            width -= SystemInformation.VerticalScrollBarWidth;
+        }
+
+        return Math.Max(width, 0);
+    }
+
     private void Rebuild()
     {
         if (_actionHolder == null)
@@ -97,48 +138,10 @@ public sealed partial class TasksControl : UserControl
         }
 
         var snapshot = _actionHolder.Snapshot();
+        var completed = _actionHolder.CompletedSnapshot();
 
-        uiTasksFlowLayoutPanel.SuspendLayout();
-        try
-        {
-            var present = snapshot.Select(a => a.Id).ToHashSet();
-
-            foreach (var (id, row) in _rows.Where(kv => !present.Contains(kv.Key)).ToArray())
-            {
-                _rows.Remove(id);
-                uiTasksFlowLayoutPanel.Controls.Remove(row);
-                row.Dispose();
-            }
-
-            var rowWidth = CalculateRowWidth();
-            var indentStep = LogicalToDeviceUnits(IndentStep);
-            for (var i = 0; i < snapshot.Count; i++)
-            {
-                var action = snapshot[i];
-                var indent = indentStep * Math.Max(action.Depth, 0);
-
-                if (!_rows.TryGetValue(action.Id, out var row))
-                {
-                    row = new();
-                    row.SetAction(action);
-                    _rows[action.Id] = row;
-                    uiTasksFlowLayoutPanel.Controls.Add(row);
-                }
-
-                var margin = new Padding(indent, 0, 0, 6);
-                if (row.Margin != margin)
-                {
-                    row.Margin = margin;
-                }
-
-                row.Width = Math.Max(rowWidth - indent, 0);
-                uiTasksFlowLayoutPanel.Controls.SetChildIndex(row, i);
-            }
-        }
-        finally
-        {
-            uiTasksFlowLayoutPanel.ResumeLayout();
-        }
+        SyncPanel(uiTasksFlowLayoutPanel, _rows, snapshot, true);
+        SyncPanel(uiCompletedFlowLayoutPanel, _completedRows, completed, false);
 
         uiHeaderLabel.Text = snapshot.Count == 0
             ? "Активных задач нет"
@@ -148,17 +151,85 @@ public sealed partial class TasksControl : UserControl
         uiEmptyStateLabel.Visible = snapshot.Count == 0;
         uiTasksFlowLayoutPanel.Visible = snapshot.Count > 0;
 
+        var hasCompleted = completed.Count > 0;
+        uiCompletedPanel.Visible = hasCompleted;
+        var arrow = _completedCollapsed ? "▸" : "▾";
+        uiCompletedHeaderButton.Text = $"Завершённые ({completed.Count}) {arrow}";
+        uiCompletedFlowLayoutPanel.Visible = hasCompleted && !_completedCollapsed;
+
+        var hasSucceeded = completed.Any(a => a.State == ActionState.Succeeded);
+        if (hasSucceeded && !uiAutoHideTimer.Enabled)
+        {
+            uiAutoHideTimer.Start();
+        }
+        else if (!hasSucceeded && uiAutoHideTimer.Enabled)
+        {
+            uiAutoHideTimer.Stop();
+        }
+
         RunningCountChanged?.Invoke(this, snapshot.Count);
     }
 
-    private int CalculateRowWidth()
+    private void SyncPanel(
+        DoubleBufferedFlowLayoutPanel panel,
+        Dictionary<Guid, ActionUserControl> rows,
+        IReadOnlyList<ActionHolder.RunningAction> actions,
+        bool applyIndent)
     {
-        var width = uiTasksFlowLayoutPanel.ClientSize.Width - uiTasksFlowLayoutPanel.Padding.Horizontal;
-        if (uiTasksFlowLayoutPanel.VerticalScroll.Visible)
+        panel.SuspendLayout();
+        try
         {
-            width -= SystemInformation.VerticalScrollBarWidth;
+            var present = actions.Select(a => a.Id).ToHashSet();
+
+            foreach (var (id, row) in rows.Where(kv => !present.Contains(kv.Key)).ToArray())
+            {
+                rows.Remove(id);
+                panel.Controls.Remove(row);
+                row.Dispose();
+            }
+
+            var rowWidth = CalculateRowWidth(panel);
+            var indentStep = LogicalToDeviceUnits(IndentStep);
+            for (var i = 0; i < actions.Count; i++)
+            {
+                var action = actions[i];
+                var indent = applyIndent ? indentStep * Math.Max(action.Depth, 0) : 0;
+
+                if (!rows.TryGetValue(action.Id, out var row))
+                {
+                    row = new();
+                    row.SetAction(action);
+                    rows[action.Id] = row;
+                    panel.Controls.Add(row);
+                }
+
+                var margin = new Padding(indent, 0, 0, 6);
+                if (row.Margin != margin)
+                {
+                    row.Margin = margin;
+                }
+
+                row.Width = Math.Max(rowWidth - indent, 0);
+                panel.Controls.SetChildIndex(row, i);
+            }
+        }
+        finally
+        {
+            panel.ResumeLayout();
+        }
+    }
+
+    private void ResizeRows(DoubleBufferedFlowLayoutPanel panel)
+    {
+        var rowWidth = CalculateRowWidth(panel);
+        if (rowWidth <= 0)
+        {
+            return;
         }
 
-        return Math.Max(width, 0);
+        foreach (Control control in panel.Controls)
+        {
+            control.Width = Math.Max(rowWidth - control.Margin.Left, 0);
+        }
     }
 }

@@ -469,7 +469,7 @@ public partial class PublishControl : UserControl
         using var chainCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var chainToken = chainCts.Token;
         var actionName = $"Цепочка после публикации: «{media.Title}» от {publishedSource.TitleFull}";
-        var running = _actionHolder.Register(actionName, "В процессе", chain.Count, chainCts);
+        var running = _actionHolder.Register(actionName, "В процессе", chain.Count, chainCts, kind: ActionKind.Other);
 
         using var chainScope = _actionHolder.BeginScope(running);
 
@@ -502,7 +502,7 @@ public partial class PublishControl : UserControl
         }
         catch (OperationCanceledException)
         {
-            running.Finish("Отменено");
+            running.MarkCancelled();
             throw;
         }
         catch (Exception exception) when (failedIntent != null)
@@ -511,7 +511,7 @@ public partial class PublishControl : UserControl
                 media.Title, failedIntent.From.TitleFull, failedIntent.To.TitleFull);
 
             SetStatus($"Цепочка прервана на {failedIntent.To.TitleFull}: {exception.Message}", true);
-            running.Finish($"Ошибка на {failedIntent.To.TitleFull}");
+            running.Fail($"Ошибка на {failedIntent.To.TitleFull}", exception);
         }
     }
 

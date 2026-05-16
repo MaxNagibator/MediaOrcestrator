@@ -23,7 +23,7 @@ internal static class BatchOperationRunner
         ActionHolder.RunningAction? running = null;
         if (actionHolder != null && !string.IsNullOrEmpty(actionName))
         {
-            running = actionHolder.Register(actionName, "В процессе", items.Count, linkedCts);
+            running = actionHolder.Register(actionName, "В процессе", items.Count, linkedCts, kind: ActionKind.Other);
         }
 
         using var batchScope = running != null && actionHolder != null
@@ -69,7 +69,27 @@ internal static class BatchOperationRunner
         }
         finally
         {
-            running?.Finish(token.IsCancellationRequested ? "Отменено" : null);
+            if (running != null)
+            {
+                if (token.IsCancellationRequested)
+                {
+                    running.MarkCancelled();
+                }
+                else if (errors.Count > 0)
+                {
+                    var message = $"Ошибок: {errors.Count} из {items.Count}";
+                    var details = string.Join(Environment.NewLine,
+                        errors.Select(e => $"- {titleSelector(e.item)}: {e.ex.Message}"));
+
+                    running.Fail(message, new AggregateException(message + Environment.NewLine + details,
+                        errors.Select(e => e.ex)));
+                }
+                else
+                {
+                    running.Finish();
+                }
+            }
+
             ui.SetLoading(false);
             ui.NotifyDataChanged();
         }

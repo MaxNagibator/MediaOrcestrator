@@ -900,7 +900,7 @@ public partial class CommentsHtmlControl : UserControl
         };
 
         var cts = new CancellationTokenSource();
-        var action = _actionHolder.Register($"{label}: «{media.Title}»", "Запущена", 1, cts);
+        var action = _actionHolder.Register($"{label}: «{media.Title}»", "Запущена", 1, cts, kind: ActionKind.Comments);
 
         var patchedInPlace = false;
 
@@ -1132,7 +1132,7 @@ public partial class CommentsHtmlControl : UserControl
         }
 
         var cts = new CancellationTokenSource();
-        var action = _actionHolder.Register($"Комментарии: «{media.Title}»", "Запущена", 1, cts);
+        var action = _actionHolder.Register($"Комментарии: «{media.Title}»", "Запущена", 1, cts, kind: ActionKind.Comments);
 
         uiFetchProgressBar.Style = ProgressBarStyle.Marquee;
         uiFetchProgressBar.Visible = true;
@@ -1268,7 +1268,8 @@ public partial class CommentsHtmlControl : UserControl
         var action = _actionHolder.Register($"Загрузка комментариев из «{source.TitleFull}»",
             "Запущена",
             targets.Count,
-            cts);
+            cts,
+            kind: ActionKind.Comments);
 
         uiFetchProgressBar.Style = ProgressBarStyle.Blocks;
         uiFetchProgressBar.Maximum = targets.Count;

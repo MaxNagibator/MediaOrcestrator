@@ -82,7 +82,7 @@ public class Orcestrator(
                     : $"синхр.: {mediaSource.LastSyncedAt.Value.ToLocalTime():dd.MM.yyyy HH:mm}";
 
                 var subtitle = $"{mediaSource.TypeId} · {lastSync}";
-                var action = actionHolder.Register("Синхронизация: " + mediaSource.TitleFull, syncMode, 0, ctx, subtitle);
+                var action = actionHolder.Register("Синхронизация: " + mediaSource.TitleFull, syncMode, 0, ctx, subtitle, ActionKind.Sync);
 
                 var plugin = sourceTypes.Values.FirstOrDefault(x => x.Name == mediaSource.TypeId);
 
@@ -823,7 +823,8 @@ public class Orcestrator(
         var transferAction = actionHolder.Register($"Передача: «{media.Title}» ({rel.From.TitleFull} → {rel.To.TitleFull})",
             "Передача...",
             0,
-            transferCts);
+            transferCts,
+            kind: ActionKind.Transfer);
 
         try
         {
@@ -936,12 +937,12 @@ public class Orcestrator(
         }
         catch (OperationCanceledException)
         {
-            transferAction.Finish("Отменено");
+            transferAction.MarkCancelled();
             throw;
         }
-        catch
+        catch (Exception exception)
         {
-            transferAction.Finish("Ошибка");
+            transferAction.Fail("Ошибка: " + exception.Message, exception);
             throw;
         }
     }
@@ -984,7 +985,8 @@ public class Orcestrator(
         var downloadAction = actionHolder.Register($"Загрузка: «{mediaTitle}» ({source.TitleFull})",
             "Подготовка...",
             100,
-            downloadCts);
+            downloadCts,
+            kind: ActionKind.Download);
 
         try
         {
@@ -1001,12 +1003,12 @@ public class Orcestrator(
         }
         catch (OperationCanceledException)
         {
-            downloadAction.Finish("Отменено");
+            downloadAction.MarkCancelled();
             throw;
         }
-        catch
+        catch (Exception exception)
         {
-            downloadAction.Finish("Ошибка");
+            downloadAction.Fail("Ошибка: " + exception.Message, exception);
             throw;
         }
     }
@@ -1017,7 +1019,8 @@ public class Orcestrator(
         var uploadAction = actionHolder.Register($"Заливка: «{mediaTitle}» ({target.TitleFull})",
             "Подготовка...",
             100,
-            uploadCts);
+            uploadCts,
+            kind: ActionKind.Upload);
 
         try
         {
@@ -1034,12 +1037,12 @@ public class Orcestrator(
         }
         catch (OperationCanceledException)
         {
-            uploadAction.Finish("Отменено");
+            uploadAction.MarkCancelled();
             throw;
         }
-        catch
+        catch (Exception exception)
         {
-            uploadAction.Finish("Ошибка");
+            uploadAction.Fail("Ошибка: " + exception.Message, exception);
             throw;
         }
     }
