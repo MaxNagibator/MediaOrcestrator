@@ -1055,12 +1055,20 @@ public class Orcestrator(
         {
             var eta = new ProgressEtaEstimator();
             var ticker = new SubtitleEtaTicker(downloadAction, eta);
+            var lastPercent = -1;
             var downloadProgress = new Progress<DownloadProgress>(p =>
             {
                 var percent = (int)Math.Clamp(p.Percent, 0, 100);
+                ticker.Report(p.Percent);
+
+                if (percent == lastPercent)
+                {
+                    return;
+                }
+
+                lastPercent = percent;
                 downloadAction.SetProgress(percent);
                 downloadAction.Status = $"Загрузка {percent}%";
-                ticker.Report(p.Percent);
             });
 
             var result = await source.Type!.DownloadAsync(externalId, source.Settings, downloadProgress, downloadCts.Token);
@@ -1095,12 +1103,20 @@ public class Orcestrator(
         {
             var eta = new ProgressEtaEstimator();
             var ticker = new SubtitleEtaTicker(uploadAction, eta);
+            var lastPercent = -1;
             var uploadProgress = new Progress<UploadProgress>(p =>
             {
                 var percent = (int)Math.Clamp(p.Percent, 0, 100);
+                ticker.Report(p.Percent);
+
+                if (percent == lastPercent)
+                {
+                    return;
+                }
+
+                lastPercent = percent;
                 uploadAction.SetProgress(percent);
                 uploadAction.Status = $"Заливка {percent}%";
-                ticker.Report(p.Percent);
             });
 
             var result = await target.Type!.UploadAsync(dto, target.Settings, uploadProgress, uploadCts.Token);
