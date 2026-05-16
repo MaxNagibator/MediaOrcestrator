@@ -1,5 +1,6 @@
 ﻿using MediaOrcestrator.Domain;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel;
 
 namespace MediaOrcestrator.Runner;
 
@@ -8,18 +9,23 @@ public sealed class MainFormTaskbarController(
     ActionHolder actionHolder,
     ILogger<MainFormTaskbarController> logger)
 {
-    private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
+    private SynchronizationContext? _uiContext;
+    private ISynchronizeInvoke? _uiInvoke;
 
     private IntPtr _hwnd;
     private bool _subscribed;
     private bool _disposed;
+    private bool _marshalWarned;
 
-    public void Attach(IntPtr hwnd)
+    public void Attach(IntPtr hwnd, ISynchronizeInvoke uiInvoke)
     {
         if (_disposed)
         {
             return;
         }
+
+        _uiContext = SynchronizationContext.Current;
+        _uiInvoke = uiInvoke;
 
         _hwnd = hwnd;
         taskbar.Attach(hwnd);
@@ -64,18 +70,54 @@ public sealed class MainFormTaskbarController(
 
     private void OnActionsChanged(object? sender, EventArgs e)
     {
-        if (_disposed)
+        if (_disposed || taskbar.IsUnavailable)
         {
             return;
         }
 
-        if (_uiContext != null && _uiContext != SynchronizationContext.Current)
+        if (_uiContext != null && _uiContext == SynchronizationContext.Current)
+        {
+            Recalculate();
+            return;
+        }
+
+        if (_uiContext != null)
         {
             _uiContext.Post(_ => Recalculate(), null);
             return;
         }
 
-        Recalculate();
+        if (_uiInvoke is { InvokeRequired: true })
+        {
+            try
+            {
+                _uiInvoke.BeginInvoke(new Action(Recalculate), null);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Форма уже закрывается
+            }
+            catch (InvalidOperationException)
+            {
+                // Хэндл ещё/уже не создан
+            }
+
+            return;
+        }
+
+        if (_uiInvoke is { InvokeRequired: false })
+        {
+            Recalculate();
+            return;
+        }
+
+        if (_marshalWarned)
+        {
+            return;
+        }
+
+        _marshalWarned = true;
+        logger.LogWarning("Нет UI-контекста для обновления панели задач, индикатор отключён");
     }
 
     private void Recalculate()

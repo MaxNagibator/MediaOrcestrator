@@ -22,6 +22,7 @@ public sealed class WindowsTaskbarProgress(ILogger<WindowsTaskbarProgress> logge
     private IntPtr _hwnd;
     private bool _failed;
     private bool _disposed;
+    private bool _forceNextApply;
 
     private TaskbarProgressState _lastState = TaskbarProgressState.NoProgress;
     private int _lastPercent = -1;
@@ -57,6 +58,8 @@ public sealed class WindowsTaskbarProgress(ILogger<WindowsTaskbarProgress> logge
         void SetThumbnailClip(IntPtr hwnd, IntPtr prcClip);
     }
 
+    public bool IsUnavailable => _disposed || _failed;
+
     public void Attach(IntPtr hwnd)
     {
         if (_disposed || _failed)
@@ -66,6 +69,20 @@ public sealed class WindowsTaskbarProgress(ILogger<WindowsTaskbarProgress> logge
 
         lock (_lock)
         {
+            if (_taskbar != null)
+            {
+                try
+                {
+                    Marshal.FinalReleaseComObject(_taskbar);
+                }
+                catch
+                {
+                    // COM-объект мог быть уже освобождён системой
+                }
+
+                _taskbar = null;
+            }
+
             _hwnd = hwnd;
 
             try
@@ -79,9 +96,7 @@ public sealed class WindowsTaskbarProgress(ILogger<WindowsTaskbarProgress> logge
                 return;
             }
 
-            _lastState = TaskbarProgressState.NoProgress;
-            _lastPercent = -1;
-            _lastBadgeCount = -1;
+            _forceNextApply = true;
         }
     }
 
@@ -99,9 +114,11 @@ public sealed class WindowsTaskbarProgress(ILogger<WindowsTaskbarProgress> logge
                 return;
             }
 
+            var force = _forceNextApply;
+
             try
             {
-                if (state != _lastState)
+                if (force || state != _lastState)
                 {
                     _taskbar.SetProgressState(_hwnd, state);
                     _lastState = state;
@@ -115,14 +132,21 @@ public sealed class WindowsTaskbarProgress(ILogger<WindowsTaskbarProgress> logge
                 if (state == TaskbarProgressState.Normal)
                 {
                     var clamped = Math.Clamp(percent, 0, 100);
-                    if (clamped != _lastPercent)
+                    if (force || clamped != _lastPercent)
                     {
                         _taskbar.SetProgressValue(_hwnd, (ulong)clamped, 100UL);
                         _lastPercent = clamped;
                     }
                 }
+                else if (state == TaskbarProgressState.Error)
+                {
+                    _taskbar.SetProgressValue(_hwnd, 1UL, 1UL);
+                    _lastPercent = -1;
+                }
 
-                ApplyBadge(activeCount);
+                ApplyBadge(activeCount, force);
+
+                _forceNextApply = false;
             }
             catch (Exception ex)
             {
@@ -212,9 +236,9 @@ public sealed class WindowsTaskbarProgress(ILogger<WindowsTaskbarProgress> logge
         return bitmap.GetHicon();
     }
 
-    private void ApplyBadge(int activeCount)
+    private void ApplyBadge(int activeCount, bool force)
     {
-        if (activeCount == _lastBadgeCount)
+        if (!force && activeCount == _lastBadgeCount)
         {
             return;
         }

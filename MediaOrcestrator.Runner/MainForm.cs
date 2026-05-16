@@ -67,7 +67,7 @@ public partial class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        _taskbarController.Attach(Handle);
+        _taskbarController.Attach(Handle, this);
     }
 
     protected override void WndProc(ref Message m)

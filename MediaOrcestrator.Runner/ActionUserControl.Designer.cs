@@ -44,11 +44,13 @@ partial class ActionUserControl
         uiStatusLabel = new Label();
         uiProgressBar = new ProgressBar();
         uiProgressLabel = new Label();
+        uiActionButtonsPanel = new Panel();
         uiCancelButton = new Button();
         uiDetailsButton = new Button();
         uiActionToolTip = new ToolTip(components);
         uiLayout.SuspendLayout();
         uiTitlePanel.SuspendLayout();
+        uiActionButtonsPanel.SuspendLayout();
         SuspendLayout();
         //
         // uiAccentStrip
@@ -73,8 +75,7 @@ partial class ActionUserControl
         uiLayout.Controls.Add(uiStatusLabel, 1, 0);
         uiLayout.Controls.Add(uiProgressBar, 2, 0);
         uiLayout.Controls.Add(uiProgressLabel, 3, 0);
-        uiLayout.Controls.Add(uiCancelButton, 4, 0);
-        uiLayout.Controls.Add(uiDetailsButton, 4, 0);
+        uiLayout.Controls.Add(uiActionButtonsPanel, 4, 0);
         uiLayout.Dock = DockStyle.Fill;
         uiLayout.Location = new Point(0, 0);
         uiLayout.Name = "uiLayout";
@@ -156,15 +157,28 @@ partial class ActionUserControl
         uiProgressLabel.Text = "0 / 0";
         uiProgressLabel.TextAlign = ContentAlignment.MiddleLeft;
         //
+        // uiActionButtonsPanel
+        //
+        uiActionButtonsPanel.Anchor = AnchorStyles.Right;
+        uiActionButtonsPanel.AutoSize = true;
+        uiActionButtonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        uiActionButtonsPanel.Controls.Add(uiCancelButton);
+        uiActionButtonsPanel.Controls.Add(uiDetailsButton);
+        uiActionButtonsPanel.Margin = new Padding(0);
+        uiActionButtonsPanel.Name = "uiActionButtonsPanel";
+        uiActionButtonsPanel.Size = new Size(82, 30);
+        uiActionButtonsPanel.TabIndex = 4;
+        //
         // uiCancelButton
         //
-        uiCancelButton.Anchor = AnchorStyles.Right;
         uiCancelButton.AutoSize = true;
+        uiCancelButton.Dock = DockStyle.Fill;
+        uiCancelButton.Location = new Point(0, 0);
         uiCancelButton.Margin = new Padding(0);
         uiCancelButton.Name = "uiCancelButton";
         uiCancelButton.Padding = new Padding(10, 4, 10, 4);
         uiCancelButton.Size = new Size(82, 30);
-        uiCancelButton.TabIndex = 4;
+        uiCancelButton.TabIndex = 0;
         uiCancelButton.Text = "Отмена";
         uiActionToolTip.SetToolTip(uiCancelButton, "Отменить задачу");
         uiCancelButton.UseVisualStyleBackColor = true;
@@ -172,13 +186,14 @@ partial class ActionUserControl
         //
         // uiDetailsButton
         //
-        uiDetailsButton.Anchor = AnchorStyles.Right;
         uiDetailsButton.AutoSize = true;
+        uiDetailsButton.Dock = DockStyle.Fill;
+        uiDetailsButton.Location = new Point(0, 0);
         uiDetailsButton.Margin = new Padding(0);
         uiDetailsButton.Name = "uiDetailsButton";
         uiDetailsButton.Padding = new Padding(10, 4, 10, 4);
         uiDetailsButton.Size = new Size(82, 30);
-        uiDetailsButton.TabIndex = 5;
+        uiDetailsButton.TabIndex = 1;
         uiDetailsButton.Text = "Подробнее";
         uiActionToolTip.SetToolTip(uiDetailsButton, "Показать текст ошибки");
         uiDetailsButton.UseVisualStyleBackColor = true;
@@ -199,6 +214,8 @@ partial class ActionUserControl
         Size = new Size(663, 42);
         uiTitlePanel.ResumeLayout(false);
         uiTitlePanel.PerformLayout();
+        uiActionButtonsPanel.ResumeLayout(false);
+        uiActionButtonsPanel.PerformLayout();
         uiLayout.ResumeLayout(false);
         uiLayout.PerformLayout();
         ResumeLayout(false);
@@ -214,6 +231,7 @@ partial class ActionUserControl
     private Label uiStatusLabel;
     private ProgressBar uiProgressBar;
     private Label uiProgressLabel;
+    private Panel uiActionButtonsPanel;
     private Button uiCancelButton;
     private Button uiDetailsButton;
     private ToolTip uiActionToolTip;
