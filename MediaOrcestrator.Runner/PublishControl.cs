@@ -471,6 +471,8 @@ public partial class PublishControl : UserControl
         var actionName = $"Цепочка после публикации: «{media.Title}» от {publishedSource.TitleFull}";
         var running = _actionHolder.Register(actionName, "В процессе", chain.Count, chainCts);
 
+        using var chainScope = _actionHolder.BeginScope(running);
+
         SyncIntent? failedIntent = null;
 
         try

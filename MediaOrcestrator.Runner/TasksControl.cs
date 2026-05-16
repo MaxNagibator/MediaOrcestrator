@@ -4,6 +4,8 @@ namespace MediaOrcestrator.Runner;
 
 public sealed partial class TasksControl : UserControl
 {
+    private const int IndentStep = 18;
+
     private ActionHolder? _actionHolder;
 
     public TasksControl()
@@ -51,7 +53,7 @@ public sealed partial class TasksControl : UserControl
 
         foreach (Control control in uiTasksFlowLayoutPanel.Controls)
         {
-            control.Width = rowWidth;
+            control.Width = Math.Max(rowWidth - control.Margin.Left, 0);
         }
     }
 
@@ -105,11 +107,14 @@ public sealed partial class TasksControl : UserControl
             uiTasksFlowLayoutPanel.Controls.Clear();
 
             var rowWidth = CalculateRowWidth();
+            var indentStep = LogicalToDeviceUnits(IndentStep);
             foreach (var action in snapshot)
             {
+                var indent = indentStep * Math.Max(action.Depth, 0);
                 var row = new ActionUserControl
                 {
-                    Width = rowWidth,
+                    Width = Math.Max(rowWidth - indent, 0),
+                    Margin = new(indent, 0, 0, 6),
                 };
 
                 row.SetAction(action);

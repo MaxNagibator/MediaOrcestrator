@@ -6,17 +6,55 @@ namespace MediaOrcestrator.Domain;
 public class ActionHolder(ILogger<ActionHolder> logger)
 {
     private readonly ConcurrentDictionary<Guid, RunningAction> _actions = new();
+    private readonly AsyncLocal<RunningAction?> _ambientParent = new();
+    private long _seq;
 
     public event EventHandler? Changed;
 
     public IReadOnlyList<RunningAction> Snapshot()
     {
-        return _actions.Values.ToArray();
+        var all = _actions.Values.ToArray();
+        var byParent = all
+            .Where(a => a.ParentId.HasValue)
+            .ToLookup(a => a.ParentId!.Value);
+
+        var present = all.Select(a => a.Id).ToHashSet();
+        var result = new List<RunningAction>(all.Length);
+
+        var roots = all
+            .Where(a => a.ParentId == null || !present.Contains(a.ParentId.Value))
+            .OrderBy(a => a.Order);
+
+        foreach (var root in roots)
+        {
+            AddSubtree(root);
+        }
+
+        return result;
+
+        void AddSubtree(RunningAction node)
+        {
+            result.Add(node);
+            foreach (var child in byParent[node.Id].OrderBy(c => c.Order))
+            {
+                AddSubtree(child);
+            }
+        }
+    }
+
+    public IDisposable BeginScope(RunningAction parent)
+    {
+        ArgumentNullException.ThrowIfNull(parent);
+
+        var previous = _ambientParent.Value;
+        _ambientParent.Value = parent;
+        return new ScopeReset(this, previous);
     }
 
     public RunningAction Register(string name, string status, int progressMax, CancellationTokenSource ctx)
     {
         var id = Guid.NewGuid();
+        var parent = _ambientParent.Value;
         var act = new RunningAction
         {
             Id = id,
@@ -25,10 +63,13 @@ public class ActionHolder(ILogger<ActionHolder> logger)
             ProgressMax = progressMax,
             CancellationTokenSource = ctx,
             Holder = this,
+            ParentId = parent?.Id,
+            Depth = parent == null ? 0 : parent.Depth + 1,
+            Order = Interlocked.Increment(ref _seq),
         };
 
         _actions.TryAdd(id, act);
-        logger.LogInformation("Action registered: {Id} {Name}", id, name);
+        logger.LogInformation("Action registered: {Id} {Name} parent={ParentId}", id, name, act.ParentId);
         OnChanged();
         return act;
     }
@@ -75,6 +116,11 @@ public class ActionHolder(ILogger<ActionHolder> logger)
             act.CancellationTokenSource.Dispose();
         }
 
+        foreach (var child in _actions.Values.Where(a => a.ParentId == id).ToArray())
+        {
+            child.Cancel();
+        }
+
         OnChanged();
     }
 
@@ -106,6 +152,8 @@ public class ActionHolder(ILogger<ActionHolder> logger)
 
         public Guid Id { get; set; }
         public string Name { get; set; }
+        public Guid? ParentId { get; internal set; }
+        public int Depth { get; internal set; }
 
         public string Status
         {
@@ -178,6 +226,16 @@ public class ActionHolder(ILogger<ActionHolder> logger)
         private void OnChanged()
         {
             Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        internal long Order { get; set; }
+    }
+
+    private sealed class ScopeReset(ActionHolder holder, RunningAction? previous) : IDisposable
+    {
+        public void Dispose()
+        {
+            holder._ambientParent.Value = previous;
         }
     }
 }

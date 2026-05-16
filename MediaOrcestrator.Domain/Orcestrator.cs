@@ -795,104 +795,130 @@ public class Orcestrator(
             return;
         }
 
-        UploadResult uploadResult;
-        MediaDto? tempMedia = null;
-        var debug = false;
-        if (debug)
-        {
-            if (DateTime.Now.Second % 10 < 5)
-            {
-                throw new("ошибка");
-            }
+        var transferCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var transferAction = actionHolder.Register($"Передача: «{media.Title}» ({rel.From.TitleFull} → {rel.To.TitleFull})",
+            "Передача...",
+            0,
+            transferCts);
 
-            uploadResult = new()
-            {
-                Status = MediaStatusHelper.Ok(),
-                Id = Guid.NewGuid().ToString(),
-            };
-        }
-        else
+        try
         {
-            tempMedia = await DownloadWithActionAsync(rel.From, fromMediaSource.ExternalId, media.Title, cancellationToken);
-            tempMedia.Id = media.Id;
-            try
+            using (actionHolder.BeginScope(transferAction))
             {
-                if (toMediaSource?.Status == MediaStatus.PartialOk)
+                var token = transferCts.Token;
+
+                UploadResult uploadResult;
+                MediaDto? tempMedia = null;
+                var debug = false;
+                if (debug)
                 {
-                    var externalId = toMediaSource.ExternalId;
-                    uploadResult = await rel.To.Type.UpdateAsync(externalId, tempMedia, rel.To.Settings, cancellationToken);
+                    if (DateTime.Now.Second % 10 < 5)
+                    {
+                        throw new("ошибка");
+                    }
+
+                    uploadResult = new()
+                    {
+                        Status = MediaStatusHelper.Ok(),
+                        Id = Guid.NewGuid().ToString(),
+                    };
                 }
                 else
                 {
-                    uploadResult = await UploadWithActionAsync(rel.To, tempMedia, media.Title, cancellationToken);
+                    tempMedia = await DownloadWithActionAsync(rel.From, fromMediaSource.ExternalId, media.Title, token);
+                    tempMedia.Id = media.Id;
+                    try
+                    {
+                        if (toMediaSource?.Status == MediaStatus.PartialOk)
+                        {
+                            var externalId = toMediaSource.ExternalId;
+                            uploadResult = await rel.To.Type.UpdateAsync(externalId, tempMedia, rel.To.Settings, token);
+                        }
+                        else
+                        {
+                            uploadResult = await UploadWithActionAsync(rel.To, tempMedia, media.Title, token);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        // TODO: Слегка жидкая тема
+                        logger.LogError(ex, "Загрузка медиа {Media} в {ToSource} завершилась ошибкой, проставляется статус Error", media, rel.To);
+                        MarkUploadFailure(media, rel.To.Id, ex.Message);
+                        throw;
+                    }
+                }
+
+                // если айди есть, значит частично или полностью успех и связь устанавливаем
+                if (uploadResult.Id != null)
+                {
+                    if (toMediaSource == null)
+                    {
+                        toMediaSource = new()
+                        {
+                            MediaId = media.Id,
+                            Media = media,
+                            SourceId = rel.To.Id,
+                        };
+
+                        media.Sources.Add(toMediaSource);
+                    }
+
+                    toMediaSource.Title = media.Title;
+                    toMediaSource.Description = media.Description;
+                    toMediaSource.Status = uploadResult.Status.Id;
+                    toMediaSource.ExternalId = uploadResult.Id!;
+                    UpdateMedia(media);
+                    logger.LogInformation("Успешно синхронизировано медиа {Media} в {ToSource}. ExternalId: {ExternalId}", media, rel.To, uploadResult.Id);
+
+                    if (tempMedia != null && !string.IsNullOrEmpty(tempMedia.TempDataPath))
+                    {
+                        var guid = Path.GetFileName(Path.GetDirectoryName(tempMedia.TempDataPath));
+
+                        if (guid != null)
+                        {
+                            tempManager.CleanMedia(guid);
+                        }
+                    }
+
+                    try
+                    {
+                        await ForceUpdateMetadataAsync(media, rel.From.Id, token);
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogWarning(exception, "Не удалось обновить метаданные источника {FromSource} после переноса медиа {Media}", rel.From, media);
+                    }
+
+                    try
+                    {
+                        await ForceUpdateMetadataAsync(media, rel.To.Id, token);
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogWarning(exception, "Не удалось обновить метаданные после переноса медиа {Media} в {ToSource}", media, rel.To);
+                    }
+                }
+                else
+                {
+                    throw new("Провал синхронизации: " + uploadResult.Status.Text + " " + uploadResult.Message);
                 }
             }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                // TODO: Слегка жидкая тема
-                logger.LogError(ex, "Загрузка медиа {Media} в {ToSource} завершилась ошибкой, проставляется статус Error", media, rel.To);
-                MarkUploadFailure(media, rel.To.Id, ex.Message);
-                throw;
-            }
+
+            transferAction.Finish("Передано");
         }
-
-        // если айди есть, значит частично или полностью успех и связь устанавливаем
-        if (uploadResult.Id != null)
+        catch (OperationCanceledException)
         {
-            if (toMediaSource == null)
-            {
-                toMediaSource = new()
-                {
-                    MediaId = media.Id,
-                    Media = media,
-                    SourceId = rel.To.Id,
-                };
-
-                media.Sources.Add(toMediaSource);
-            }
-
-            toMediaSource.Title = media.Title;
-            toMediaSource.Description = media.Description;
-            toMediaSource.Status = uploadResult.Status.Id;
-            toMediaSource.ExternalId = uploadResult.Id!;
-            UpdateMedia(media);
-            logger.LogInformation("Успешно синхронизировано медиа {Media} в {ToSource}. ExternalId: {ExternalId}", media, rel.To, uploadResult.Id);
-
-            if (tempMedia != null && !string.IsNullOrEmpty(tempMedia.TempDataPath))
-            {
-                var guid = Path.GetFileName(Path.GetDirectoryName(tempMedia.TempDataPath));
-
-                if (guid != null)
-                {
-                    tempManager.CleanMedia(guid);
-                }
-            }
-
-            try
-            {
-                await ForceUpdateMetadataAsync(media, rel.From.Id, cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(exception, "Не удалось обновить метаданные источника {FromSource} после переноса медиа {Media}", rel.From, media);
-            }
-
-            try
-            {
-                await ForceUpdateMetadataAsync(media, rel.To.Id, cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(exception, "Не удалось обновить метаданные после переноса медиа {Media} в {ToSource}", media, rel.To);
-            }
+            transferAction.Finish("Отменено");
+            throw;
         }
-        else
+        catch
         {
-            throw new("Провал синхронизации: " + uploadResult.Status.Text + " " + uploadResult.Message);
+            transferAction.Finish("Ошибка");
+            throw;
         }
     }
 

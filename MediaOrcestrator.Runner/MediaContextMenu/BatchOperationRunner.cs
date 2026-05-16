@@ -26,6 +26,10 @@ internal static class BatchOperationRunner
             running = actionHolder.Register(actionName, "В процессе", items.Count, linkedCts);
         }
 
+        using var batchScope = running != null && actionHolder != null
+            ? actionHolder.BeginScope(running)
+            : null;
+
         ui.SetLoading(true);
         var errors = new List<(T item, Exception ex)>();
         var processed = 0;

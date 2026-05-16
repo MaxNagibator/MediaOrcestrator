@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using NUnit.Framework;
 
 namespace MediaOrcestrator.Domain.Tests;
 
@@ -300,5 +299,180 @@ public class ActionHolderTests
         act.Finish();
 
         Assert.That(holder.Snapshot(), Is.Empty);
+    }
+
+    [Test]
+    public async Task Область_переносится_через_TaskRun_и_вложенные_области()
+    {
+        var holder = CreateHolder();
+        using var chainCts = new CancellationTokenSource();
+        using var transferCts = new CancellationTokenSource();
+        using var downloadCts = new CancellationTokenSource();
+
+        var chain = holder.Register("chain", "Старт", 0, chainCts);
+
+        ActionHolder.RunningAction transfer = null!;
+        ActionHolder.RunningAction download = null!;
+
+        using (holder.BeginScope(chain))
+        {
+            await Task.Run(async () =>
+            {
+                transfer = holder.Register("transfer", "Старт", 0, transferCts);
+                using (holder.BeginScope(transfer))
+                {
+                    await Task.Yield();
+                    download = holder.Register("download", "Старт", 0, downloadCts);
+                }
+            });
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(transfer.ParentId, Is.EqualTo(chain.Id));
+            Assert.That(transfer.Depth, Is.EqualTo(1));
+            Assert.That(download.ParentId, Is.EqualTo(transfer.Id));
+            Assert.That(download.Depth, Is.EqualTo(2));
+        }
+    }
+
+    [Test]
+    public void Действие_без_области_остаётся_корневым()
+    {
+        var holder = CreateHolder();
+        using var cts = new CancellationTokenSource();
+
+        var act = holder.Register("root", "Старт", 0, cts);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(act.ParentId, Is.Null);
+            Assert.That(act.Depth, Is.Zero);
+        }
+    }
+
+    [Test]
+    public void Регистрация_в_области_делает_действие_потомком()
+    {
+        var holder = CreateHolder();
+        using var parentCts = new CancellationTokenSource();
+        using var childCts = new CancellationTokenSource();
+
+        var parent = holder.Register("parent", "Старт", 0, parentCts);
+
+        ActionHolder.RunningAction child;
+        using (holder.BeginScope(parent))
+        {
+            child = holder.Register("child", "Старт", 0, childCts);
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(child.ParentId, Is.EqualTo(parent.Id));
+            Assert.That(child.Depth, Is.EqualTo(1));
+            Assert.That(parent.Depth, Is.Zero);
+        }
+    }
+
+    [Test]
+    public void Вложенные_области_восстанавливают_прежнего_родителя()
+    {
+        var holder = CreateHolder();
+        using var aCts = new CancellationTokenSource();
+        using var bCts = new CancellationTokenSource();
+        using var cCts = new CancellationTokenSource();
+        using var dCts = new CancellationTokenSource();
+
+        var a = holder.Register("a", "Старт", 0, aCts);
+        var b = holder.Register("b", "Старт", 0, bCts);
+
+        ActionHolder.RunningAction c;
+        ActionHolder.RunningAction d;
+        using (holder.BeginScope(a))
+        {
+            using (holder.BeginScope(b))
+            {
+                c = holder.Register("c", "Старт", 0, cCts);
+            }
+
+            d = holder.Register("d", "Старт", 0, dCts);
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(c.ParentId, Is.EqualTo(b.Id));
+            Assert.That(c.Depth, Is.EqualTo(1));
+            Assert.That(d.ParentId, Is.EqualTo(a.Id));
+            Assert.That(d.Depth, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public void Снимок_ставит_потомка_сразу_после_родителя()
+    {
+        var holder = CreateHolder();
+        using var parentCts = new CancellationTokenSource();
+        using var childCts = new CancellationTokenSource();
+        using var otherCts = new CancellationTokenSource();
+
+        var parent = holder.Register("parent", "Старт", 0, parentCts);
+        using (holder.BeginScope(parent))
+        {
+            holder.Register("child", "Старт", 0, childCts);
+        }
+
+        holder.Register("other", "Старт", 0, otherCts);
+
+        var names = holder.Snapshot().Select(a => a.Name).ToArray();
+
+        Assert.That(names, Is.EqualTo(["parent", "child", "other"]));
+    }
+
+    [Test]
+    public void Отмена_родителя_каскадно_отменяет_потомков()
+    {
+        var holder = CreateHolder();
+        var parentCts = new CancellationTokenSource();
+        var childCts = new CancellationTokenSource();
+
+        var parent = holder.Register("parent", "Старт", 0, parentCts);
+        ActionHolder.RunningAction child;
+        using (holder.BeginScope(parent))
+        {
+            child = holder.Register("child", "Старт", 0, childCts);
+        }
+
+        parent.Cancel();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ContainsAction(holder, parent.Id), Is.False);
+            Assert.That(ContainsAction(holder, child.Id), Is.False);
+            Assert.That(child.Status, Is.EqualTo("Отменено"));
+            Assert.That(childCts.IsCancellationRequested, Is.True);
+        }
+    }
+
+    [Test]
+    public void Потомок_завершённого_родителя_остаётся_в_снимке()
+    {
+        var holder = CreateHolder();
+        var parentCts = new CancellationTokenSource();
+        using var childCts = new CancellationTokenSource();
+
+        var parent = holder.Register("parent", "Старт", 0, parentCts);
+        ActionHolder.RunningAction child;
+        using (holder.BeginScope(parent))
+        {
+            child = holder.Register("child", "Старт", 0, childCts);
+        }
+
+        parent.Finish();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ContainsAction(holder, parent.Id), Is.False);
+            Assert.That(ContainsAction(holder, child.Id), Is.True);
+        }
     }
 }
