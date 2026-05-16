@@ -67,10 +67,10 @@ public class ActionHolder(ILogger<ActionHolder> logger)
         return new ScopeReset(this, previous);
     }
 
-    public RunningAction Register(string name, string status, int progressMax, CancellationTokenSource ctx, string? subtitle = null, ActionKind kind = ActionKind.Other)
+    public RunningAction Register(string name, string status, int progressMax, CancellationTokenSource ctx, string? subtitle = null, ActionKind kind = ActionKind.Other, RunningAction? parent = null)
     {
         var id = Guid.NewGuid();
-        var parent = _ambientParent.Value;
+        parent ??= _ambientParent.Value;
         var act = new RunningAction
         {
             Id = id,
@@ -229,6 +229,7 @@ public class ActionHolder(ILogger<ActionHolder> logger)
     public class RunningAction
     {
         private string _status = string.Empty;
+        private string _subtitle = string.Empty;
         private string? _error;
         private int _progressValue;
         private int _progressMax;
@@ -240,7 +241,17 @@ public class ActionHolder(ILogger<ActionHolder> logger)
 
         public Guid Id { get; set; }
         public string Name { get; set; }
-        public string Subtitle { get; set; } = string.Empty;
+
+        public string Subtitle
+        {
+            get => Volatile.Read(ref _subtitle);
+            set
+            {
+                Volatile.Write(ref _subtitle, value);
+                OnChanged();
+            }
+        }
+
         public Guid? ParentId { get; internal set; }
         public int Depth { get; internal set; }
         public ActionKind Kind { get; internal set; } = ActionKind.Other;
