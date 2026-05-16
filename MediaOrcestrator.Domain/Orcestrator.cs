@@ -12,7 +12,7 @@ public class Orcestrator(
     ActionHolder actionHolder,
     ILogger<Orcestrator> logger)
 {
-    private bool _isProcess;
+    private int _syncGate;
 
     public Dictionary<string, ISourceType> GetSourceTypes()
     {
@@ -27,15 +27,15 @@ public class Orcestrator(
 
     public async Task GetStorageFullInfo(bool isFull, Source? filterSource = null, bool onlyNew = false, IProgress<string>? progress = null)
     {
+        if (Interlocked.CompareExchange(ref _syncGate, 1, 0) != 0)
+        {
+            logger.LogWarning("Синхронизация уже выполняется, запуск пропущен");
+            progress?.Report("Синхронизация уже идёт");
+            return;
+        }
+
         try
         {
-            if (_isProcess)
-            {
-                logger.LogWarning("Я в процессе уже");
-                return;
-            }
-
-            _isProcess = true;
             logger.LogInformation("Запуск процесса синхронизации {Source}...", filterSource?.TitleFull);
             progress?.Report(filterSource != null ? $"Запуск синхронизации «{filterSource.TitleFull}»" : "Запуск полной синхронизации");
 
@@ -282,7 +282,7 @@ public class Orcestrator(
         }
         finally
         {
-            _isProcess = false;
+            Interlocked.Exchange(ref _syncGate, 0);
         }
     }
 

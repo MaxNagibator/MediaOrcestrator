@@ -190,12 +190,15 @@ file static class Program
             mainForm.AttachLogControl(new(logControl, logSinkOptions, logLevelSwitch, logSourceFilter, logBufferingSink));
             mainForm.StartupCompleted = splash.Dispose;
 
+            using var goGoCts = new CancellationTokenSource();
+            var goGoToken = goGoCts.Token;
             Task.Run(async () =>
             {
-                await GoGo(orcestrator);
-            });
+                await GoGo(orcestrator, goGoToken);
+            }, goGoToken);
 
             Application.Run(mainForm);
+            goGoCts.Cancel();
         }
         catch (Exception ex)
         {
@@ -285,19 +288,41 @@ file static class Program
     /// Тут лопатит по кд и синхронизирует пока синхронизируется.
     /// </summary>
     /// <param name="orcestrator"></param>
+    /// <param name="token">Токен отмены, срабатывает при закрытии приложения.</param>
     /// <returns></returns>
-    private static async Task GoGo(Orcestrator orcestrator)
+    private static async Task GoGo(Orcestrator orcestrator, CancellationToken token)
     {
         var logger = Log.Logger;
-        while (true)
+        while (!token.IsCancellationRequested)
         {
-            logger.Information("Получение новых данных из всех хранилищ...");
-            await orcestrator.GetStorageFullInfo(false, null, true, null);
+            try
+            {
+                logger.Information("Получение новых данных из всех хранилищ...");
+                await orcestrator.GetStorageFullInfo(false, null, true);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Ошибка в цикле досинка, продолжаю по расписанию");
+            }
+
             var delay = TimeSpan.FromHours(1);
-            var nextRun = DateTime.Now.Add(delay);
-            logger.Information("Цикл завершен. Следующий запуск в {NextRunTime}", nextRun);
-            await Task.Delay(delay);
+            logger.Information("Цикл завершен. Следующий запуск в {NextRunTime}", DateTime.Now.Add(delay));
+
+            try
+            {
+                await Task.Delay(delay, token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
+
+        logger.Information("Цикл досинка остановлен");
         return;
 
         logger.Information("Цикл GoGo запущен");
