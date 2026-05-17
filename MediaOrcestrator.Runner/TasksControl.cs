@@ -9,10 +9,10 @@ public sealed partial class TasksControl : UserControl
     private static readonly TimeSpan AutoHideDelay = TimeSpan.FromSeconds(8);
 
     private readonly Dictionary<Guid, ActionUserControl> _rows = [];
-    private readonly Dictionary<Guid, ActionUserControl> _completedRows = [];
+    private readonly Dictionary<Guid, CompletedActionRow> _completedRows = [];
 
     private ActionHolder? _actionHolder;
-    private bool _completedCollapsed;
+    private bool _completedCollapsed = true;
 
     public TasksControl()
     {
@@ -130,6 +130,46 @@ public sealed partial class TasksControl : UserControl
         return Math.Max(width, 0);
     }
 
+    private static void SyncCompletedPanel(
+        DoubleBufferedFlowLayoutPanel panel,
+        Dictionary<Guid, CompletedActionRow> rows,
+        IReadOnlyList<ActionHolder.RunningAction> actions)
+    {
+        panel.SuspendLayout();
+        try
+        {
+            var present = actions.Select(a => a.Id).ToHashSet();
+
+            foreach (var (id, row) in rows.Where(kv => !present.Contains(kv.Key)).ToArray())
+            {
+                rows.Remove(id);
+                panel.Controls.Remove(row);
+                row.Dispose();
+            }
+
+            var rowWidth = CalculateRowWidth(panel);
+            for (var i = 0; i < actions.Count; i++)
+            {
+                var action = actions[i];
+
+                if (!rows.TryGetValue(action.Id, out var row))
+                {
+                    row = new();
+                    row.SetAction(action);
+                    rows[action.Id] = row;
+                    panel.Controls.Add(row);
+                }
+
+                row.Width = rowWidth;
+                panel.Controls.SetChildIndex(row, i);
+            }
+        }
+        finally
+        {
+            panel.ResumeLayout();
+        }
+    }
+
     private void Rebuild()
     {
         if (_actionHolder == null)
@@ -141,7 +181,7 @@ public sealed partial class TasksControl : UserControl
         var completed = _actionHolder.CompletedSnapshot();
 
         SyncPanel(uiTasksFlowLayoutPanel, _rows, snapshot, true);
-        SyncPanel(uiCompletedFlowLayoutPanel, _completedRows, completed, false);
+        SyncCompletedPanel(uiCompletedFlowLayoutPanel, _completedRows, completed);
 
         uiHeaderLabel.Text = snapshot.Count == 0
             ? "Активных задач нет"

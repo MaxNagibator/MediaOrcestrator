@@ -200,7 +200,7 @@ partial class TasksControl
         //
         // uiCompletedHeaderButton
         //
-        uiCompletedHeaderButton.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        uiCompletedHeaderButton.Dock = DockStyle.Fill;
         uiCompletedHeaderButton.FlatStyle = FlatStyle.Flat;
         uiCompletedHeaderButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         uiCompletedHeaderButton.Margin = new Padding(0, 0, 8, 0);
@@ -220,7 +220,7 @@ partial class TasksControl
         uiClearCompletedButton.AutoSize = true;
         uiClearCompletedButton.Margin = new Padding(0);
         uiClearCompletedButton.Name = "uiClearCompletedButton";
-        uiClearCompletedButton.Padding = new Padding(10, 4, 10, 4);
+        uiClearCompletedButton.Padding = new Padding(10, 6, 10, 6);
         uiClearCompletedButton.Size = new Size(140, 28);
         uiClearCompletedButton.TabIndex = 1;
         uiClearCompletedButton.Text = "Очистить завершённые";
@@ -237,9 +237,11 @@ partial class TasksControl
         uiCompletedFlowLayoutPanel.FlowDirection = FlowDirection.TopDown;
         uiCompletedFlowLayoutPanel.Location = new Point(0, 40);
         uiCompletedFlowLayoutPanel.Margin = new Padding(0);
+        uiCompletedFlowLayoutPanel.MaximumSize = new Size(0, 220);
+        uiCompletedFlowLayoutPanel.MinimumSize = new Size(0, 220);
         uiCompletedFlowLayoutPanel.Name = "uiCompletedFlowLayoutPanel";
         uiCompletedFlowLayoutPanel.Padding = new Padding(8);
-        uiCompletedFlowLayoutPanel.Size = new Size(784, 100);
+        uiCompletedFlowLayoutPanel.Size = new Size(784, 220);
         uiCompletedFlowLayoutPanel.TabIndex = 1;
         uiCompletedFlowLayoutPanel.WrapContents = false;
         uiCompletedFlowLayoutPanel.SizeChanged += uiCompletedFlowLayoutPanel_SizeChanged;
