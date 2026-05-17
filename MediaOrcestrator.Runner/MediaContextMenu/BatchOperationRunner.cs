@@ -15,6 +15,7 @@ internal static class BatchOperationRunner
         ILogger logger,
         ActionHolder? actionHolder = null,
         string? actionName = null,
+        ActionKind kind = ActionKind.Other,
         CancellationToken externalCt = default)
     {
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
@@ -23,8 +24,10 @@ internal static class BatchOperationRunner
         ActionHolder.RunningAction? running = null;
         if (actionHolder != null && !string.IsNullOrEmpty(actionName))
         {
-            running = actionHolder.Register(actionName, "В процессе", items.Count, linkedCts, kind: ActionKind.Other);
+            running = actionHolder.Register(actionName, "В процессе", items.Count, linkedCts, kind: kind);
         }
+
+        var etaTicker = running != null ? new SubtitleEtaTicker(running, new()) : null;
 
         using var batchScope = running != null && actionHolder != null
             ? actionHolder.BeginScope(running)
@@ -46,8 +49,7 @@ internal static class BatchOperationRunner
                 try
                 {
                     await operation(item, token);
-                    running?.ProgressPlus();
-                    processed++;
+                    Advance();
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
@@ -57,8 +59,7 @@ internal static class BatchOperationRunner
                 {
                     logger.LogError(ex, "Ошибка операции для '{Title}'", titleSelector(item));
                     errors.Add((item, ex));
-                    running?.ProgressPlus();
-                    processed++;
+                    Advance();
                 }
             }
 
@@ -92,6 +93,22 @@ internal static class BatchOperationRunner
 
             ui.SetLoading(false);
             ui.NotifyDataChanged();
+        }
+
+        return;
+
+        void Advance()
+        {
+            running?.ProgressPlus();
+            processed++;
+
+            if (running == null)
+            {
+                return;
+            }
+
+            running.Status = $"{processed} / {items.Count}";
+            etaTicker?.Report(processed * 100.0 / Math.Max(items.Count, 1));
         }
     }
 

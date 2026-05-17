@@ -19,6 +19,10 @@ public sealed partial class ActionUserControl : UserControl
     private static readonly Color UploadAccent = Color.FromArgb(0xC8, 0x86, 0x16);
     private static readonly Color TransferAccent = Color.FromArgb(0x6A, 0x5A, 0xCD);
     private static readonly Color CommentsAccent = Color.FromArgb(0x00, 0x96, 0x88);
+    private static readonly Color ConvertAccent = Color.FromArgb(0x9C, 0x27, 0xB0);
+    private static readonly Color DeleteAccent = Color.FromArgb(0xA0, 0x39, 0x2E);
+    private static readonly Color MetadataAccent = Color.FromArgb(0x8D, 0x6E, 0x63);
+    private static readonly Color PublishAccent = Color.FromArgb(0xD2, 0x69, 0x1E);
     private static readonly Color OtherAccent = Color.FromArgb(0x9E, 0x9E, 0x9E);
 
     private readonly Color _defaultBackColor;
@@ -119,6 +123,10 @@ public sealed partial class ActionUserControl : UserControl
             ActionKind.Upload => UploadAccent,
             ActionKind.Transfer => TransferAccent,
             ActionKind.Comments => CommentsAccent,
+            ActionKind.Convert => ConvertAccent,
+            ActionKind.Delete => DeleteAccent,
+            ActionKind.Metadata => MetadataAccent,
+            ActionKind.Publish => PublishAccent,
             _ => OtherAccent,
         };
     }

@@ -358,10 +358,21 @@ public partial class PublishControl : UserControl
         var videoPath = _videoPath;
         var coverPath = _coverPath;
 
+        var pubAction = _actionHolder?.Register($"Публикация: «{title}» ({source.TitleFull})",
+            "Публикация...",
+            0,
+            cts,
+            kind: ActionKind.Publish);
+
         try
         {
-            var published = await Task.Run(() => _orcestrator.PublishMediaAsync(source, title, description, videoPath, coverPath, token), token);
+            Media published;
+            using (pubAction != null ? _actionHolder!.BeginScope(pubAction) : null)
+            {
+                published = await Task.Run(() => _orcestrator.PublishMediaAsync(source, title, description, videoPath, coverPath, token), token);
+            }
 
+            pubAction?.Finish("Опубликовано");
             SetStatus($"Опубликовано в «{source.TitleFull}».", false);
             _logger.LogInformation("Медиа «{Title}» опубликовано в {Source}", title, source.TitleFull);
             InvalidateMediasCache();
@@ -376,11 +387,13 @@ public partial class PublishControl : UserControl
         }
         catch (OperationCanceledException exception)
         {
+            pubAction?.MarkCancelled("Публикация отменена");
             _logger.LogInformation(exception, "Публикация «{Title}» в {Source} отменена пользователем", title, source.TitleFull);
             SetStatus("Публикация отменена.", false);
         }
         catch (Exception exception)
         {
+            pubAction?.Fail("Ошибка: " + exception.Message, exception);
             _logger.LogError(exception, "Ошибка при публикации «{Title}» в {Source}", title, source.TitleFull);
             SetStatus($"Ошибка: {exception.Message}", true);
         }
@@ -469,7 +482,7 @@ public partial class PublishControl : UserControl
         using var chainCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var chainToken = chainCts.Token;
         var actionName = $"Цепочка после публикации: «{media.Title}» от {publishedSource.TitleFull}";
-        var running = _actionHolder.Register(actionName, "В процессе", chain.Count, chainCts, kind: ActionKind.Other);
+        var running = _actionHolder.Register(actionName, "В процессе", chain.Count, chainCts, kind: ActionKind.Sync);
 
         using var chainScope = _actionHolder.BeginScope(running);
 

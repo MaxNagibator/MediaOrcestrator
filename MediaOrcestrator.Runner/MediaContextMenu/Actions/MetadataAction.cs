@@ -76,7 +76,8 @@ internal sealed class MetadataAction : IMediaMenuAction
             ctx.ActionHolder,
             mediaList.Count > 1
                 ? $"Обновление метаданных ({mediaList.Count})"
-                : $"Обновление метаданных: «{mediaList[0].Title}»");
+                : $"Обновление метаданных: «{mediaList[0].Title}»",
+            ActionKind.Metadata);
     }
 
     private static Task ClearAsync(IReadOnlyList<Media> mediaList, string? sourceId, MediaActionContext ctx)

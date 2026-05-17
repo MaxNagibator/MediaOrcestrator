@@ -982,11 +982,18 @@ public partial class CommentsHtmlControl : UserControl
             }
 
             action.Status = $"{source.TitleFull}: ок";
-        }
-        finally
-        {
             action.ProgressPlus();
             action.Finish();
+        }
+        catch (OperationCanceledException)
+        {
+            action.MarkCancelled();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            action.Fail("Ошибка: " + ex.Message, ex);
+            throw;
         }
 
         if (!patchedInPlace)
@@ -1144,6 +1151,9 @@ public partial class CommentsHtmlControl : UserControl
             action.Status = text;
         });
 
+        Exception? failure = null;
+        var cancelled = false;
+
         try
         {
             await Task.Run(async () =>
@@ -1154,17 +1164,32 @@ public partial class CommentsHtmlControl : UserControl
         }
         catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
         {
+            cancelled = true;
             uiStatusLabel.Text = "Загрузка отменена";
         }
         catch (Exception ex)
         {
+            failure = ex;
             _logger?.LogError(ex, "Не удалось загрузить комментарии для «{Title}»", media.Title);
             uiStatusLabel.Text = "Ошибка загрузки";
         }
         finally
         {
             action.ProgressPlus();
-            action.Finish();
+
+            if (cancelled)
+            {
+                action.MarkCancelled("Отменено");
+            }
+            else if (failure != null)
+            {
+                action.Fail("Ошибка: " + failure.Message, failure);
+            }
+            else
+            {
+                action.Finish();
+            }
+
             uiFetchProgressBar.Visible = false;
             uiFetchProgressBar.Style = ProgressBarStyle.Blocks;
         }
@@ -1291,6 +1316,7 @@ public partial class CommentsHtmlControl : UserControl
         });
 
         var counterLock = new object();
+        var eta = new SubtitleEtaTicker(action, new());
 
         try
         {
@@ -1355,6 +1381,7 @@ public partial class CommentsHtmlControl : UserControl
                         : $"✓ {ok}  /  {targets.Count}";
 
                     reporter.Report(new(processed, startStatus, counter));
+                    eta.Report(processed * 100.0 / targets.Count);
                 }
             });
         }
@@ -1370,13 +1397,25 @@ public partial class CommentsHtmlControl : UserControl
                 summary += $", ошибок {failed}";
             }
 
-            action.Finish(summary);
+            if (token.IsCancellationRequested)
+            {
+                action.MarkCancelled(summary);
+            }
+            else if (failed > 0)
+            {
+                action.Fail(summary);
+            }
+            else
+            {
+                action.Finish(summary);
+            }
+
             uiFetchProgressBar.Visible = false;
             uiFetchCounterLabel.Visible = false;
-        }
 
-        ApplyFilters();
-        UpdateForceFetchButtonState();
+            ApplyFilters();
+            UpdateForceFetchButtonState();
+        }
     }
 
     private sealed record FetchProgress(int Processed, string StatusText, string CounterText);

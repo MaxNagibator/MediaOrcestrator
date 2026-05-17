@@ -9,4 +9,8 @@ public enum ActionKind
     Transfer = 4,
     Comments = 5,
     Other = 6,
+    Convert = 7,
+    Delete = 8,
+    Metadata = 9,
+    Publish = 10,
 }
