@@ -319,25 +319,20 @@ public sealed class HardDiskDriveChannel(
 
     public ConvertType[] GetAvailableConvertTypes()
     {
-        return
-        [
-            new()
-            {
-                Id = 1,
-                Name = "vp9 to h264",
-            },
-            new()
-            {
-                Id = 2,
-                Name = "h264 to vp9",
-            },
-        ];
+        return CodecConversions.All
+            .Select(c => new ConvertType { Id = c.Id, Name = c.Name })
+            .ToArray();
     }
 
     public ConvertAvailability CheckConvertAvailability(
         int typeId,
         MediaDto media)
     {
+        if (CodecConversions.Find(typeId) is not { } conversion)
+        {
+            return new(false, $"Неизвестный тип конвертации: {typeId}");
+        }
+
         var codec = media.Metadata?.FirstOrDefault(x => x.Key == "VideoCodec")?.Value;
 
         if (string.IsNullOrEmpty(codec))
@@ -345,16 +340,9 @@ public sealed class HardDiskDriveChannel(
             return new(false, "Кодек не определён. Убедитесь, что ffprobe доступен.");
         }
 
-        return typeId switch
-        {
-            1 => codec == "vp9"
-                ? new ConvertAvailability(true, null)
-                : new ConvertAvailability(false, $"Кодек '{codec}', конвертация VP9→H264 неприменима"),
-            2 => codec == "h264"
-                ? new ConvertAvailability(true, null)
-                : new ConvertAvailability(false, $"Кодек '{codec}', конвертация H264→VP9 неприменима"),
-            _ => new(false, $"Неизвестный тип конвертации: {typeId}"),
-        };
+        return codec == conversion.SourceCodec
+            ? new(true, null)
+            : new ConvertAvailability(false, $"Кодек '{codec}', конвертация {conversion.Label} неприменима");
     }
 
     public Task ConvertAsync(
@@ -364,11 +352,12 @@ public sealed class HardDiskDriveChannel(
         IProgress<ConvertProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return typeId switch
+        if (CodecConversions.Find(typeId) is null)
         {
-            1 or 2 => RunConversion(typeId, externalId, settings, progress, cancellationToken),
-            _ => throw new NotImplementedException("type not implemented " + typeId),
-        };
+            throw new NotImplementedException("type not implemented " + typeId);
+        }
+
+        return RunConversion(typeId, externalId, settings, progress, cancellationToken);
     }
 
     private static TimeSpan TryParseDuration(MediaDto media)

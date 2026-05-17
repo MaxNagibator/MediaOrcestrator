@@ -15,11 +15,15 @@ public sealed class HardDiskDriveCodecConverter(
         IProgress<ConvertProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var label = typeId == 1 ? "VP9→H264" : "H264→VP9";
-        logger.ConversionStarting(label, externalId);
+        if (CodecConversions.Find(typeId) is not { } conversion)
+        {
+            logger.ConversionFailed(externalId);
+            return;
+        }
 
-        var outputExt = typeId == 2 ? ".webm" : ".mp4";
-        var convertPath = srcFilePath + "_convert" + outputExt;
+        logger.ConversionStarting(conversion.Label, externalId);
+
+        var convertPath = srcFilePath + "_convert" + conversion.OutputExtension;
         var backupPath = srcFilePath + ".bak";
         var conversionSucceeded = false;
 
@@ -30,9 +34,7 @@ public sealed class HardDiskDriveCodecConverter(
                 ? null
                 : new Progress<double>(p => progress.Report(new(p, fileName)));
 
-            var success = typeId == 1
-                ? await videoTranscoder.TranscodeVp9ToH264Async(srcFilePath, convertPath, totalDuration, wrappedProgress, cancellationToken)
-                : await videoTranscoder.TranscodeH264ToVp9Async(srcFilePath, convertPath, totalDuration, wrappedProgress, cancellationToken);
+            var success = await conversion.Transcode(videoTranscoder, srcFilePath, convertPath, totalDuration, wrappedProgress, cancellationToken);
 
             if (!success)
             {

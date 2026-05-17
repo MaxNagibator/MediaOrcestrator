@@ -60,18 +60,24 @@ public sealed partial class VideoTranscoder(IToolPathProvider toolPathProvider, 
         return _h264Encoder;
     }
 
-    public async Task<bool> TranscodeVp9ToH264Async(
+    public Task<bool> TranscodeVp9ToH264Async(
         string inputPath,
         string outputPath,
         TimeSpan totalDuration,
         IProgress<double>? progress,
         CancellationToken cancellationToken = default)
     {
-        var h264Encoder = await GetH264EncoderAsync();
-        var preset = h264Encoder == "h264_nvenc" ? "slow" : "medium";
-        var arguments = $"-y -i \"{inputPath}\" -c:v {h264Encoder} -preset {preset} -c:a copy \"{outputPath}\"";
+        return TranscodeToH264Async(inputPath, outputPath, totalDuration, progress, cancellationToken);
+    }
 
-        return await RunFfmpegAsync(arguments, inputPath, outputPath, totalDuration, progress, cancellationToken);
+    public Task<bool> TranscodeAv1ToH264Async(
+        string inputPath,
+        string outputPath,
+        TimeSpan totalDuration,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        return TranscodeToH264Async(inputPath, outputPath, totalDuration, progress, cancellationToken);
     }
 
     public Task<bool> TranscodeH264ToVp9Async(
@@ -287,6 +293,20 @@ public sealed partial class VideoTranscoder(IToolPathProvider toolPathProvider, 
 
     [GeneratedRegex(@"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})")]
     private static partial Regex FFmpegTimeRegex();
+
+    private async Task<bool> TranscodeToH264Async(
+        string inputPath,
+        string outputPath,
+        TimeSpan totalDuration,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
+        var h264Encoder = await GetH264EncoderAsync();
+        var preset = h264Encoder == "h264_nvenc" ? "slow" : "medium";
+        var arguments = $"-y -i \"{inputPath}\" -c:v {h264Encoder} -preset {preset} -c:a copy \"{outputPath}\"";
+
+        return await RunFfmpegAsync(arguments, inputPath, outputPath, totalDuration, progress, cancellationToken);
+    }
 
     private async Task<bool> RunFfmpegAsync(
         string ffmpegArguments,
