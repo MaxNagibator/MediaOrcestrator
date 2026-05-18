@@ -5,49 +5,87 @@ namespace MediaOrcestrator.Runner.MediaContextMenu.Actions;
 
 internal sealed class OpenExternalAction : IMediaMenuAction
 {
+    private const int ConfirmThreshold = 5;
+
     public int Order => 650;
 
     public IEnumerable<MenuItemSpec> Build(MediaSelection selection, MediaActionContext ctx)
     {
-        if (selection.IsBatch)
+        var sources = selection.SpecificSource != null
+            ? [selection.SpecificSource]
+            : ctx.Orcestrator.GetSources();
+
+        foreach (var source in sources)
         {
-            yield break;
-        }
-
-        var media = selection.First;
-        var allSources = ctx.Orcestrator.GetSources();
-
-        var relevantLinks = (selection.SpecificSource != null
-                ? media.Sources.Where(s => s.SourceId == selection.SpecificSource.Id)
-                : media.Sources)
-            .Where(s => s.Status != MediaStatus.Skipped && !string.IsNullOrEmpty(s.ExternalId))
-            .ToList();
-
-        foreach (var link in relevantLinks)
-        {
-            var source = allSources.FirstOrDefault(x => x.Id == link.SourceId);
-
-            if (source?.Type == null)
+            if (source.Type == null)
             {
                 continue;
             }
 
-            var metadata = media.Metadata.ForSource(source.Id);
-            var uri = source.Type.GetExternalUri(link.ExternalId, source.Settings, metadata);
+            var uris = new List<Uri>();
 
-            if (uri == null)
+            foreach (var media in selection.Items)
             {
-                continue;
-            }
+                var link = media.Sources.FirstOrDefault(s => s.SourceId == source.Id
+                                                             && s.Status != MediaStatus.Skipped
+                                                             && !string.IsNullOrEmpty(s.ExternalId));
 
-            yield return new($"Открыть: {source.TitleFull}", MenuIcons.Open)
-            {
-                Execute = () =>
+                if (link == null)
                 {
-                    Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
-                    return Task.CompletedTask;
-                },
+                    continue;
+                }
+
+                var metadata = media.Metadata.ForSource(source.Id);
+                var uri = source.Type.GetExternalUri(link.ExternalId, source.Settings, metadata);
+
+                if (uri != null)
+                {
+                    uris.Add(uri);
+                }
+            }
+
+            if (uris.Count == 0)
+            {
+                continue;
+            }
+
+            var text = selection.IsBatch
+                ? $"Открыть в {source.TitleFull} ({uris.Count})"
+                : $"Открыть: {source.TitleFull}";
+
+            yield return new(text, MenuIcons.Open)
+            {
+                Execute = () => OpenAll(uris, ctx),
             };
         }
+    }
+
+    private static Task OpenAll(IReadOnlyList<Uri> uris, MediaActionContext ctx)
+    {
+        if (uris.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (uris.Count > ConfirmThreshold)
+        {
+            var confirm = MessageBox.Show(ctx.Ui.Owner,
+                $"Открыть {uris.Count} внешних ссылок в браузере?",
+                "Подтверждение",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (confirm != DialogResult.Yes)
+            {
+                return Task.CompletedTask;
+            }
+        }
+
+        foreach (var uri in uris)
+        {
+            Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
+        }
+
+        return Task.CompletedTask;
     }
 }

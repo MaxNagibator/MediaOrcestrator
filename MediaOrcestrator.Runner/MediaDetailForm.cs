@@ -290,7 +290,10 @@ public partial class MediaDetailForm : Form
         }
 
         var cts = new CancellationTokenSource();
-        var action = _actionHolder.Register($"Комментарии: «{_media.Title}»", "Запущена", 1, cts);
+        var action = _actionHolder.Register($"Комментарии: «{_media.Title}»", "Запущена", 1, cts, kind: ActionKind.Comments);
+
+        Exception? failure = null;
+        var cancelled = false;
 
         try
         {
@@ -302,15 +305,29 @@ public partial class MediaDetailForm : Form
         }
         catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
         {
+            cancelled = true;
         }
         catch (Exception ex)
         {
+            failure = ex;
             _logger?.LogError(ex, "Не удалось загрузить комментарии для «{Title}»", _media.Title);
         }
         finally
         {
             action.ProgressPlus();
-            action.Finish();
+
+            if (cancelled)
+            {
+                action.MarkCancelled("Отменено");
+            }
+            else if (failure != null)
+            {
+                action.Fail("Ошибка: " + failure.Message, failure);
+            }
+            else
+            {
+                action.Finish();
+            }
         }
     }
 

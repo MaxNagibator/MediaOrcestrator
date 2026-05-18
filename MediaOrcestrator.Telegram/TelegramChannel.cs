@@ -114,6 +114,7 @@ public sealed class TelegramChannel(
     public async Task<MediaDto> DownloadAsync(
         string videoId,
         Dictionary<string, string> settings,
+        IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         logger.StartingDownload(videoId);
@@ -134,7 +135,7 @@ public sealed class TelegramChannel(
 
         try
         {
-            await service.DownloadFileAsync(doc, tempVideoPath, downloadBytesPerSecond, cancellationToken);
+            await service.DownloadFileAsync(doc, tempVideoPath, downloadBytesPerSecond, progress, cancellationToken);
         }
         catch
         {
@@ -178,6 +179,7 @@ public sealed class TelegramChannel(
     public async Task<UploadResult> UploadAsync(
         MediaDto media,
         Dictionary<string, string> settings,
+        IProgress<UploadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         logger.StartingUpload(media.Title);
@@ -199,7 +201,7 @@ public sealed class TelegramChannel(
         {
             var videoInfo = await ProbeVideoInfoAsync(filePath, cancellationToken);
             var uploadBytesPerSecond = SpeedLimitHelper.ParseUploadBytesPerSecond(settings);
-            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
+            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id, external: progress);
             var message = await service.UploadVideoAsync(peer, filePath, caption, videoInfo, uploadBytesPerSecond, uploadProgress, cancellationToken);
 
             var externalId = message.id.ToString();

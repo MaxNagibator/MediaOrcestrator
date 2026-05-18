@@ -22,8 +22,7 @@ internal sealed class ConvertAction : IAsyncMediaMenuAction
         var allSources = ctx.Orcestrator.GetSources();
 
         var sources = selection.SpecificSource != null
-            ? new()
-                { selection.SpecificSource }
+            ? [selection.SpecificSource]
             : allSources.Where(s => !s.IsDisable).ToList();
 
         var result = new List<MenuItemSpec>();
@@ -123,7 +122,8 @@ internal sealed class ConvertAction : IAsyncMediaMenuAction
             ? $"Конвертация {convertType.Name} ({source.TitleFull}, {total})"
             : $"Конвертация {convertType.Name}: «{mediaList[0].Title}»";
 
-        var running = ctx.ActionHolder.Register(actionName, "В процессе", total, cts);
+        var running = ctx.ActionHolder.Register(actionName, "В процессе", total, cts, kind: ActionKind.Convert);
+        using var scope = ctx.ActionHolder.BeginScope(running);
 
         var errors = new List<(Media media, Exception ex)>();
         var converted = 0;
@@ -141,25 +141,45 @@ internal sealed class ConvertAction : IAsyncMediaMenuAction
                 var link = media.Sources.First(s => s.SourceId == source.Id);
                 var index = i;
 
+                using var itemCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+                var itemAction = ctx.ActionHolder.Register($"Конвертация {convertType.Name}: «{media.Title}»",
+                    "Подготовка...",
+                    100,
+                    itemCts,
+                    kind: ActionKind.Convert);
+
+                var eta = new SubtitleEtaTicker(itemAction, new());
+
                 var progress = new Progress<ConvertProgress>(p =>
-                    ctx.Ui.ShowConvertProgress(p.Percent, BuildProgressText(convertType, media, index + 1, total, p.Percent)));
+                {
+                    eta.Report(p.Percent);
+                    itemAction.SetProgress((int)Math.Clamp(p.Percent, 0, 100));
+                    itemAction.Status = $"Конвертация {p.Percent:F0}%";
+                    ctx.Ui.ShowConvertProgress(p.Percent, BuildProgressText(convertType, media, index + 1, total, p.Percent));
+                });
 
                 ctx.Ui.ShowConvertProgress(0, BuildProgressText(convertType, media, i + 1, total, null));
 
                 try
                 {
-                    await source.Type.ConvertAsync(convertType.Id, link.ExternalId, source.Settings, progress, cts.Token);
+                    await source.Type.ConvertAsync(convertType.Id, link.ExternalId, source.Settings, progress, itemCts.Token);
                     await ctx.Orcestrator.ForceUpdateMetadataAsync(media, source.Id);
+                    itemAction.Subtitle = string.Empty;
+                    itemAction.Finish("Готово");
                     converted++;
                     running.ProgressPlus();
                 }
                 catch (OperationCanceledException)
                 {
+                    itemAction.Subtitle = string.Empty;
+                    itemAction.MarkCancelled();
                     throw;
                 }
                 catch (Exception ex)
                 {
                     ctx.Logger.LogError(ex, "Ошибка конвертации {Name}: {ExternalId}", convertType.Name, link.ExternalId);
+                    itemAction.Subtitle = string.Empty;
+                    itemAction.Fail("Ошибка: " + ex.Message, ex);
                     errors.Add((media, ex));
                     running.ProgressPlus();
                 }
@@ -173,7 +193,22 @@ internal sealed class ConvertAction : IAsyncMediaMenuAction
         }
         finally
         {
-            running.Finish(cts.IsCancellationRequested ? "Отменено" : null);
+            if (cts.IsCancellationRequested)
+            {
+                running.MarkCancelled($"Отменено: {converted} из {total}");
+            }
+            else if (errors.Count > 0)
+            {
+                var details = string.Join(Environment.NewLine, errors.Select(e => $"- {e.media.Title}: {e.ex.Message}"));
+                var message = $"Ошибок: {errors.Count} из {total}";
+                running.Fail(message, new AggregateException(message + Environment.NewLine + details,
+                    errors.Select(e => e.ex)));
+            }
+            else
+            {
+                running.Finish($"Готово: {converted} из {total}");
+            }
+
             ctx.Ui.HideConvertProgress();
             ctx.Ui.NotifyDataChanged();
             ctx.Ui.RegisterConvertCancellation(null);

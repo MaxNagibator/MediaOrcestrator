@@ -25,4 +25,8 @@
     <ProjectReference Include="..\MediaOrcestrator.Domain\MediaOrcestrator.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
 </Project>

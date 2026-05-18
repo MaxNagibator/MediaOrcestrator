@@ -130,6 +130,7 @@ public sealed class RutubeChannel(
     public async Task<MediaDto> DownloadAsync(
         string videoId,
         Dictionary<string, string> settings,
+        IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         logger.DownloadStarting(videoId);
@@ -167,7 +168,7 @@ public sealed class RutubeChannel(
         double oldPercent = -1;
         var currentPart = 0;
 
-        Progress<YtDlpProgress> progress = new(p =>
+        Progress<YtDlpProgress> ytDlpProgress = new(p =>
         {
             lock (progressLock)
             {
@@ -194,6 +195,7 @@ public sealed class RutubeChannel(
 
                 logger.DownloadProgress(p.PartNumber, p.Progress);
                 oldPercent = p.Progress;
+                progress?.Report(new(p.Progress * 100));
             }
         });
 
@@ -202,7 +204,7 @@ public sealed class RutubeChannel(
         try
         {
             var rateLimitBytes = SpeedLimitHelper.ParseDownloadBytesPerSecond(settings);
-            await ytDlp.DownloadAsync($"https://rutube.ru/video/{videoId}/", finalPath, progress, rateLimitBytes, cancellationToken);
+            await ytDlp.DownloadAsync($"https://rutube.ru/video/{videoId}/", finalPath, ytDlpProgress, rateLimitBytes, cancellationToken);
             logger.DownloadCompleted(videoId, finalPath);
         }
         catch (OperationCanceledException)
@@ -222,6 +224,7 @@ public sealed class RutubeChannel(
     public async Task<UploadResult> UploadAsync(
         MediaDto media,
         Dictionary<string, string> settings,
+        IProgress<UploadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         logger.UploadStarting(media.Title);
@@ -311,7 +314,7 @@ public sealed class RutubeChannel(
         try
         {
             var uploadBytesPerSecond = SpeedLimitHelper.ParseUploadBytesPerSecond(settings);
-            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
+            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id, external: progress);
             var result = await rutubeService.UploadVideoAsync(null,
                 filePath,
                 media.Title,

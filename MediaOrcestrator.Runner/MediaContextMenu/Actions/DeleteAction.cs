@@ -64,7 +64,8 @@ internal sealed class DeleteAction : IMediaMenuAction
             ctx.Ui,
             ctx.Logger,
             ctx.ActionHolder,
-            $"Удаление из {source.TitleFull} ({mediaList.Count})");
+            $"Удаление из {source.TitleFull} ({mediaList.Count})",
+            ActionKind.Delete);
     }
 
     private static bool Confirm(IReadOnlyList<Media> mediaList, Source source, IWin32Window? owner)

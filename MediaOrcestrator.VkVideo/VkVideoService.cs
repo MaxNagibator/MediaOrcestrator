@@ -65,13 +65,21 @@ public sealed class VkVideoService : IDisposable
     public async Task DownloadAsync(
         string url,
         Func<Stream, CancellationToken, Task> processor,
+        IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         using var request = CreateDownloadRequest(url);
         using var response = await _uploadClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await processor(stream, cancellationToken);
+
+        var total = response.Content.Headers.ContentLength;
+        var byteProgress = progress != null && total is > 0
+            ? new Progress<long>(bytes => progress.Report(new(Math.Min(100.0, bytes * 100.0 / total.Value))))
+            : null;
+
+        await using var tracked = new ProgressStream(stream, byteProgress);
+        await processor(tracked, cancellationToken);
     }
 
     public async IAsyncEnumerable<VideoItem> GetMediaAsync(

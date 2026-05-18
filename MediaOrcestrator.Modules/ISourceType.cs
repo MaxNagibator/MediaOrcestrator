@@ -122,22 +122,24 @@ public interface ISourceType
     /// </summary>
     /// <param name="videoId">Идентификатор медиа в источнике.</param>
     /// <param name="settings">Конфигурация источника.</param>
+    /// <param name="progress">Обратная связь о прогрессе загрузки; <see langword="null" /> если не требуется.</param>
     /// <param name="cancellationToken">Токен отмены.</param>
     /// <returns>
     /// <see cref="MediaDto" /> с заполнённым <see cref="MediaDto.TempDataPath" />,
     /// готовый для передачи в <see cref="UploadAsync" />.
     /// </returns>
     /// <exception cref="InvalidOperationException">Медиа не найдено по указанному идентификатору.</exception>
-    Task<MediaDto> DownloadAsync(string videoId, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
+    Task<MediaDto> DownloadAsync(string videoId, Dictionary<string, string> settings, IProgress<DownloadProgress>? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Загружает новое медиа в источник.
     /// </summary>
     /// <param name="media">Метаданные и данные медиа для загрузки (включая <see cref="MediaDto.TempDataPath" />).</param>
     /// <param name="settings">Конфигурация источника.</param>
+    /// <param name="progress">Обратная связь о прогрессе заливки; <see langword="null" /> если не требуется.</param>
     /// <param name="cancellationToken">Токен отмены.</param>
     /// <returns><see cref="UploadResult" /> с идентификатором созданного элемента и статусом операции.</returns>
-    Task<UploadResult> UploadAsync(MediaDto media, Dictionary<string, string> settings, CancellationToken cancellationToken = default);
+    Task<UploadResult> UploadAsync(MediaDto media, Dictionary<string, string> settings, IProgress<UploadProgress>? progress = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Обновляет метаданные уже существующего медиа в источнике.
@@ -244,6 +246,18 @@ public sealed record ConvertAvailability(bool IsAvailable, string? Reason);
 /// <param name="Percent">Процент выполнения (0–100).</param>
 /// <param name="FileName">Имя обрабатываемого файла.</param>
 public sealed record ConvertProgress(double Percent, string FileName);
+
+/// <summary>
+/// Прогресс загрузки медиа из источника.
+/// </summary>
+/// <param name="Percent">Процент выполнения (0–100).</param>
+public sealed record DownloadProgress(double Percent);
+
+/// <summary>
+/// Прогресс заливки медиа в источник.
+/// </summary>
+/// <param name="Percent">Процент выполнения (0–100).</param>
+public sealed record UploadProgress(double Percent);
 
 /// <summary>
 /// Тип элемента управления для настройки источника.

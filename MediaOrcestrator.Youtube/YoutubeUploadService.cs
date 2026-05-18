@@ -3,6 +3,7 @@ using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using UploadProgress = MediaOrcestrator.Modules.UploadProgress;
 
 namespace MediaOrcestrator.Youtube;
 
@@ -12,7 +13,8 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
         YouTubeService service,
         MediaDto media,
         Dictionary<string, string> settings,
-        CancellationToken cancellationToken)
+        IProgress<UploadProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var filePath = media.TempDataPath;
 
@@ -41,7 +43,7 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
             _ => ResumableUpload.MinimumChunkSize * 40,
         };
 
-        var bucketedProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
+        var bucketedProgress = UploadProgressLogger.CreateBucketed(logger, media.Id, external: progress);
 
         request.ProgressChanged += progress =>
         {

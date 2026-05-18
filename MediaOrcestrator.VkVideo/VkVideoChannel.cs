@@ -319,6 +319,7 @@ public sealed class VkVideoChannel(
     public async Task<MediaDto> DownloadAsync(
         string videoId,
         Dictionary<string, string> settings,
+        IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         logger.DownloadingVideo(videoId);
@@ -347,7 +348,7 @@ public sealed class VkVideoChannel(
             await using var throttled = new ThrottledStream(stream, downloadBytesPerSecond);
             await using var fileStream = File.Create(tempVideoPath);
             await throttled.CopyToAsync(fileStream, ct);
-        }, cancellationToken);
+        }, progress, cancellationToken);
 
         logger.VideoSaved(tempVideoPath, new FileInfo(tempVideoPath).Length);
 
@@ -362,7 +363,7 @@ public sealed class VkVideoChannel(
             {
                 await using var previewFile = File.Create(tempPreviewPath);
                 await stream.CopyToAsync(previewFile, ct);
-            }, cancellationToken);
+            }, cancellationToken: cancellationToken);
         }
 
         var mediaDto = CreateMediaDto(video);
@@ -385,6 +386,7 @@ public sealed class VkVideoChannel(
     public async Task<UploadResult> UploadAsync(
         MediaDto media,
         Dictionary<string, string> settings,
+        IProgress<UploadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         logger.UploadingVideo(media.Title);
@@ -440,7 +442,7 @@ public sealed class VkVideoChannel(
         try
         {
             var uploadBytesPerSecond = SpeedLimitHelper.ParseUploadBytesPerSecond(settings);
-            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id);
+            var uploadProgress = UploadProgressLogger.CreateBucketed(logger, media.Id, external: progress);
             var previewPath = PreparePreviewForUpload(media.TempPreviewPath, isShorts);
             var result = await service.UploadVideoAsync(isShorts, groupId, filePath, media.Title, media.Description,
                 fileExt, previewPath, publishAtUnix, uploadBytesPerSecond, uploadProgress, cancellationToken);

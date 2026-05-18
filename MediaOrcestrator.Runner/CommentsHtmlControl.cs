@@ -123,6 +123,24 @@ public partial class CommentsHtmlControl : UserControl
         ApplyFilters(warmAuthors: true);
     }
 
+    private void uiReplyStatusComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        SaveSettings();
+        ApplyFilters();
+    }
+
+    private void uiTabs_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_suppressSettingsSave)
+        {
+            return;
+        }
+
+        ReparentBrowserToActiveTab();
+        SaveSettings();
+        ApplyFilters();
+    }
+
     private void uiSearchTextBox_TextChanged(object? sender, EventArgs e)
     {
         SaveSettings();
@@ -282,6 +300,124 @@ public partial class CommentsHtmlControl : UserControl
         }
     }
 
+    private static List<CommentRecord> FilterByReplyStatus(
+        List<CommentRecord> records,
+        CommentsReplyStatusFilter filter)
+    {
+        if (filter == CommentsReplyStatusFilter.All || records.Count == 0)
+        {
+            return records;
+        }
+
+        var byId = new Dictionary<string, CommentRecord>(records.Count, StringComparer.Ordinal);
+        foreach (var r in records)
+        {
+            byId.TryAdd(r.Id, r);
+        }
+
+        var childrenByParent = new Dictionary<string, List<CommentRecord>>(StringComparer.Ordinal);
+        foreach (var r in records)
+        {
+            if (string.IsNullOrEmpty(r.ParentExternalCommentId))
+            {
+                continue;
+            }
+
+            var parentId = $"{r.SourceId}|{r.ExternalMediaId}|{r.ParentExternalCommentId}";
+            if (!byId.ContainsKey(parentId))
+            {
+                continue;
+            }
+
+            if (!childrenByParent.TryGetValue(parentId, out var bucket))
+            {
+                bucket = [];
+                childrenByParent[parentId] = bucket;
+            }
+
+            bucket.Add(r);
+        }
+
+        var result = new List<CommentRecord>();
+        foreach (var root in records)
+        {
+            if (!IsRoot(root, byId))
+            {
+                continue;
+            }
+
+            if (root.IsAuthor)
+            {
+                continue;
+            }
+
+            var descendants = new List<CommentRecord>();
+            CollectDescendants(root, childrenByParent, descendants);
+
+            if (!MatchesReplyStatus(root, descendants, filter))
+            {
+                continue;
+            }
+
+            result.Add(root);
+            result.AddRange(descendants);
+        }
+
+        return result;
+    }
+
+    private static bool IsRoot(CommentRecord r, Dictionary<string, CommentRecord> byId)
+    {
+        if (string.IsNullOrEmpty(r.ParentExternalCommentId))
+        {
+            return true;
+        }
+
+        var parentId = $"{r.SourceId}|{r.ExternalMediaId}|{r.ParentExternalCommentId}";
+        return !byId.ContainsKey(parentId);
+    }
+
+    private static void CollectDescendants(
+        CommentRecord node,
+        Dictionary<string, List<CommentRecord>> childrenByParent,
+        List<CommentRecord> output)
+    {
+        if (!childrenByParent.TryGetValue(node.Id, out var kids))
+        {
+            return;
+        }
+
+        foreach (var kid in kids)
+        {
+            output.Add(kid);
+            CollectDescendants(kid, childrenByParent, output);
+        }
+    }
+
+    private static bool MatchesReplyStatus(CommentRecord root, List<CommentRecord> descendants, CommentsReplyStatusFilter filter)
+    {
+        DateTime? latestAuthorReply = null;
+        foreach (var d in descendants)
+        {
+            if (d.IsAuthor && (latestAuthorReply == null || d.PublishedAt > latestAuthorReply))
+            {
+                latestAuthorReply = d.PublishedAt;
+            }
+        }
+
+        var hasAuthorReply = latestAuthorReply != null;
+
+        return filter switch
+        {
+            CommentsReplyStatusFilter.WithoutReply => !hasAuthorReply,
+            CommentsReplyStatusFilter.WithReply => hasAuthorReply,
+            CommentsReplyStatusFilter.NewReplies => hasAuthorReply
+                                                    && descendants.Any(d => !d.IsAuthor && d.PublishedAt > latestAuthorReply!.Value),
+            CommentsReplyStatusFilter.WithoutReplyAndLike => !hasAuthorReply && !root.LikedByAuthor,
+            _ => true,
+        };
+    }
+
     private static string BuildFilterSummary(int? sinceDays, int? takeRecent)
     {
         var parts = new List<string>(2);
@@ -341,6 +477,24 @@ public partial class CommentsHtmlControl : UserControl
         return rootId;
     }
 
+    private CommentsLayoutMode GetActiveLayoutMode()
+    {
+        return uiTabs.SelectedTab == uiFlatTab
+            ? CommentsLayoutMode.Flat
+            : CommentsLayoutMode.Grouped;
+    }
+
+    private void ReparentBrowserToActiveTab()
+    {
+        var target = uiTabs.SelectedTab == uiFlatTab ? uiFlatTab : uiGroupedTab;
+        if (uiBrowserView.Parent == target)
+        {
+            return;
+        }
+
+        target.Controls.Add(uiBrowserView);
+    }
+
     private void ApplySettingsToUi()
     {
         _suppressSettingsSave = true;
@@ -348,6 +502,14 @@ public partial class CommentsHtmlControl : UserControl
         {
             uiSearchTextBox.Text = _settings.Search;
             uiLimitNumeric.Value = Math.Clamp(_settings.Limit, (int)uiLimitNumeric.Minimum, (int)uiLimitNumeric.Maximum);
+
+            PopulateReplyStatusCombo();
+
+            uiTabs.SelectedTab = _settings.LayoutMode == CommentsLayoutMode.Flat
+                ? uiFlatTab
+                : uiGroupedTab;
+
+            ReparentBrowserToActiveTab();
 
             if (!string.IsNullOrEmpty(_settings.SelectedSourceId)
                 && uiSourceComboBox.DataSource is List<SourceComboItem> items
@@ -362,6 +524,33 @@ public partial class CommentsHtmlControl : UserControl
         }
     }
 
+    private void PopulateReplyStatusCombo()
+    {
+        var items = new List<ReplyStatusComboItem>
+        {
+            new(CommentsReplyStatusFilter.WithoutReplyAndLike, "Без ответа и лайка"),
+            new(CommentsReplyStatusFilter.All, "Все"),
+            new(CommentsReplyStatusFilter.WithoutReply, "Без ответа"),
+            new(CommentsReplyStatusFilter.WithReply, "С ответом"),
+            new(CommentsReplyStatusFilter.NewReplies, "Новые ответы"),
+        };
+
+        uiReplyStatusComboBox.BeginUpdate();
+        try
+        {
+            uiReplyStatusComboBox.DataSource = items;
+            uiReplyStatusComboBox.DisplayMember = nameof(ReplyStatusComboItem.Label);
+            uiReplyStatusComboBox.ValueMember = nameof(ReplyStatusComboItem.Key);
+
+            var current = items.FirstOrDefault(x => x.Key == _settings.ReplyStatus) ?? items[0];
+            uiReplyStatusComboBox.SelectedItem = current;
+        }
+        finally
+        {
+            uiReplyStatusComboBox.EndUpdate();
+        }
+    }
+
     private void SaveSettings()
     {
         if (_suppressSettingsSave)
@@ -372,6 +561,13 @@ public partial class CommentsHtmlControl : UserControl
         _settings.SelectedSourceId = (uiSourceComboBox.SelectedItem as SourceComboItem)?.SourceId;
         _settings.Search = uiSearchTextBox.Text;
         _settings.Limit = (int)uiLimitNumeric.Value;
+
+        _settings.LayoutMode = GetActiveLayoutMode();
+
+        if (uiReplyStatusComboBox.SelectedItem is ReplyStatusComboItem replyStatus)
+        {
+            _settings.ReplyStatus = replyStatus.Key;
+        }
 
         _settings.Save();
     }
@@ -437,6 +633,8 @@ public partial class CommentsHtmlControl : UserControl
         var sourceId = (uiSourceComboBox.SelectedItem as SourceComboItem)?.SourceId;
         var search = uiSearchTextBox.Text.Trim();
         var limit = (int)uiLimitNumeric.Value;
+        var layout = GetActiveLayoutMode();
+        var replyStatus = (uiReplyStatusComboBox.SelectedItem as ReplyStatusComboItem)?.Key ?? _settings.ReplyStatus;
 
         uiStatusLabel.Text = "Загрузка...";
 
@@ -458,9 +656,12 @@ public partial class CommentsHtmlControl : UserControl
 
                 BackfillOrphanParents(fetched, commentsService, ct);
 
+                fetched = FilterByReplyStatus(fetched, replyStatus);
+
                 var renderJson = CommentsBrowserView.BuildRenderJson(orcestrator, fetched, new()
                 {
                     Search = search,
+                    Layout = layout,
                 });
 
                 return (Records: fetched, Json: renderJson, Truncated: isTruncated);
@@ -699,7 +900,7 @@ public partial class CommentsHtmlControl : UserControl
         };
 
         var cts = new CancellationTokenSource();
-        var action = _actionHolder.Register($"{label}: «{media.Title}»", "Запущена", 1, cts);
+        var action = _actionHolder.Register($"{label}: «{media.Title}»", "Запущена", 1, cts, kind: ActionKind.Comments);
 
         var patchedInPlace = false;
 
@@ -718,7 +919,7 @@ public partial class CommentsHtmlControl : UserControl
                             ? null
                             : $"{source.Id}|{link.ExternalId}|{request.ParentExternalCommentId}";
 
-                        patchedInPlace = uiBrowserView.TryApplyCreate(_orcestrator, record, groupKey, parentCompositeId);
+                        patchedInPlace = uiBrowserView.TryApplyCreate(_orcestrator, media, record, groupKey, parentCompositeId);
                         break;
                     }
 
@@ -781,11 +982,18 @@ public partial class CommentsHtmlControl : UserControl
             }
 
             action.Status = $"{source.TitleFull}: ок";
-        }
-        finally
-        {
             action.ProgressPlus();
             action.Finish();
+        }
+        catch (OperationCanceledException)
+        {
+            action.MarkCancelled();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            action.Fail("Ошибка: " + ex.Message, ex);
+            throw;
         }
 
         if (!patchedInPlace)
@@ -931,7 +1139,7 @@ public partial class CommentsHtmlControl : UserControl
         }
 
         var cts = new CancellationTokenSource();
-        var action = _actionHolder.Register($"Комментарии: «{media.Title}»", "Запущена", 1, cts);
+        var action = _actionHolder.Register($"Комментарии: «{media.Title}»", "Запущена", 1, cts, kind: ActionKind.Comments);
 
         uiFetchProgressBar.Style = ProgressBarStyle.Marquee;
         uiFetchProgressBar.Visible = true;
@@ -943,6 +1151,9 @@ public partial class CommentsHtmlControl : UserControl
             action.Status = text;
         });
 
+        Exception? failure = null;
+        var cancelled = false;
+
         try
         {
             await Task.Run(async () =>
@@ -953,17 +1164,32 @@ public partial class CommentsHtmlControl : UserControl
         }
         catch (OperationCanceledException) when (cts.Token.IsCancellationRequested)
         {
+            cancelled = true;
             uiStatusLabel.Text = "Загрузка отменена";
         }
         catch (Exception ex)
         {
+            failure = ex;
             _logger?.LogError(ex, "Не удалось загрузить комментарии для «{Title}»", media.Title);
             uiStatusLabel.Text = "Ошибка загрузки";
         }
         finally
         {
             action.ProgressPlus();
-            action.Finish();
+
+            if (cancelled)
+            {
+                action.MarkCancelled("Отменено");
+            }
+            else if (failure != null)
+            {
+                action.Fail("Ошибка: " + failure.Message, failure);
+            }
+            else
+            {
+                action.Finish();
+            }
+
             uiFetchProgressBar.Visible = false;
             uiFetchProgressBar.Style = ProgressBarStyle.Blocks;
         }
@@ -986,10 +1212,14 @@ public partial class CommentsHtmlControl : UserControl
             var records = _commentsService.GetByMedia(link.SourceId, link.ExternalId);
             BackfillOrphanParents(records, _commentsService, CancellationToken.None);
 
+            var replyStatus = (uiReplyStatusComboBox.SelectedItem as ReplyStatusComboItem)?.Key ?? _settings.ReplyStatus;
+            records = FilterByReplyStatus(records, replyStatus);
+
             var groupKey = CommentsBrowserView.BuildGroupKey(media, link.SourceId, link.ExternalId);
             var options = new CommentsRenderOptions
             {
                 Search = uiSearchTextBox.Text.Trim(),
+                Layout = GetActiveLayoutMode(),
             };
 
             return uiBrowserView.TryApplyFetched(_orcestrator, records, groupKey, options);
@@ -1063,7 +1293,8 @@ public partial class CommentsHtmlControl : UserControl
         var action = _actionHolder.Register($"Загрузка комментариев из «{source.TitleFull}»",
             "Запущена",
             targets.Count,
-            cts);
+            cts,
+            kind: ActionKind.Comments);
 
         uiFetchProgressBar.Style = ProgressBarStyle.Blocks;
         uiFetchProgressBar.Maximum = targets.Count;
@@ -1085,6 +1316,7 @@ public partial class CommentsHtmlControl : UserControl
         });
 
         var counterLock = new object();
+        var eta = new SubtitleEtaTicker(action, new());
 
         try
         {
@@ -1149,6 +1381,7 @@ public partial class CommentsHtmlControl : UserControl
                         : $"✓ {ok}  /  {targets.Count}";
 
                     reporter.Report(new(processed, startStatus, counter));
+                    eta.Report(processed * 100.0 / targets.Count);
                 }
             });
         }
@@ -1164,13 +1397,25 @@ public partial class CommentsHtmlControl : UserControl
                 summary += $", ошибок {failed}";
             }
 
-            action.Finish(summary);
+            if (token.IsCancellationRequested)
+            {
+                action.MarkCancelled(summary);
+            }
+            else if (failed > 0)
+            {
+                action.Fail(summary);
+            }
+            else
+            {
+                action.Finish(summary);
+            }
+
             uiFetchProgressBar.Visible = false;
             uiFetchCounterLabel.Visible = false;
-        }
 
-        ApplyFilters();
-        UpdateForceFetchButtonState();
+            ApplyFilters();
+            UpdateForceFetchButtonState();
+        }
     }
 
     private sealed record FetchProgress(int Processed, string StatusText, string CounterText);
@@ -1178,6 +1423,17 @@ public partial class CommentsHtmlControl : UserControl
     private sealed class SourceComboItem(string? sourceId, string label)
     {
         public string? SourceId { get; } = sourceId;
+        public string Label { get; } = label;
+
+        public override string ToString()
+        {
+            return Label;
+        }
+    }
+
+    private sealed class ReplyStatusComboItem(CommentsReplyStatusFilter key, string label)
+    {
+        public CommentsReplyStatusFilter Key { get; } = key;
         public string Label { get; } = label;
 
         public override string ToString()

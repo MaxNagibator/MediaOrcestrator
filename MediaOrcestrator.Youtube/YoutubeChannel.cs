@@ -337,6 +337,7 @@ internal sealed class YoutubeChannel(
     public async Task<MediaDto> DownloadAsync(
         string videoId,
         Dictionary<string, string> settings,
+        IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         logger.DownloadStart(videoId);
@@ -355,7 +356,7 @@ internal sealed class YoutubeChannel(
         var currentPart = 0;
 
         // TODO: Подумать
-        Progress<YtDlpProgress> progress = new(p =>
+        Progress<YtDlpProgress> ytDlpProgress = new(p =>
         {
             lock (progressLock)
             {
@@ -382,6 +383,7 @@ internal sealed class YoutubeChannel(
 
                 logger.DownloadProgress(p.PartNumber, p.Progress);
                 oldPercent = p.Progress;
+                progress?.Report(new(p.Progress * 100));
             }
         });
 
@@ -392,7 +394,7 @@ internal sealed class YoutubeChannel(
         try
         {
             var rateLimitBytes = SpeedLimitHelper.ParseDownloadBytesPerSecond(settings);
-            info = await ytDlp.DownloadAsync(string.Format(VideoUrlTemplate, videoId), finalPath, progress, rateLimitBytes, cancellationToken);
+            info = await ytDlp.DownloadAsync(string.Format(VideoUrlTemplate, videoId), finalPath, ytDlpProgress, rateLimitBytes, cancellationToken);
             logger.DownloadCompleted(videoId, finalPath);
         }
         catch (OperationCanceledException)
@@ -439,10 +441,11 @@ internal sealed class YoutubeChannel(
     public async Task<UploadResult> UploadAsync(
         MediaDto media,
         Dictionary<string, string> settings,
+        IProgress<UploadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         using var lease = await AcquireServiceLeaseAsync(settings, cancellationToken);
-        return await uploadService.UploadVideoAsync(lease.Service, media, settings, cancellationToken);
+        return await uploadService.UploadVideoAsync(lease.Service, media, settings, progress, cancellationToken);
     }
 
     public async Task<UploadResult> UpdateAsync(

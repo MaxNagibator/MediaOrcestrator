@@ -126,6 +126,7 @@ internal sealed class SyncAction : IMediaMenuAction
             ctx.Ui,
             ctx.Logger,
             ctx.ActionHolder,
-            $"Синхронизация: {rel.From.TitleFull} → {rel.To.TitleFull}");
+            $"Синхронизация: {rel.From.TitleFull} → {rel.To.TitleFull}",
+            ActionKind.Sync);
     }
 }

@@ -4,7 +4,7 @@ namespace MediaOrcestrator.Modules;
 
 public static class UploadProgressLogger
 {
-    public static IProgress<double> CreateBucketed(ILogger logger, string title, int bucketCount = 10)
+    public static IProgress<double> CreateBucketed(ILogger logger, string title, int bucketCount = 10, IProgress<UploadProgress>? external = null)
     {
         if (bucketCount <= 0)
         {
@@ -16,6 +16,8 @@ public static class UploadProgressLogger
 
         return new Progress<double>(fraction =>
         {
+            external?.Report(new(Math.Clamp(fraction, 0.0, 1.0) * 100));
+
             lock (lockObject)
             {
                 var bucket = (int)Math.Floor(Math.Clamp(fraction, 0.0, 1.0) * bucketCount);

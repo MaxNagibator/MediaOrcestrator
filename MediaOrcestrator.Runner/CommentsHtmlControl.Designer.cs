@@ -27,6 +27,11 @@ partial class CommentsHtmlControl
     private Button uiForceFetchAllButton;
     private Label uiLimitLabel;
     private NumericUpDown uiLimitNumeric;
+    private Label uiReplyStatusLabel;
+    private ComboBox uiReplyStatusComboBox;
+    private TabControl uiTabs;
+    private TabPage uiGroupedTab;
+    private TabPage uiFlatTab;
     private CommentsBrowserView uiBrowserView;
     private StatusStrip uiStatusStrip;
     private ToolStripStatusLabel uiStatusLabel;
@@ -43,8 +48,13 @@ partial class CommentsHtmlControl
         uiSearchLabel = new Label();
         uiSearchTextBox = new TextBox();
         uiForceFetchAllButton = new Button();
+        uiReplyStatusLabel = new Label();
+        uiReplyStatusComboBox = new ComboBox();
         uiLimitLabel = new Label();
         uiLimitNumeric = new NumericUpDown();
+        uiTabs = new TabControl();
+        uiGroupedTab = new TabPage();
+        uiFlatTab = new TabPage();
         uiBrowserView = new CommentsBrowserView();
         uiStatusStrip = new StatusStrip();
         uiStatusLabel = new ToolStripStatusLabel();
@@ -58,11 +68,13 @@ partial class CommentsHtmlControl
         //
         // uiFiltersPanel
         //
-        uiFiltersPanel.ColumnCount = 7;
+        uiFiltersPanel.ColumnCount = 9;
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -71,8 +83,10 @@ partial class CommentsHtmlControl
         uiFiltersPanel.Controls.Add(uiSearchLabel, 2, 0);
         uiFiltersPanel.Controls.Add(uiSearchTextBox, 3, 0);
         uiFiltersPanel.Controls.Add(uiForceFetchAllButton, 4, 0);
-        uiFiltersPanel.Controls.Add(uiLimitLabel, 5, 0);
-        uiFiltersPanel.Controls.Add(uiLimitNumeric, 6, 0);
+        uiFiltersPanel.Controls.Add(uiReplyStatusLabel, 5, 0);
+        uiFiltersPanel.Controls.Add(uiReplyStatusComboBox, 6, 0);
+        uiFiltersPanel.Controls.Add(uiLimitLabel, 7, 0);
+        uiFiltersPanel.Controls.Add(uiLimitNumeric, 8, 0);
         uiFiltersPanel.Dock = DockStyle.Top;
         uiFiltersPanel.Location = new Point(0, 0);
         uiFiltersPanel.Name = "uiFiltersPanel";
@@ -134,6 +148,21 @@ partial class CommentsHtmlControl
             + Environment.NewLine
             + "Для каждого попавшего медиа всегда загружаются все его комментарии.");
         //
+        // uiReplyStatusLabel
+        //
+        uiReplyStatusLabel.AutoSize = true;
+        uiReplyStatusLabel.Margin = new Padding(0, 7, 6, 0);
+        uiReplyStatusLabel.Name = "uiReplyStatusLabel";
+        uiReplyStatusLabel.Text = "Статус ответа:";
+        //
+        // uiReplyStatusComboBox
+        //
+        uiReplyStatusComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        uiReplyStatusComboBox.Margin = new Padding(0, 3, 12, 3);
+        uiReplyStatusComboBox.Name = "uiReplyStatusComboBox";
+        uiReplyStatusComboBox.Size = new Size(190, 23);
+        uiReplyStatusComboBox.SelectedIndexChanged += uiReplyStatusComboBox_SelectedIndexChanged;
+        //
         // uiLimitLabel
         //
         uiLimitLabel.AutoSize = true;
@@ -158,13 +187,37 @@ partial class CommentsHtmlControl
             + Environment.NewLine
             + "Загрузка из источника всегда тянет все комментарии медиа целиком.");
         //
+        // uiTabs
+        //
+        uiTabs.Dock = DockStyle.Fill;
+        uiTabs.Name = "uiTabs";
+        uiTabs.Location = new Point(0, 36);
+        uiTabs.Size = new Size(1100, 592);
+        uiTabs.TabIndex = 1;
+        uiTabs.Controls.Add(uiGroupedTab);
+        uiTabs.Controls.Add(uiFlatTab);
+        uiTabs.SelectedIndexChanged += uiTabs_SelectedIndexChanged;
+        //
+        // uiGroupedTab
+        //
+        uiGroupedTab.Name = "uiGroupedTab";
+        uiGroupedTab.Text = "Сгруппировано";
+        uiGroupedTab.Padding = new Padding(0);
+        uiGroupedTab.UseVisualStyleBackColor = true;
+        //
+        // uiFlatTab
+        //
+        uiFlatTab.Name = "uiFlatTab";
+        uiFlatTab.Text = "Плоский список";
+        uiFlatTab.Padding = new Padding(0);
+        uiFlatTab.UseVisualStyleBackColor = true;
+        //
         // uiBrowserView
         //
         uiBrowserView.Dock = DockStyle.Fill;
-        uiBrowserView.Location = new Point(0, 36);
         uiBrowserView.Name = "uiBrowserView";
-        uiBrowserView.Size = new Size(1100, 592);
-        uiBrowserView.TabIndex = 1;
+        uiBrowserView.TabIndex = 0;
+        uiGroupedTab.Controls.Add(uiBrowserView);
         //
         // uiStatusStrip
         //
@@ -201,7 +254,7 @@ partial class CommentsHtmlControl
         //
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        Controls.Add(uiBrowserView);
+        Controls.Add(uiTabs);
         Controls.Add(uiStatusStrip);
         Controls.Add(uiFiltersPanel);
         Name = "CommentsHtmlControl";

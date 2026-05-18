@@ -186,57 +186,77 @@ public partial class SyncTreeControl : UserControl
 
         LogToUi($"Запуск синхронизации для {filteredRootIntents.Count} цепочек...", Color.Yellow);
 
-        var action = _actionHolder.Register("Синхронизация цепочки", "В процессе", filteredRootIntents.Count, _cts);
+        var action = _actionHolder.Register("Синхронизация цепочки", "В процессе", filteredRootIntents.Count, _cts, kind: ActionKind.Sync);
         var processed = 0;
+        var syncErrors = new List<Exception>();
+        var cancelled = false;
         try
         {
             var relations = _orcestrator.GetRelations();
             var executor = new ParallelSyncExecutor(filteredRootIntents, relations);
 
-            await executor.ExecuteAsync(async intent =>
+            using (_actionHolder.BeginScope(action))
             {
-                var node = _intentNodeMap.GetValueOrDefault(intent);
-                UpdateStatusLabel($"Обработка: {intent.Media.Title}");
-
-                var progress = new Progress<SyncAttemptStatus>(status => ApplyAttemptStatusToNode(intent, node, status));
-
-                await _retryRunner!.RunAsync(intent.Media, intent.Relation, progress, cancellationToken: _cts!.Token);
-                processed++;
-                action.ProgressPlus();
-            }, _cts.Token, (intent, ex) =>
-            {
-                var node = _intentNodeMap.GetValueOrDefault(intent);
-                UpdateNodeState(node, IconError, Color.Red,
-                    $"[Ошибка] {intent.From.TitleFull} -> {intent.To.TitleFull}");
-
-                _logger!.LogError(ex, "Ошибка при выполнении синхронизации для {Intent}", intent);
-                LogToUi($"Ошибка для {intent.Media.Title}: {ex.Message}", Color.Red);
-
-                if (!uiStopIfErrorCheckBox.Checked)
+                await executor.ExecuteAsync(async intent =>
                 {
-                    return;
-                }
+                    var node = _intentNodeMap.GetValueOrDefault(intent);
+                    UpdateStatusLabel($"Обработка: {intent.Media.Title}");
 
-                LogToUi("Синхронизация прервана в результате ошибки.", Color.Orange);
-                _cts?.Cancel();
-            });
+                    var progress = new Progress<SyncAttemptStatus>(status => ApplyAttemptStatusToNode(intent, node, status));
+
+                    await _retryRunner!.RunAsync(intent.Media, intent.Relation, progress, cancellationToken: _cts!.Token);
+                    processed++;
+                    action.ProgressPlus();
+                }, _cts.Token, (intent, ex) =>
+                {
+                    var node = _intentNodeMap.GetValueOrDefault(intent);
+                    UpdateNodeState(node, IconError, Color.Red,
+                        $"[Ошибка] {intent.From.TitleFull} -> {intent.To.TitleFull}");
+
+                    syncErrors.Add(ex);
+                    _logger!.LogError(ex, "Ошибка при выполнении синхронизации для {Intent}", intent);
+                    LogToUi($"Ошибка для {intent.Media.Title}: {ex.Message}", Color.Red);
+
+                    if (!uiStopIfErrorCheckBox.Checked)
+                    {
+                        return;
+                    }
+
+                    LogToUi("Синхронизация прервана в результате ошибки.", Color.Orange);
+                    _cts?.Cancel();
+                });
+            }
 
             UpdateStatusLabel("Завершено");
             LogToUi("Процесс синхронизации полностью завершен.", Color.LightGreen);
         }
         catch (OperationCanceledException)
         {
+            cancelled = true;
             UpdateStatusLabel("Остановлено");
             LogToUi("Процесс был остановлен.", Color.Orange);
         }
         catch (Exception ex)
         {
+            syncErrors.Add(ex);
             _logger!.LogError(ex, "Критическая ошибка при выполнении синхронизации.");
             LogToUi($"Критическая ошибка: {ex.Message}", Color.Red);
         }
         finally
         {
-            action.Finish();
+            if (cancelled || (_cts?.IsCancellationRequested ?? false))
+            {
+                action.MarkCancelled(syncErrors.Count > 0 ? $"Прервано: ошибок {syncErrors.Count}" : null);
+            }
+            else if (syncErrors.Count > 0)
+            {
+                action.Fail($"Ошибок: {syncErrors.Count}", new AggregateException(syncErrors));
+            }
+            else
+            {
+                action.Finish();
+            }
+
             uiExecuteButton.Enabled = true;
             uiStopButton.Enabled = false;
             uiTreeView.Enabled = true;

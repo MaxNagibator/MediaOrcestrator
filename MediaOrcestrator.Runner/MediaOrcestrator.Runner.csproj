@@ -16,6 +16,8 @@
     </None>
     <EmbeddedResource Include="Resources\docs.template.html" />
     <EmbeddedResource Include="Resources\comments.template.html" />
+    <EmbeddedResource Include="Resources\comments.template.css" />
+    <EmbeddedResource Include="Resources\comments.template.js" />
   </ItemGroup>
 
   <ItemGroup>

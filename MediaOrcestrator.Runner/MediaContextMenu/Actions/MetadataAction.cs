@@ -26,23 +26,26 @@ internal sealed class MetadataAction : IMediaMenuAction
             Execute = () => UpdateAsync(selection.Items, ctx),
         };
 
-        if (selection.IsBatch)
-        {
-            yield break;
-        }
-
         if (selection.SpecificSource != null)
         {
-            yield return new($"Очистить метаданные источника ({selection.SpecificSource.TitleFull})", MenuIcons.Delete)
+            var clearText = selection.IsBatch
+                ? $"Очистить метаданные источника ({selection.SpecificSource.TitleFull}) ({selection.Count})"
+                : $"Очистить метаданные источника ({selection.SpecificSource.TitleFull})";
+
+            yield return new(clearText, MenuIcons.Delete)
             {
-                Execute = () => ClearAsync(selection.First, selection.SpecificSource.Id, ctx),
+                Execute = () => ClearAsync(selection.Items, selection.SpecificSource.Id, ctx),
             };
         }
         else
         {
-            yield return new("Очистить все метаданные", MenuIcons.Delete)
+            var clearText = selection.IsBatch
+                ? $"Очистить все метаданные ({selection.Count})"
+                : "Очистить все метаданные";
+
+            yield return new(clearText, MenuIcons.Delete)
             {
-                Execute = () => ClearAsync(selection.First, null, ctx),
+                Execute = () => ClearAsync(selection.Items, null, ctx),
             };
         }
     }
@@ -73,23 +76,32 @@ internal sealed class MetadataAction : IMediaMenuAction
             ctx.ActionHolder,
             mediaList.Count > 1
                 ? $"Обновление метаданных ({mediaList.Count})"
-                : $"Обновление метаданных: «{mediaList[0].Title}»");
+                : $"Обновление метаданных: «{mediaList[0].Title}»",
+            ActionKind.Metadata);
     }
 
-    private static Task ClearAsync(Media media, string? sourceId, MediaActionContext ctx)
+    private static Task ClearAsync(IReadOnlyList<Media> mediaList, string? sourceId, MediaActionContext ctx)
     {
-        if (sourceId != null)
-        {
-            ctx.Logger.LogInformation("Очистка метаданных для медиа '{Title}', источник: {SourceId}", media.Title, sourceId);
-            ctx.Orcestrator.ClearSourceMetadata(media, sourceId);
-        }
-        else
-        {
-            ctx.Logger.LogInformation("Очистка всех метаданных для медиа '{Title}'", media.Title);
-            ctx.Orcestrator.ClearAllMetadata(media);
-        }
+        BatchOperationRunner.Run(mediaList,
+            m => m.Title ?? string.Empty,
+            m =>
+            {
+                if (sourceId != null)
+                {
+                    ctx.Logger.LogInformation("Очистка метаданных для медиа '{Title}', источник: {SourceId}", m.Title, sourceId);
+                    ctx.Orcestrator.ClearSourceMetadata(m, sourceId);
+                }
+                else
+                {
+                    ctx.Logger.LogInformation("Очистка всех метаданных для медиа '{Title}'", m.Title);
+                    ctx.Orcestrator.ClearAllMetadata(m);
+                }
+            },
+            "Очищено",
+            "Очистка метаданных завершена с ошибками",
+            ctx.Ui,
+            ctx.Logger);
 
-        ctx.Ui.NotifyDataChanged();
         return Task.CompletedTask;
     }
 }

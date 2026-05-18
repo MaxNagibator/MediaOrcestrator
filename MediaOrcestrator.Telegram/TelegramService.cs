@@ -138,6 +138,7 @@ public sealed class TelegramService : IDisposable
         Document document,
         string outputPath,
         long? bytesPerSecond = null,
+        IProgress<DownloadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         _logger.DownloadingFile(document.id, document.size);
@@ -145,7 +146,13 @@ public sealed class TelegramService : IDisposable
 
         await using var fileStream = File.Create(outputPath);
         await using var throttled = new ThrottledStream(fileStream, bytesPerSecond);
-        await _client.DownloadFileAsync(document, throttled).WaitAsync(cancellationToken);
+
+        var byteProgress = progress != null && document.size > 0
+            ? new Progress<long>(bytes => progress.Report(new(Math.Min(100.0, bytes * 100.0 / document.size))))
+            : null;
+
+        await using var tracked = new ProgressStream(throttled, byteProgress);
+        await _client.DownloadFileAsync(document, tracked).WaitAsync(cancellationToken);
 
         _logger.FileSaved(outputPath);
     }

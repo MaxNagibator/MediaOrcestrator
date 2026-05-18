@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using Serilog.Events;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace MediaOrcestrator.Runner;
 
@@ -28,6 +29,8 @@ public partial class MainForm : Form
     private readonly Dictionary<string, AuditSourceRow> _auditRows = new();
     private readonly PublishControl? _publishControl;
     private readonly string _tasksTabBaseText;
+    private readonly MainFormTaskbarController _taskbarController;
+    private readonly uint _taskbarButtonCreatedMessage;
     private LogViewContext? _logContext;
     private bool _isSyncRunning;
 
@@ -47,6 +50,9 @@ public partial class MainForm : Form
         _publishControl.Dock = DockStyle.Fill;
         _publishControl.MediaPublished += OnMediaPublished;
         uiPublishTabPage.Controls.Add(_publishControl);
+
+        _taskbarController = _serviceProvider.GetRequiredService<MainFormTaskbarController>();
+        _taskbarButtonCreatedMessage = RegisterWindowMessage("TaskbarButtonCreated");
     }
 
     public Action? StartupCompleted { get; set; }
@@ -56,6 +62,28 @@ public partial class MainForm : Form
         _logContext = context;
         uiLogsTabPage.Controls.Add(context.Control);
         context.Control.WordWrap = uiLogWordWrapCheckBox.Checked;
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        _taskbarController.Attach(Handle, this);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (_taskbarButtonCreatedMessage != 0 && m.Msg == _taskbarButtonCreatedMessage)
+        {
+            _taskbarController.OnTaskbarButtonCreated();
+        }
+
+        base.WndProc(ref m);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _taskbarController.Dispose();
+        base.OnFormClosed(e);
     }
 
     protected override void OnShown(EventArgs e)
@@ -466,6 +494,9 @@ public partial class MainForm : Form
         uiMediaMatrixGridControl.RefreshData();
     }
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint RegisterWindowMessage(string lpString);
+
     private async Task RunSyncAsync(Source? filterSource, AuditSyncMode mode)
     {
         if (_isSyncRunning)
@@ -518,6 +549,20 @@ public partial class MainForm : Form
         {
             await _orcestrator.GetStorageFullInfo(isFull, filterSource, onlyNew, progress);
             _logger.LogInformation("Синхронизация через UI завершена.");
+            uiMediaMatrixGridControl.RefreshData();
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Синхронизация через UI отменена пользователем.");
+            if (targetRow != null)
+            {
+                targetRow.ReportProgress("Отменено");
+            }
+            else
+            {
+                uiBulkProgressLabel.Text = "Отменено";
+            }
+
             uiMediaMatrixGridControl.RefreshData();
         }
         catch (Exception ex)
