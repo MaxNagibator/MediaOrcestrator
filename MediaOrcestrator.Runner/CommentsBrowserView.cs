@@ -1,6 +1,7 @@
 ﻿using MediaOrcestrator.Domain;
 using MediaOrcestrator.Domain.Comments;
 using MediaOrcestrator.Modules;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -11,7 +12,7 @@ namespace MediaOrcestrator.Runner;
 public sealed record CommentsRenderOptions
 {
     public string Search { get; init; } = "";
-    public CommentsLayoutMode Layout { get; init; } = CommentsLayoutMode.Grouped;
+    public CommentsLayoutMode Layout { get; init; } = CommentsLayoutMode.Flat;
 }
 
 public sealed record CommentsBrowserFetchRequest(string SourceId, string ExternalId);
@@ -64,6 +65,9 @@ public sealed partial class CommentsBrowserView : UserControl
     };
 
     private bool _prewarmed;
+    private CommentsAppearance _appearance = new();
+    private string _replyPrefix = "{name}, ";
+    private string _lastJson = EmptyDataJson;
 
     public CommentsBrowserView()
     {
@@ -213,8 +217,37 @@ public sealed partial class CommentsBrowserView : UserControl
             return;
         }
 
-        _prewarmed = true;
-        uiWebBrowser.DocumentText = HtmlTemplate.Replace("{{data}}", EscapeForInlineScript(EmptyDataJson));
+        RenderDocument(EmptyDataJson);
+    }
+
+    public void SetAppearance(CommentsAppearance appearance)
+    {
+        _appearance = appearance ?? new();
+
+        if (_prewarmed)
+        {
+            RenderDocument(_lastJson);
+        }
+    }
+
+    public void SetReplyPrefix(string template)
+    {
+        _replyPrefix = template ?? "{name}, ";
+
+        if (_prewarmed)
+        {
+            InvokeApply("__setReplyPrefix", _replyPrefix);
+        }
+    }
+
+    public void ShowLoading()
+    {
+        InvokeApply("__showLoading");
+    }
+
+    public void HideLoading()
+    {
+        InvokeApply("__hideLoading");
     }
 
     public bool TryApplyLikeUpdate(string commentRecordId, bool likedByMe, int likeCount)
@@ -320,13 +353,14 @@ public sealed partial class CommentsBrowserView : UserControl
 
     public void ApplyJson(string json)
     {
+        _lastJson = json;
+
         if (InvokeApply("__applyAll", json))
         {
             return;
         }
 
-        _prewarmed = true;
-        uiWebBrowser.DocumentText = HtmlTemplate.Replace("{{data}}", EscapeForInlineScript(json));
+        RenderDocument(json);
     }
 
     private void uiWebBrowser_Navigating(object? sender, WebBrowserNavigatingEventArgs e)
@@ -360,6 +394,20 @@ public sealed partial class CommentsBrowserView : UserControl
                 OpenCommentExternalRequested?.Invoke(this, new(segments[0], segments[1], segments[2]));
                 break;
         }
+    }
+
+    private static string BuildAppearanceCss(CommentsAppearance a)
+    {
+        var lineHeight = a.LineHeight.ToString("0.##", CultureInfo.InvariantCulture);
+
+        return $$"""
+                 html, body { font-size: {{a.BaseFontSize}}px; line-height: {{lineHeight}}; }
+                 .body, .flat-body { font-size: {{a.CommentFontSize}}px; }
+                 .author, .flat-author-chip { font-size: {{a.AuthorFontSize}}px; }
+                 .head, .date, .media-meta, .flat-meta, .flat-head { font-size: {{a.MetaFontSize}}px; }
+                 .media-title, .flat-thumb-title { font-size: {{a.MediaTitleFontSize}}px; }
+                 .author-badge, .source-badge { font-size: {{a.BadgeFontSize}}px; }
+                 """;
     }
 
     private static string EscapeForInlineScript(string json)
@@ -598,6 +646,16 @@ public sealed partial class CommentsBrowserView : UserControl
 
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
+    }
+
+    private void RenderDocument(string json)
+    {
+        _prewarmed = true;
+        _lastJson = json;
+        uiWebBrowser.DocumentText = HtmlTemplate
+            .Replace("{{appearanceStyles}}", BuildAppearanceCss(_appearance))
+            .Replace("{{replyPrefix}}", JsonSerializer.Serialize(_replyPrefix, JsonOptions))
+            .Replace("{{data}}", EscapeForInlineScript(json));
     }
 
     private string LoadAuthorsJson(string? sourceId, string? externalMediaId)

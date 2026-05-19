@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using Timer = System.Windows.Forms.Timer;
 
 namespace MediaOrcestrator.Runner;
@@ -25,6 +26,7 @@ public partial class CommentsHtmlControl : UserControl
     private CommentsViewSettings _settings = new();
     private bool _loaded;
     private bool _suppressSettingsSave;
+    private CommentsLayoutMode _activeLayoutMode = CommentsLayoutMode.Flat;
     private int _applyFiltersVersion;
     private CancellationTokenSource? _applyFiltersCts;
 
@@ -87,15 +89,21 @@ public partial class CommentsHtmlControl : UserControl
         _logger = logger;
 
         _settings = CommentsViewSettings.Load();
+        _activeLayoutMode = _settings.LayoutMode;
 
         uiBrowserView.AuthorsResolver = ResolveCommentAuthors;
+        uiBrowserView.SetAppearance(_settings.Appearance);
+        uiBrowserView.SetReplyPrefix(_settings.ReplyPrefixTemplate);
 
-        using (Splash.Current.StartSpan("Список источников"))
+        RunWithSettingsSaveSuppressed(() =>
         {
-            ReloadSourcesCombo();
-        }
+            using (Splash.Current.StartSpan("Список источников"))
+            {
+                ReloadSourcesCombo();
+            }
 
-        ApplySettingsToUi();
+            ApplySettingsToUi();
+        });
 
         using (Splash.Current.StartSpan("Прогрев браузера"))
         {
@@ -131,6 +139,8 @@ public partial class CommentsHtmlControl : UserControl
 
     private void uiTabs_SelectedIndexChanged(object? sender, EventArgs e)
     {
+        _activeLayoutMode = GetSelectedLayoutMode();
+
         if (_suppressSettingsSave)
         {
             return;
@@ -138,6 +148,14 @@ public partial class CommentsHtmlControl : UserControl
 
         ReparentBrowserToActiveTab();
         SaveSettings();
+
+        if (_loaded)
+        {
+            SetBusyIndicator(true, "Переключение режима...");
+            uiBrowserView.ShowLoading();
+            uiStatusStrip.Refresh();
+        }
+
         ApplyFilters();
     }
 
@@ -163,6 +181,31 @@ public partial class CommentsHtmlControl : UserControl
     private void uiFetchSettingsValueChanged(object? sender, EventArgs e)
     {
         SaveSettings();
+    }
+
+    private void uiAppearanceButton_Click(object? sender, EventArgs e)
+    {
+        using var dialog = new CommentsAppearanceDialog(_settings.Appearance, _settings.ReplyPrefixTemplate);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var newAppearance = dialog.Appearance;
+
+        var appearanceChanged = JsonSerializer.Serialize(newAppearance)
+                                != JsonSerializer.Serialize(_settings.Appearance);
+
+        _settings.Appearance = newAppearance;
+        _settings.ReplyPrefixTemplate = dialog.ReplyPrefixTemplate;
+        _settings.Save();
+
+        uiBrowserView.SetReplyPrefix(_settings.ReplyPrefixTemplate);
+
+        if (appearanceChanged)
+        {
+            uiBrowserView.SetAppearance(_settings.Appearance);
+        }
     }
 
     private async void uiForceFetchAllButton_Click(object? sender, EventArgs e)
@@ -479,6 +522,11 @@ public partial class CommentsHtmlControl : UserControl
 
     private CommentsLayoutMode GetActiveLayoutMode()
     {
+        return _activeLayoutMode;
+    }
+
+    private CommentsLayoutMode GetSelectedLayoutMode()
+    {
         return uiTabs.SelectedTab == uiFlatTab
             ? CommentsLayoutMode.Flat
             : CommentsLayoutMode.Grouped;
@@ -486,7 +534,7 @@ public partial class CommentsHtmlControl : UserControl
 
     private void ReparentBrowserToActiveTab()
     {
-        var target = uiTabs.SelectedTab == uiFlatTab ? uiFlatTab : uiGroupedTab;
+        var target = _activeLayoutMode == CommentsLayoutMode.Flat ? uiFlatTab : uiGroupedTab;
         if (uiBrowserView.Parent == target)
         {
             return;
@@ -505,7 +553,8 @@ public partial class CommentsHtmlControl : UserControl
 
             PopulateReplyStatusCombo();
 
-            uiTabs.SelectedTab = _settings.LayoutMode == CommentsLayoutMode.Flat
+            _activeLayoutMode = _settings.LayoutMode;
+            uiTabs.SelectedTab = _activeLayoutMode == CommentsLayoutMode.Flat
                 ? uiFlatTab
                 : uiGroupedTab;
 
@@ -562,7 +611,7 @@ public partial class CommentsHtmlControl : UserControl
         _settings.Search = uiSearchTextBox.Text;
         _settings.Limit = (int)uiLimitNumeric.Value;
 
-        _settings.LayoutMode = GetActiveLayoutMode();
+        _settings.LayoutMode = _activeLayoutMode;
 
         if (uiReplyStatusComboBox.SelectedItem is ReplyStatusComboItem replyStatus)
         {
@@ -570,6 +619,20 @@ public partial class CommentsHtmlControl : UserControl
         }
 
         _settings.Save();
+    }
+
+    private void RunWithSettingsSaveSuppressed(Action action)
+    {
+        var previous = _suppressSettingsSave;
+        _suppressSettingsSave = true;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _suppressSettingsSave = previous;
+        }
     }
 
     private void ReloadSourcesCombo()
@@ -636,7 +699,8 @@ public partial class CommentsHtmlControl : UserControl
         var layout = GetActiveLayoutMode();
         var replyStatus = (uiReplyStatusComboBox.SelectedItem as ReplyStatusComboItem)?.Key ?? _settings.ReplyStatus;
 
-        uiStatusLabel.Text = "Загрузка...";
+        SetBusyIndicator(true, "Загрузка комментариев...");
+        uiBrowserView.ShowLoading();
 
         try
         {
@@ -687,6 +751,8 @@ public partial class CommentsHtmlControl : UserControl
                     ? $"Комментариев: ≥{records.Count} (увеличьте лимит)"
                     : $"Комментариев: {records.Count}";
 
+            SetBusyIndicator(false);
+
             if (warmAuthors)
             {
                 WarmAuthors(records);
@@ -697,6 +763,8 @@ public partial class CommentsHtmlControl : UserControl
             if (version == _applyFiltersVersion && !IsDisposed)
             {
                 uiStatusLabel.Text = "";
+                SetBusyIndicator(false);
+                uiBrowserView.HideLoading();
             }
         }
         catch (Exception ex)
@@ -708,10 +776,33 @@ public partial class CommentsHtmlControl : UserControl
 
             _logger?.LogError(ex, "Не удалось загрузить комментарии");
             uiStatusLabel.Text = "Ошибка загрузки";
+            SetBusyIndicator(false);
+            uiBrowserView.HideLoading();
             MessageBox.Show($"Не удалось загрузить комментарии: {ex.Message}",
                 "Ошибка",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+    }
+
+    private void SetBusyIndicator(bool busy, string? status = null)
+    {
+        if (busy)
+        {
+            uiFetchProgressBar.Style = ProgressBarStyle.Marquee;
+            uiFetchProgressBar.Visible = true;
+            UseWaitCursor = true;
+        }
+        else
+        {
+            uiFetchProgressBar.Visible = false;
+            uiFetchProgressBar.Style = ProgressBarStyle.Blocks;
+            UseWaitCursor = false;
+        }
+
+        if (status != null)
+        {
+            uiStatusLabel.Text = status;
         }
     }
 

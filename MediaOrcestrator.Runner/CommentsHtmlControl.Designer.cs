@@ -29,6 +29,7 @@ partial class CommentsHtmlControl
     private NumericUpDown uiLimitNumeric;
     private Label uiReplyStatusLabel;
     private ComboBox uiReplyStatusComboBox;
+    private Button uiAppearanceButton;
     private TabControl uiTabs;
     private TabPage uiGroupedTab;
     private TabPage uiFlatTab;
@@ -52,6 +53,7 @@ partial class CommentsHtmlControl
         uiReplyStatusComboBox = new ComboBox();
         uiLimitLabel = new Label();
         uiLimitNumeric = new NumericUpDown();
+        uiAppearanceButton = new Button();
         uiTabs = new TabControl();
         uiGroupedTab = new TabPage();
         uiFlatTab = new TabPage();
@@ -68,11 +70,12 @@ partial class CommentsHtmlControl
         //
         // uiFiltersPanel
         //
-        uiFiltersPanel.ColumnCount = 9;
+        uiFiltersPanel.ColumnCount = 10;
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -87,6 +90,7 @@ partial class CommentsHtmlControl
         uiFiltersPanel.Controls.Add(uiReplyStatusComboBox, 6, 0);
         uiFiltersPanel.Controls.Add(uiLimitLabel, 7, 0);
         uiFiltersPanel.Controls.Add(uiLimitNumeric, 8, 0);
+        uiFiltersPanel.Controls.Add(uiAppearanceButton, 9, 0);
         uiFiltersPanel.Dock = DockStyle.Top;
         uiFiltersPanel.Location = new Point(0, 0);
         uiFiltersPanel.Name = "uiFiltersPanel";
@@ -187,6 +191,19 @@ partial class CommentsHtmlControl
             + Environment.NewLine
             + "Загрузка из источника всегда тянет все комментарии медиа целиком.");
         //
+        // uiAppearanceButton
+        //
+        uiAppearanceButton.AutoSize = true;
+        uiAppearanceButton.Margin = new Padding(12, 2, 0, 2);
+        uiAppearanceButton.MinimumSize = new Size(80, 25);
+        uiAppearanceButton.Name = "uiAppearanceButton";
+        uiAppearanceButton.TabIndex = 7;
+        uiAppearanceButton.Text = "Вид...";
+        uiAppearanceButton.UseVisualStyleBackColor = true;
+        uiAppearanceButton.Click += uiAppearanceButton_Click;
+        uiToolTip.SetToolTip(uiAppearanceButton,
+            "Настроить размеры шрифта элементов ленты комментариев.");
+        //
         // uiTabs
         //
         uiTabs.Dock = DockStyle.Fill;
@@ -194,8 +211,8 @@ partial class CommentsHtmlControl
         uiTabs.Location = new Point(0, 36);
         uiTabs.Size = new Size(1100, 592);
         uiTabs.TabIndex = 1;
-        uiTabs.Controls.Add(uiGroupedTab);
         uiTabs.Controls.Add(uiFlatTab);
+        uiTabs.Controls.Add(uiGroupedTab);
         uiTabs.SelectedIndexChanged += uiTabs_SelectedIndexChanged;
         //
         // uiGroupedTab
@@ -217,7 +234,7 @@ partial class CommentsHtmlControl
         uiBrowserView.Dock = DockStyle.Fill;
         uiBrowserView.Name = "uiBrowserView";
         uiBrowserView.TabIndex = 0;
-        uiGroupedTab.Controls.Add(uiBrowserView);
+        uiFlatTab.Controls.Add(uiBrowserView);
         //
         // uiStatusStrip
         //
