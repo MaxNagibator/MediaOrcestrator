@@ -23,6 +23,7 @@ public partial class CommentsHtmlControl : UserControl
     private readonly List<ToolStripMenuItem> _sourceMenuItems = [];
     private ToolStripMenuItem? _anySourceMenuItem;
     private bool _suppressMenuCheck;
+    private bool _sourceMenuDirty;
 
     private Orcestrator? _orcestrator;
     private CommentsService? _commentsService;
@@ -142,6 +143,19 @@ public partial class CommentsHtmlControl : UserControl
         }
     }
 
+    private void uiSourceMenu_Closed(object? sender, ToolStripDropDownClosedEventArgs e)
+    {
+        if (!_sourceMenuDirty)
+        {
+            return;
+        }
+
+        _sourceMenuDirty = false;
+        SaveSettings();
+        UpdateForceFetchButtonState();
+        ApplyFilters(warmAuthors: true);
+    }
+
     private void uiSourceMenuItem_Click(object? sender, EventArgs e)
     {
         if (_suppressMenuCheck || sender is not ToolStripMenuItem item)
@@ -155,6 +169,11 @@ public partial class CommentsHtmlControl : UserControl
         {
             if (sourceId == null)
             {
+                if (_selectedSourceIds.Count == 0)
+                {
+                    return;
+                }
+
                 _selectedSourceIds.Clear();
                 SyncMenuChecksFromState();
             }
@@ -181,9 +200,7 @@ public partial class CommentsHtmlControl : UserControl
         }
 
         UpdateSourceFilterButtonText();
-        SaveSettings();
-        UpdateForceFetchButtonState();
-        ApplyFilters(warmAuthors: true);
+        _sourceMenuDirty = true;
     }
 
     private void uiReplyStatusComboBox_SelectedIndexChanged(object? sender, EventArgs e)
@@ -297,10 +314,7 @@ public partial class CommentsHtmlControl : UserControl
         _settings.FetchOnlyRecent = dialog.OnlyRecent;
         _settings.Save();
 
-        foreach (var source in sources)
-        {
-            await FetchAllForSourceAsync(source);
-        }
+        await FetchFromSourcesAsync(sources);
     }
 
     private static List<CommentRecord> LoadComments(
@@ -1439,33 +1453,150 @@ public partial class CommentsHtmlControl : UserControl
         }
     }
 
-    private async Task FetchAllForSourceAsync(Source source)
+    private async Task FetchFromSourcesAsync(IReadOnlyList<Source> selectedSources)
     {
         if (_orcestrator == null || _commentsService == null || _actionHolder == null)
         {
             return;
         }
 
-        if (source.Type is not ISupportsComments)
+        var supported = new List<Source>();
+        var unsupported = new List<string>();
+        foreach (var src in selectedSources)
         {
-            MessageBox.Show($"Источник «{source.TitleFull}» не поддерживает комментарии.",
+            if (src.Type is ISupportsComments)
+            {
+                supported.Add(src);
+            }
+            else
+            {
+                unsupported.Add(src.TitleFull);
+            }
+        }
+
+        if (unsupported.Count > 0)
+        {
+            MessageBox.Show($"Источники не поддерживают комментарии: {string.Join(", ", unsupported)}.",
                 "Невозможно загрузить",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        if (supported.Count == 0)
+        {
+            return;
+        }
+
+        var sinceDays = _settings.FetchSinceDays > 0 ? (int?)_settings.FetchSinceDays : null;
+        var since = sinceDays != null ? DateTime.UtcNow.AddDays(-sinceDays.Value) : (DateTime?)null;
+        var takeRecent = _settings.FetchOnlyRecent > 0 ? (int?)_settings.FetchOnlyRecent : null;
+
+        var plans = supported
+            .Select(src => new SourceFetchPlan(src, BuildTargetsForSource(src, since, takeRecent)))
+            .Where(p => p.Targets.Count > 0)
+            .ToList();
+
+        var total = plans.Sum(p => p.Targets.Count);
+        if (total == 0)
+        {
+            var filterSummary = BuildFilterSummary(sinceDays, takeRecent);
+            MessageBox.Show(filterSummary.Length > 0
+                    ? $"Нет медиа, попадающих под фильтры ({filterSummary})."
+                    : "В выбранных источниках нет медиа для загрузки.",
+                "Нечего загружать",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
 
             return;
         }
 
-        var sinceDays = _settings.FetchSinceDays > 0 ? (int?)_settings.FetchSinceDays : null;
-        var since = sinceDays != null ? DateTime.UtcNow.AddDays(-sinceDays.Value) : (DateTime?)null;
+        var sourcesLabel = plans.Count == 1
+            ? $"«{plans[0].Source.TitleFull}»"
+            : $"{plans.Count} ист.";
 
-        var takeRecent = _settings.FetchOnlyRecent > 0 ? (int?)_settings.FetchOnlyRecent : null;
+        uiForceFetchAllButton.Enabled = false;
+        var cts = new CancellationTokenSource();
+        var token = cts.Token;
 
-        var allForSource = _orcestrator.GetMedias()
+        var rootAction = _actionHolder.Register($"Загрузка комментариев: {sourcesLabel}",
+            "Запущена",
+            total,
+            cts,
+            kind: ActionKind.Comments);
+
+        uiFetchProgressBar.Style = ProgressBarStyle.Blocks;
+        uiFetchProgressBar.Maximum = total;
+        uiFetchProgressBar.Value = 0;
+        uiFetchProgressBar.Visible = true;
+        uiFetchCounterLabel.Text = $"0 / {total}";
+        uiFetchCounterLabel.Visible = true;
+        uiStatusLabel.Text = $"Загрузка комментариев из {sourcesLabel}...";
+
+        var counters = new FetchCounters();
+        var eta = new SubtitleEtaTicker(rootAction, new());
+
+        IProgress<FetchProgress> reporter = new Progress<FetchProgress>(p =>
+        {
+            uiFetchProgressBar.Value = Math.Min(p.Processed, uiFetchProgressBar.Maximum);
+            uiStatusLabel.Text = p.StatusText;
+            uiFetchCounterLabel.Text = p.CounterText;
+        });
+
+        try
+        {
+            await Task.WhenAll(plans.Select(plan =>
+                RunSourceFetchAsync(plan, rootAction, counters, total, reporter, eta, token)));
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            _logger?.LogInformation("Загрузка комментариев отменена ({Sources})",
+                string.Join(", ", plans.Select(p => p.Source.TitleFull)));
+        }
+        finally
+        {
+            var ok = Volatile.Read(ref counters.Ok);
+            var failed = Volatile.Read(ref counters.Failed);
+
+            var summary = plans.Count == 1
+                ? $"Источник «{plans[0].Source.TitleFull}»: успешно {ok} из {total}"
+                : $"Источников {plans.Count}: успешно {ok} из {total}";
+
+            if (failed > 0)
+            {
+                summary += $", ошибок {failed}";
+            }
+
+            if (token.IsCancellationRequested)
+            {
+                rootAction.MarkCancelled(summary);
+            }
+            else if (failed > 0)
+            {
+                rootAction.Fail(summary);
+            }
+            else
+            {
+                rootAction.Finish(summary);
+            }
+
+            uiFetchProgressBar.Visible = false;
+            uiFetchCounterLabel.Visible = false;
+
+            ApplyFilters();
+            UpdateForceFetchButtonState();
+        }
+    }
+
+    private List<(Media Media, MediaSourceLink Link)> BuildTargetsForSource(
+        Source source,
+        DateTime? since,
+        int? takeRecent)
+    {
+        var allForSource = _orcestrator!.GetMedias()
             .SelectMany(media => media.Sources
                 .Where(link => link.SourceId == source.Id && !string.IsNullOrEmpty(link.ExternalId))
                 .Select(link => (Media: media, Link: link)))
-            .OrderByDescending(media => media.Link.SortNumber)
+            .OrderByDescending(item => item.Link.SortNumber)
             .ToList();
 
         IEnumerable<(Media Media, MediaSourceLink Link)> filtered = allForSource;
@@ -1480,90 +1611,49 @@ public partial class CommentsHtmlControl : UserControl
             filtered = filtered.OrderByDescending(t => t.Link.SortNumber).Take(takeRecent.Value);
         }
 
-        var targets = filtered.ToList();
-        var hasFilters = since != null || takeRecent != null;
-        var filterSummary = BuildFilterSummary(sinceDays, takeRecent);
+        return filtered.ToList();
+    }
 
-        if (targets.Count == 0)
-        {
-            MessageBox.Show(hasFilters
-                    ? $"В источнике «{source.TitleFull}» нет медиа, попадающих под фильтры ({filterSummary})."
-                    : $"В источнике «{source.TitleFull}» нет медиа для загрузки.",
-                "Нечего загружать",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+    private async Task RunSourceFetchAsync(
+        SourceFetchPlan plan,
+        ActionHolder.RunningAction rootAction,
+        FetchCounters counters,
+        int total,
+        IProgress<FetchProgress> reporter,
+        SubtitleEtaTicker eta,
+        CancellationToken rootToken)
+    {
+        var source = plan.Source;
+        var targets = plan.Targets;
 
-            return;
-        }
-
-        uiForceFetchAllButton.Enabled = false;
-        var cts = new CancellationTokenSource();
-        var token = cts.Token;
-        var action = _actionHolder.Register($"Загрузка комментариев из «{source.TitleFull}»",
-            "Запущена",
+        using var childCts = CancellationTokenSource.CreateLinkedTokenSource(rootToken);
+        var sourceAction = _actionHolder!.Register($"Источник: «{source.TitleFull}»",
+            $"0 / {targets.Count}",
             targets.Count,
-            cts,
-            kind: ActionKind.Comments);
+            childCts,
+            kind: ActionKind.Comments,
+            parent: rootAction);
 
-        uiFetchProgressBar.Style = ProgressBarStyle.Blocks;
-        uiFetchProgressBar.Maximum = targets.Count;
-        uiFetchProgressBar.Value = 0;
-        uiFetchProgressBar.Visible = true;
-        uiFetchCounterLabel.Text = $"0 / {targets.Count}";
-        uiFetchCounterLabel.Visible = true;
-        uiStatusLabel.Text = $"Загрузка комментариев из «{source.TitleFull}»...";
-
-        var ok = 0;
-        var failed = 0;
-        var processed = 0;
-
-        IProgress<FetchProgress> reporter = new Progress<FetchProgress>(p =>
-        {
-            uiFetchProgressBar.Value = p.Processed;
-            uiStatusLabel.Text = p.StatusText;
-            uiFetchCounterLabel.Text = p.CounterText;
-        });
-
-        var counterLock = new object();
-        var eta = new SubtitleEtaTicker(action, new());
+        var srcOk = 0;
+        var srcFailed = 0;
 
         try
         {
             var parallelOptions = new ParallelOptions
             {
                 MaxDegreeOfParallelism = 3,
-                CancellationToken = token,
+                CancellationToken = childCts.Token,
             };
 
             await Parallel.ForEachAsync(targets, parallelOptions, async (item, ct) =>
             {
                 var (media, link) = item;
 
-                int currentIndex;
-                string startStatus;
-                lock (counterLock)
-                {
-                    currentIndex = processed + 1;
-                    startStatus = $"[{currentIndex}/{targets.Count}] Загрузка: «{media.Title}»";
-                    var startCounter = failed > 0
-                        ? $"✓ {ok}  ✗ {failed}  /  {targets.Count}"
-                        : $"✓ {ok}  /  {targets.Count}";
-
-                    reporter.Report(new(processed, startStatus, startCounter));
-                }
-
-                action.Status = $"{media.Title}: загрузка...";
-
                 try
                 {
-                    var count = await _commentsService.RefreshAsync(source, media, link, null, ct);
-
-                    lock (counterLock)
-                    {
-                        ok++;
-                    }
-
-                    action.Status = $"{media.Title}: {count}";
+                    await _commentsService!.RefreshAsync(source, media, link, null, ct);
+                    Interlocked.Increment(ref counters.Ok);
+                    Interlocked.Increment(ref srcOk);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -1571,63 +1661,70 @@ public partial class CommentsHtmlControl : UserControl
                 }
                 catch (Exception ex)
                 {
-                    lock (counterLock)
-                    {
-                        failed++;
-                    }
-
+                    Interlocked.Increment(ref counters.Failed);
+                    Interlocked.Increment(ref srcFailed);
                     _logger?.LogError(ex, "Не удалось загрузить комментарии для «{Title}» ({SourceId}/{ExternalId})",
                         media.Title, link.SourceId, link.ExternalId);
                 }
 
-                action.ProgressPlus();
+                rootAction.ProgressPlus();
+                sourceAction.ProgressPlus();
 
-                lock (counterLock)
-                {
-                    processed++;
-                    var counter = failed > 0
-                        ? $"✓ {ok}  ✗ {failed}  /  {targets.Count}"
-                        : $"✓ {ok}  /  {targets.Count}";
+                var processed = Interlocked.Increment(ref counters.Processed);
+                var ok = Volatile.Read(ref counters.Ok);
+                var failed = Volatile.Read(ref counters.Failed);
 
-                    reporter.Report(new(processed, startStatus, counter));
-                    eta.Report(processed * 100.0 / targets.Count);
-                }
+                var counter = failed > 0
+                    ? $"✓ {ok}  ✗ {failed}  /  {total}"
+                    : $"✓ {ok}  /  {total}";
+
+                var statusText = $"[{processed}/{total}] {source.TitleFull}: «{media.Title}»";
+                reporter.Report(new(processed, statusText, counter));
+                eta.Report(processed * 100.0 / total);
+
+                rootAction.Status = $"{source.TitleFull}: {media.Title}";
+                sourceAction.Status = media.Title;
             });
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException) when (childCts.IsCancellationRequested)
         {
-            _logger?.LogInformation("Загрузка комментариев отменена для «{Source}»", source.TitleFull);
         }
         finally
         {
-            var summary = $"Источник «{source.TitleFull}»: успешно {ok} из {targets.Count}";
-            if (failed > 0)
+            var okFinal = Volatile.Read(ref srcOk);
+            var failedFinal = Volatile.Read(ref srcFailed);
+
+            var srcSummary = $"«{source.TitleFull}»: успешно {okFinal} из {targets.Count}";
+            if (failedFinal > 0)
             {
-                summary += $", ошибок {failed}";
+                srcSummary += $", ошибок {failedFinal}";
             }
 
-            if (token.IsCancellationRequested)
+            if (childCts.IsCancellationRequested)
             {
-                action.MarkCancelled(summary);
+                sourceAction.MarkCancelled(srcSummary);
             }
-            else if (failed > 0)
+            else if (failedFinal > 0)
             {
-                action.Fail(summary);
+                sourceAction.Fail(srcSummary);
             }
             else
             {
-                action.Finish(summary);
+                sourceAction.Finish(srcSummary);
             }
-
-            uiFetchProgressBar.Visible = false;
-            uiFetchCounterLabel.Visible = false;
-
-            ApplyFilters();
-            UpdateForceFetchButtonState();
         }
     }
 
     private sealed record FetchProgress(int Processed, string StatusText, string CounterText);
+
+    private sealed record SourceFetchPlan(Source Source, IReadOnlyList<(Media Media, MediaSourceLink Link)> Targets);
+
+    private sealed class FetchCounters
+    {
+        public int Processed;
+        public int Ok;
+        public int Failed;
+    }
 
     private sealed class ReplyStatusComboItem(CommentsReplyStatusFilter key, string label)
     {

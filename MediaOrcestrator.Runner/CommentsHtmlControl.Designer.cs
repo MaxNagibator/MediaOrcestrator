@@ -129,6 +129,7 @@ partial class CommentsHtmlControl
         uiSourceMenu.ShowCheckMargin = true;
         uiSourceMenu.ShowImageMargin = false;
         uiSourceMenu.Closing += uiSourceMenu_Closing;
+        uiSourceMenu.Closed += uiSourceMenu_Closed;
         //
         // uiSearchLabel
         //
