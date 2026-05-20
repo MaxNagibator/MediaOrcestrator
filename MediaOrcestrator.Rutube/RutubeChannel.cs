@@ -15,7 +15,10 @@ public sealed class RutubeChannel(
     VideoTranscoder videoTranscoder)
     : ISourceType,
         IAuthenticatable,
-        IToolConsumer
+        IToolConsumer,
+        ISupportsComments,
+        ISupportsCommentMutations,
+        ISupportsCommentLikes
 {
     private readonly ConcurrentDictionary<string, CachedService> _serviceCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
@@ -33,6 +36,13 @@ public sealed class RutubeChannel(
     // TODO: Подумать на сортировкой
     public IEnumerable<SourceSettings> SettingsKeys { get; } =
     [
+        new()
+        {
+            Key = "user_id",
+            IsRequired = false,
+            Title = "идентификатор чужого канала",
+            Description = "Если задан — источник читает видео указанного канала (URL https://rutube.ru/channel/{user_id}/). Запись (загрузка/удаление) в этом режиме отключена. Пусто — работа с собственным каналом по авторизации.",
+        },
         new()
         {
             Key = "category_id",
@@ -107,7 +117,8 @@ public sealed class RutubeChannel(
     {
         logger.ListingMedia(Name);
         var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
-        var apiVideoItems = rutubeService.GetVideoAsync(cancellationToken);
+        var userId = GetForeignUserId(settings);
+        var apiVideoItems = rutubeService.GetVideoAsync(userId, cancellationToken);
         await foreach (var video in apiVideoItems)
         {
             logger.ProcessingVideo(video.Title, video.Id);
@@ -227,6 +238,7 @@ public sealed class RutubeChannel(
         IProgress<UploadProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        EnsureWritable(settings);
         logger.UploadStarting(media.Title);
 
         var filePath = media.TempDataPath;
@@ -347,6 +359,7 @@ public sealed class RutubeChannel(
         Dictionary<string, string> settings,
         CancellationToken cancellationToken = default)
     {
+        EnsureWritable(settings);
         logger.UpdateStarting(media.Title);
 
         var rutubeCategoryId = settings["category_id"];
@@ -383,6 +396,7 @@ public sealed class RutubeChannel(
         Dictionary<string, string> settings,
         CancellationToken cancellationToken = default)
     {
+        EnsureWritable(settings);
         logger.DeletingMedia(externalId);
 
         var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
@@ -397,6 +411,104 @@ public sealed class RutubeChannel(
             logger.DeleteHttpError(externalId, ex);
             throw new IOException($"Ошибка сети при удалении из RuTube: {ex.Message}", ex);
         }
+    }
+
+    public async IAsyncEnumerable<CommentDto> GetCommentsAsync(
+        string externalId,
+        Dictionary<string, string> settings,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
+
+        await foreach (var root in rutubeService.GetCommentRootsAsync(externalId, cancellationToken))
+        {
+            yield return MapComment(root);
+
+            if (root is { RepliesNumber: <= 0, IsParent: false })
+            {
+                continue;
+            }
+
+            await foreach (var reply in rutubeService.GetCommentRepliesAsync(externalId, root.Id, cancellationToken))
+            {
+                yield return MapComment(reply, root.Id);
+            }
+        }
+    }
+
+    public async Task<CommentDto> CreateCommentAsync(
+        string externalMediaId,
+        string? parentExternalCommentId,
+        string? rootExternalCommentId,
+        string? replyToAuthorName,
+        string text,
+        Dictionary<string, string> settings,
+        CancellationToken cancellationToken = default)
+    {
+        var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
+
+        var effectiveParent = rootExternalCommentId ?? parentExternalCommentId;
+        var effectiveText = !string.IsNullOrWhiteSpace(replyToAuthorName)
+                            && rootExternalCommentId != null
+                            && rootExternalCommentId != parentExternalCommentId
+            ? $"@{replyToAuthorName} {text}"
+            : text;
+
+        var item = await rutubeService.CreateCommentAsync(externalMediaId, effectiveParent, effectiveText, cancellationToken);
+        return MapComment(item, effectiveParent);
+    }
+
+    public async Task<CommentDto?> EditCommentAsync(
+        string externalMediaId,
+        string externalCommentId,
+        string text,
+        Dictionary<string, string> settings,
+        CancellationToken cancellationToken = default)
+    {
+        var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
+        var item = await rutubeService.EditCommentAsync(externalMediaId, externalCommentId, text, cancellationToken);
+        return MapComment(item);
+    }
+
+    public async Task DeleteCommentAsync(
+        string externalMediaId,
+        string externalCommentId,
+        Dictionary<string, string> settings,
+        CancellationToken cancellationToken = default)
+    {
+        var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
+        await rutubeService.DeleteCommentAsync(externalMediaId, externalCommentId, cancellationToken);
+    }
+
+    public Task RestoreCommentAsync(
+        string externalMediaId,
+        string externalCommentId,
+        Dictionary<string, string> settings,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NonRetriableException("RuTube не поддерживает восстановление удалённых комментариев");
+    }
+
+    public async Task<int> LikeCommentAsync(
+        string externalMediaId,
+        string externalCommentId,
+        Dictionary<string, string> settings,
+        CancellationToken cancellationToken = default)
+    {
+        var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
+        await rutubeService.LikeCommentAsync(externalMediaId, externalCommentId, cancellationToken);
+        return await TryFetchRootLikeCountAsync(rutubeService, externalMediaId, externalCommentId, 1, cancellationToken);
+    }
+
+    public async Task<int> UnlikeCommentAsync(
+        string externalMediaId,
+        string externalCommentId,
+        Dictionary<string, string> settings,
+        CancellationToken cancellationToken = default)
+    {
+        var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
+        await rutubeService.UnlikeCommentAsync(externalMediaId, externalCommentId, cancellationToken);
+        return await TryFetchRootLikeCountAsync(rutubeService, externalMediaId, externalCommentId, 0, cancellationToken);
     }
 
     // TODO: Придумать более умный механизм
@@ -437,6 +549,125 @@ public sealed class RutubeChannel(
             logger.AuthSaved(result);
             await ui.ShowMessageAsync("Авторизация RuTube сохранена!");
         }
+    }
+
+    private static string? GetForeignUserId(Dictionary<string, string> settings)
+    {
+        if (settings.TryGetValue("user_id", out var userId) && !string.IsNullOrWhiteSpace(userId))
+        {
+            return userId.Trim();
+        }
+
+        return null;
+    }
+
+    private static void EnsureWritable(Dictionary<string, string> settings)
+    {
+        var userId = GetForeignUserId(settings);
+        if (userId != null)
+        {
+            throw new NonRetriableException($"Источник настроен на чужой канал (user_id={userId}). Запись отключена — очистите user_id, чтобы загружать/удалять видео в своём канале.");
+        }
+    }
+
+    private static async Task<int> TryFetchRootLikeCountAsync(
+        RutubeService rutubeService,
+        string videoId,
+        string commentId,
+        int fallback,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var root in rutubeService.GetCommentRootsAsync(videoId, cancellationToken))
+            {
+                if (root.Id == commentId)
+                {
+                    return root.LikesNumber;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // fallback
+        }
+
+        return fallback;
+    }
+
+    private static CommentDto MapComment(
+        RutubeCommentItem item,
+        string? fallbackParentId = null)
+    {
+        var raw = new Dictionary<string, string>();
+        if (!string.IsNullOrEmpty(item.BroId))
+        {
+            raw["bro_id"] = item.BroId;
+        }
+
+        if (item.BroUser != null)
+        {
+            raw["bro_user_id"] = item.BroUser.Id.ToString(CultureInfo.InvariantCulture);
+            raw["bro_user_name"] = item.BroUser.Name;
+        }
+
+        if (item.RepliesNumber > 0)
+        {
+            raw["replies_number"] = item.RepliesNumber.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (item.AuthorReplied)
+        {
+            raw["author_replied"] = "1";
+        }
+
+        if (item.IsPinned)
+        {
+            raw["is_pinned"] = "1";
+        }
+
+        if (item.State != 1)
+        {
+            raw["state"] = item.State.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (item.DislikesNumber > 0)
+        {
+            raw["dislikes_number"] = item.DislikesNumber.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (item.CurrentUserDisliked)
+        {
+            raw["disliked_by_me"] = "1";
+        }
+
+        if (item.User.IsOfficial)
+        {
+            raw["is_official"] = "1";
+        }
+
+        return new()
+        {
+            ExternalId = item.Id,
+            ParentExternalId = item.ParentId ?? fallbackParentId,
+            AuthorName = item.User.Name,
+            AuthorExternalId = item.User.Id.ToString(CultureInfo.InvariantCulture),
+            AuthorAvatarUrl = item.User.AvatarUrl,
+            Text = item.Text,
+            PublishedAt = DateTimeOffset.FromUnixTimeSeconds(item.CreatedTsReal).UtcDateTime,
+            LikeCount = item.LikesNumber,
+            IsDeleted = item.IsDeleted,
+            IsAuthor = false,
+            LikedByAuthor = false,
+            LikedByMe = item.CurrentUserLiked,
+            CanEdit = !item.IsDeleted,
+            CanDelete = !item.IsDeleted,
+            Raw = raw,
+        };
     }
 
     private static string GetAuthStatePath(Dictionary<string, string> settings)
@@ -579,7 +810,8 @@ public sealed class RutubeChannel(
         var cookies = authState.RootElement.GetProperty("cookies");
 
         var cookieStringBuilder = new StringBuilder();
-        string? csrfToken = null;
+        string? studioCsrfToken = null;
+        string? rutubeCsrfToken = null;
 
         foreach (var cookie in cookies.EnumerateArray())
         {
@@ -587,25 +819,35 @@ public sealed class RutubeChannel(
             var value = cookie.GetProperty("value").GetString()!;
             var domain = cookie.GetProperty("domain").GetString()!;
 
-            if (domain.Contains("rutube.ru") || domain.Contains("studio.rutube.ru") || domain.Contains("gid.ru"))
+            if (domain.Contains("rutube.ru") || domain.Contains("gid.ru"))
             {
                 cookieStringBuilder.Append($"{name}={value}; ");
             }
 
-            if (name == "csrftoken" && domain == "studio.rutube.ru")
+            if (name == "csrftoken")
             {
-                csrfToken = value;
+                if (domain == "studio.rutube.ru")
+                {
+                    studioCsrfToken = value;
+                }
+                else if (domain.EndsWith("rutube.ru", StringComparison.OrdinalIgnoreCase))
+                {
+                    rutubeCsrfToken = value;
+                }
             }
         }
 
-        if (string.IsNullOrEmpty(csrfToken))
+        var studioCsrf = studioCsrfToken ?? rutubeCsrfToken;
+        if (string.IsNullOrEmpty(studioCsrf))
         {
             throw new InvalidOperationException("CSRF токен не найден в файле аутентификации RuTube. Убедитесь, что вы авторизованы в RuTube Studio.");
         }
 
+        var playerCsrf = rutubeCsrfToken ?? studioCsrfToken!;
+
         logger.CsrfTokenReceived();
 
-        return rutubeServiceFactory.Create(cookieStringBuilder.ToString(), csrfToken);
+        return rutubeServiceFactory.Create(cookieStringBuilder.ToString(), studioCsrf, playerCsrf);
     }
 
     private sealed record CachedService(RutubeService Service, DateTime LastWriteUtc);

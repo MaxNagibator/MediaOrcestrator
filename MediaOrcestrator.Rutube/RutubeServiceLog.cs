@@ -206,4 +206,80 @@ internal static partial class RutubeServiceLog
         this ILogger logger,
         string videoId,
         string timestamp);
+
+    [LoggerMessage(EventId = 2050, Level = LogLevel.Error, Message = "Не удалось получить комментарии видео {VideoId}. Статус: {StatusCode}, Ответ: {Response}")]
+    public static partial void ListCommentsFailed(
+        this ILogger logger,
+        string videoId,
+        HttpStatusCode statusCode,
+        string response);
+
+    [LoggerMessage(EventId = 2051, Level = LogLevel.Information, Message = "Комментарий {CommentId} создан под видео {VideoId} (ответ: {IsReply})")]
+    public static partial void CommentCreated(
+        this ILogger logger,
+        string commentId,
+        string videoId,
+        bool isReply);
+
+    [LoggerMessage(EventId = 2052, Level = LogLevel.Error, Message = "Не удалось создать комментарий к видео {VideoId}. Статус: {StatusCode}, Ответ: {Response}")]
+    public static partial void CreateCommentFailed(
+        this ILogger logger,
+        string videoId,
+        HttpStatusCode statusCode,
+        string response);
+
+    [LoggerMessage(EventId = 2053, Level = LogLevel.Information, Message = "Комментарий {CommentId} отредактирован в видео {VideoId}")]
+    public static partial void CommentEdited(
+        this ILogger logger,
+        string commentId,
+        string videoId);
+
+    [LoggerMessage(EventId = 2054, Level = LogLevel.Error, Message = "Не удалось отредактировать комментарий {CommentId}. Статус: {StatusCode}, Ответ: {Response}")]
+    public static partial void EditCommentFailed(
+        this ILogger logger,
+        string commentId,
+        HttpStatusCode statusCode,
+        string response);
+
+    [LoggerMessage(EventId = 2055, Level = LogLevel.Information, Message = "Комментарий {CommentId} удалён в видео {VideoId}")]
+    public static partial void CommentDeleted(
+        this ILogger logger,
+        string commentId,
+        string videoId);
+
+    [LoggerMessage(EventId = 2056, Level = LogLevel.Warning, Message = "Комментарий {CommentId} не найден на RuTube, считаем уже удалённым")]
+    public static partial void CommentNotFoundTreatedAsDeleted(
+        this ILogger logger,
+        string commentId);
+
+    [LoggerMessage(EventId = 2057, Level = LogLevel.Error, Message = "Не удалось удалить комментарий {CommentId}. Статус: {StatusCode}, Ответ: {Response}")]
+    public static partial void DeleteCommentFailed(
+        this ILogger logger,
+        string commentId,
+        HttpStatusCode statusCode,
+        string response);
+
+    [LoggerMessage(EventId = 2058, Level = LogLevel.Information, Message = "Лайк поставлен на комментарий {CommentId}")]
+    public static partial void CommentLiked(
+        this ILogger logger,
+        string commentId);
+
+    [LoggerMessage(EventId = 2059, Level = LogLevel.Error, Message = "Не удалось поставить лайк на {CommentId}. Статус: {StatusCode}, Ответ: {Response}")]
+    public static partial void LikeCommentFailed(
+        this ILogger logger,
+        string commentId,
+        HttpStatusCode statusCode,
+        string response);
+
+    [LoggerMessage(EventId = 2060, Level = LogLevel.Information, Message = "Лайк снят с комментария {CommentId}")]
+    public static partial void CommentUnliked(
+        this ILogger logger,
+        string commentId);
+
+    [LoggerMessage(EventId = 2061, Level = LogLevel.Error, Message = "Не удалось снять лайк с {CommentId}. Статус: {StatusCode}, Ответ: {Response}")]
+    public static partial void UnlikeCommentFailed(
+        this ILogger logger,
+        string commentId,
+        HttpStatusCode statusCode,
+        string response);
 }

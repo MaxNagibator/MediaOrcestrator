@@ -16,11 +16,13 @@ public sealed partial class RutubeService
     private const string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
     private const string Origin = "https://studio.rutube.ru";
     private const string Referer = "https://studio.rutube.ru/";
+    private const string PlayerOrigin = "https://rutube.ru";
 
     private readonly HttpClient _apiClient;
     private readonly HttpClient _uploadClient;
     private readonly string _cookieString;
     private readonly string _csrfToken;
+    private readonly string _playerCsrfToken;
     private readonly string? _userId;
     private readonly ILogger<RutubeService> _logger;
 
@@ -29,12 +31,14 @@ public sealed partial class RutubeService
         HttpClient uploadClient,
         string cookieString,
         string csrfToken,
+        string playerCsrfToken,
         ILogger<RutubeService> logger)
     {
         _apiClient = apiClient;
         _uploadClient = uploadClient;
         _cookieString = cookieString;
         _csrfToken = csrfToken;
+        _playerCsrfToken = playerCsrfToken;
         _logger = logger;
 
         var visitorIdMatch = VisitorIdRegex().Match(cookieString);
@@ -318,12 +322,21 @@ public sealed partial class RutubeService
         return result?.ThumbnailUrl;
     }
 
-    public async IAsyncEnumerable<GetVideoApiItem> GetVideoAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<GetVideoApiItem> GetVideoAsync(
+        string? userId = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var url = "https://studio.rutube.ru/api/v2/video/person/?ordering=-calculated_date&limit=400&page=1";
+        var foreignChannel = !string.IsNullOrWhiteSpace(userId);
+        var url = foreignChannel
+            ? $"https://rutube.ru/api/video/person/{userId}/?client=wdp&origin__type=rtb,rst,ifrm,rspa,vppl&page=1"
+            : "https://studio.rutube.ru/api/v2/video/person/?ordering=-calculated_date&limit=400&page=1";
+
         while (true)
         {
-            using var request = CreateRequest(HttpMethod.Get, url);
+            using var request = foreignChannel
+                ? CreateForeignChannelRequest(HttpMethod.Get, url, userId!)
+                : CreateRequest(HttpMethod.Get, url);
+
             using var response = await SendApiAsync(Operations.ListVideos, request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
@@ -358,8 +371,272 @@ public sealed partial class RutubeService
         }
     }
 
+    public async IAsyncEnumerable<RutubeCommentItem> GetCommentRootsAsync(
+        string videoId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        string? cursor = null;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var url = string.IsNullOrEmpty(cursor)
+                ? $"https://rutube.ru/api/v2/comments/video/{videoId}/?client=wdp&direction=earliest&sort_by=date_added_desc"
+                : $"https://rutube.ru/api/v2/comments/video/{videoId}/?client=wdp&direction=earliest&comment_id={cursor}&sort_by=date_added_desc";
+
+            var page = await GetCommentsPageAsync(videoId, url, Operations.ListComments, cancellationToken);
+            if (page.Results.Count == 0)
+            {
+                yield break;
+            }
+
+            foreach (var item in page.Results)
+            {
+                yield return item;
+            }
+
+            if (!page.HasNext)
+            {
+                yield break;
+            }
+
+            cursor = page.Results[^1].Id;
+        }
+    }
+
+    public async IAsyncEnumerable<RutubeCommentItem> GetCommentRepliesAsync(
+        string videoId,
+        string parentId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        string? cursor = null;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var url = string.IsNullOrEmpty(cursor)
+                ? $"https://rutube.ru/api/v2/comments/video/{videoId}/?client=wdp&direction=earliest&parent_id={parentId}&sort_by=date_added_desc"
+                : $"https://rutube.ru/api/v2/comments/video/{videoId}/?client=wdp&direction=earliest&parent_id={parentId}&comment_id={cursor}&sort_by=date_added_desc";
+
+            var page = await GetCommentsPageAsync(videoId, url, Operations.ListReplies, cancellationToken);
+            if (page.Results.Count == 0)
+            {
+                yield break;
+            }
+
+            foreach (var item in page.Results)
+            {
+                yield return item;
+            }
+
+            if (!page.HasNext)
+            {
+                yield break;
+            }
+
+            cursor = page.Results[^1].Id;
+        }
+    }
+
+    public async Task<RutubeCommentItem> CreateCommentAsync(
+        string videoId,
+        string? parentId,
+        string text,
+        CancellationToken cancellationToken = default)
+    {
+        var isReply = !string.IsNullOrEmpty(parentId);
+        var url = $"https://rutube.ru/api/comments/video/{videoId}/?mention={(isReply ? "true" : "false")}&client=wdp";
+
+        var payload = new RutubeCreateCommentRequest
+        {
+            Text = text,
+            ParentId = parentId,
+        };
+
+        var jsonPayload = JsonSerializer.Serialize(payload, RutubeJsonContext.Default.RutubeCreateCommentRequest);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        using var request = CreatePlayerRequest(HttpMethod.Post, url, videoId, content);
+        using var response = await SendApiAsync(Operations.CreateComment, request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.CreateCommentFailed(videoId, response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось создать комментарий к {videoId}: {response.StatusCode}. Ответ: {err}");
+        }
+
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var result = await JsonSerializer.DeserializeAsync(body, RutubeJsonContext.Default.RutubeCommentItem, cancellationToken)
+                     ?? throw new InvalidOperationException("RuTube вернул пустой ответ на создание комментария");
+
+        _logger.CommentCreated(result.Id, videoId, isReply);
+        return result;
+    }
+
+    public async Task<RutubeCommentItem> EditCommentAsync(
+        string videoId,
+        string commentId,
+        string text,
+        CancellationToken cancellationToken = default)
+    {
+        var url = $"https://rutube.ru/api/comments/{commentId}/?mention=false&client=wdp";
+
+        var payload = new RutubeEditCommentRequest
+        {
+            Text = text,
+        };
+
+        var jsonPayload = JsonSerializer.Serialize(payload, RutubeJsonContext.Default.RutubeEditCommentRequest);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        using var request = CreatePlayerRequest(HttpMethod.Patch, url, videoId, content);
+        using var response = await SendApiAsync(Operations.EditComment, request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.EditCommentFailed(commentId, response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось отредактировать комментарий {commentId}: {response.StatusCode}. Ответ: {err}");
+        }
+
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var result = await JsonSerializer.DeserializeAsync(body, RutubeJsonContext.Default.RutubeCommentItem, cancellationToken)
+                     ?? throw new InvalidOperationException("RuTube вернул пустой ответ на редактирование комментария");
+
+        _logger.CommentEdited(commentId, videoId);
+        return result;
+    }
+
+    public async Task DeleteCommentAsync(
+        string videoId,
+        string commentId,
+        CancellationToken cancellationToken = default)
+    {
+        var url = $"https://rutube.ru/api/comments/{commentId}/?client=wdp";
+        using var request = CreatePlayerRequest(HttpMethod.Delete, url, videoId);
+        using var response = await SendApiAsync(Operations.DeleteComment, request, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.CommentNotFoundTreatedAsDeleted(commentId);
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.DeleteCommentFailed(commentId, response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось удалить комментарий {commentId}: {response.StatusCode}. Ответ: {err}");
+        }
+
+        _logger.CommentDeleted(commentId, videoId);
+    }
+
+    public async Task LikeCommentAsync(
+        string videoId,
+        string commentId,
+        CancellationToken cancellationToken = default)
+    {
+        var url = $"https://rutube.ru/api/comments/{commentId}/reactions/?client=wdp";
+
+        var payload = new RutubeReactionRequest
+        {
+            Reaction = "like",
+        };
+
+        var jsonPayload = JsonSerializer.Serialize(payload, RutubeJsonContext.Default.RutubeReactionRequest);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        using var request = CreatePlayerRequest(HttpMethod.Put, url, videoId, content);
+        using var response = await SendApiAsync(Operations.LikeComment, request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LikeCommentFailed(commentId, response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось поставить лайк на {commentId}: {response.StatusCode}. Ответ: {err}");
+        }
+
+        _logger.CommentLiked(commentId);
+    }
+
+    public async Task UnlikeCommentAsync(
+        string videoId,
+        string commentId,
+        CancellationToken cancellationToken = default)
+    {
+        var url = $"https://rutube.ru/api/comments/{commentId}/reactions/?client=wdp";
+        using var request = CreatePlayerRequest(HttpMethod.Delete, url, videoId);
+        using var response = await SendApiAsync(Operations.UnlikeComment, request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.UnlikeCommentFailed(commentId, response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось снять лайк с {commentId}: {response.StatusCode}. Ответ: {err}");
+        }
+
+        _logger.CommentUnliked(commentId);
+    }
+
     [GeneratedRegex(@"visitorID=([^;]+)")]
     private static partial Regex VisitorIdRegex();
+
+    private HttpRequestMessage CreateForeignChannelRequest(
+        HttpMethod method,
+        string url,
+        string userId)
+    {
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.TryAddWithoutValidation("Cookie", _cookieString);
+        request.Headers.TryAddWithoutValidation("Referer", $"{PlayerOrigin}/channel/{userId}/videos/");
+        request.Headers.TryAddWithoutValidation("Origin", PlayerOrigin);
+        request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+        return request;
+    }
+
+    private async Task<RutubeCommentsResponse> GetCommentsPageAsync(
+        string videoId,
+        string url,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreatePlayerRequest(HttpMethod.Get, url, videoId);
+        using var response = await SendApiAsync(operationKey, request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.ListCommentsFailed(videoId, response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось получить комментарии {videoId}: {response.StatusCode}. Ответ: {err}");
+        }
+
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await JsonSerializer.DeserializeAsync(body, RutubeJsonContext.Default.RutubeCommentsResponse, cancellationToken)
+               ?? throw new InvalidOperationException($"RuTube вернул пустой ответ для комментариев {videoId}");
+    }
+
+    private HttpRequestMessage CreatePlayerRequest(
+        HttpMethod method,
+        string url,
+        string videoId,
+        HttpContent? content = null)
+    {
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.TryAddWithoutValidation("Cookie", _cookieString);
+        request.Headers.TryAddWithoutValidation("x-csrftoken", _playerCsrfToken);
+        request.Headers.TryAddWithoutValidation("Referer", $"{PlayerOrigin}/video/{videoId}/");
+        request.Headers.TryAddWithoutValidation("Origin", PlayerOrigin);
+        request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+        request.Headers.TryAddWithoutValidation("x-ally", "1");
+
+        if (content != null)
+        {
+            request.Content = content;
+        }
+
+        return request;
+    }
 
     private HttpRequestMessage CreateRequest(
         HttpMethod method,
@@ -603,5 +880,12 @@ public sealed partial class RutubeService
         public const string CreateTusResource = "rutube.tus.create";
         public const string UpdateMetadata = "rutube.metadata.update";
         public const string PublishVideo = "rutube.publication.create";
+        public const string ListComments = "rutube.comments.list";
+        public const string ListReplies = "rutube.comments.replies";
+        public const string CreateComment = "rutube.comments.create";
+        public const string EditComment = "rutube.comments.edit";
+        public const string DeleteComment = "rutube.comments.delete";
+        public const string LikeComment = "rutube.comments.like";
+        public const string UnlikeComment = "rutube.comments.unlike";
     }
 }

@@ -194,21 +194,27 @@ public sealed class VkVideoChannel(
     public Task<CommentDto> CreateCommentAsync(
         string externalMediaId,
         string? parentExternalCommentId,
+        string? rootExternalCommentId,
+        string? replyToAuthorName,
         string text,
         Dictionary<string, string> settings,
         CancellationToken cancellationToken = default)
     {
-        return CreateCommentAsAsync(externalMediaId, parentExternalCommentId, text, null, settings, cancellationToken);
+        return CreateCommentAsAsync(externalMediaId, parentExternalCommentId, rootExternalCommentId, replyToAuthorName, text, null, settings, cancellationToken);
     }
 
     public async Task<CommentDto> CreateCommentAsAsync(
         string externalMediaId,
         string? parentExternalCommentId,
+        string? rootExternalCommentId,
+        string? replyToAuthorName,
         string text,
         string? authorId,
         Dictionary<string, string> settings,
         CancellationToken cancellationToken = default)
     {
+        _ = rootExternalCommentId;
+        _ = replyToAuthorName;
         var (ownerId, videoId) = ParseExternalId(externalMediaId);
         using var lease = await AcquireServiceLeaseAsync(settings, cancellationToken);
         var service = lease.Service;
