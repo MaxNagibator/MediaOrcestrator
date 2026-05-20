@@ -23,13 +23,13 @@ public sealed class CommentsService(
     }
 
     public List<CommentRecord> Query(
-        string? sourceId = null,
+        IReadOnlyCollection<string>? sourceIds = null,
         DateTime? from = null,
         DateTime? to = null,
         string? textContains = null,
         int limit = 1000)
     {
-        return repository.Query(sourceId, null, from, to, textContains, limit);
+        return repository.Query(sourceIds, null, from, to, textContains, limit);
     }
 
     public async Task<int> RefreshAsync(

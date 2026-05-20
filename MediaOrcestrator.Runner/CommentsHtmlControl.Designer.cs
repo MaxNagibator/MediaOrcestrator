@@ -21,7 +21,8 @@ partial class CommentsHtmlControl
 
     private TableLayoutPanel uiFiltersPanel;
     private Label uiSourceLabel;
-    private ComboBox uiSourceComboBox;
+    private Button uiSourceFilterButton;
+    private ContextMenuStrip uiSourceMenu;
     private Label uiSearchLabel;
     private TextBox uiSearchTextBox;
     private Button uiForceFetchAllButton;
@@ -45,7 +46,8 @@ partial class CommentsHtmlControl
         components = new System.ComponentModel.Container();
         uiFiltersPanel = new TableLayoutPanel();
         uiSourceLabel = new Label();
-        uiSourceComboBox = new ComboBox();
+        uiSourceFilterButton = new Button();
+        uiSourceMenu = new ContextMenuStrip(components);
         uiSearchLabel = new Label();
         uiSearchTextBox = new TextBox();
         uiForceFetchAllButton = new Button();
@@ -82,7 +84,7 @@ partial class CommentsHtmlControl
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         uiFiltersPanel.Controls.Add(uiSourceLabel, 0, 0);
-        uiFiltersPanel.Controls.Add(uiSourceComboBox, 1, 0);
+        uiFiltersPanel.Controls.Add(uiSourceFilterButton, 1, 0);
         uiFiltersPanel.Controls.Add(uiSearchLabel, 2, 0);
         uiFiltersPanel.Controls.Add(uiSearchTextBox, 3, 0);
         uiFiltersPanel.Controls.Add(uiForceFetchAllButton, 4, 0);
@@ -108,14 +110,25 @@ partial class CommentsHtmlControl
         uiSourceLabel.TabIndex = 0;
         uiSourceLabel.Text = "Источник:";
         //
-        // uiSourceComboBox
+        // uiSourceFilterButton
         //
-        uiSourceComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        uiSourceComboBox.Margin = new Padding(0, 3, 12, 3);
-        uiSourceComboBox.Name = "uiSourceComboBox";
-        uiSourceComboBox.Size = new Size(200, 23);
-        uiSourceComboBox.TabIndex = 1;
-        uiSourceComboBox.SelectedIndexChanged += uiSourceComboBox_SelectedIndexChanged;
+        uiSourceFilterButton.AutoEllipsis = true;
+        uiSourceFilterButton.Margin = new Padding(0, 2, 12, 2);
+        uiSourceFilterButton.MinimumSize = new Size(200, 25);
+        uiSourceFilterButton.Name = "uiSourceFilterButton";
+        uiSourceFilterButton.Size = new Size(200, 25);
+        uiSourceFilterButton.TabIndex = 1;
+        uiSourceFilterButton.Text = "(любой)";
+        uiSourceFilterButton.TextAlign = ContentAlignment.MiddleLeft;
+        uiSourceFilterButton.UseVisualStyleBackColor = true;
+        uiSourceFilterButton.Click += uiSourceFilterButton_Click;
+        //
+        // uiSourceMenu
+        //
+        uiSourceMenu.Name = "uiSourceMenu";
+        uiSourceMenu.ShowCheckMargin = true;
+        uiSourceMenu.ShowImageMargin = false;
+        uiSourceMenu.Closing += uiSourceMenu_Closing;
         //
         // uiSearchLabel
         //

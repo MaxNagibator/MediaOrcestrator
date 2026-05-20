@@ -47,7 +47,7 @@ public sealed class CommentsAppearance
 
 public sealed class CommentsViewSettings
 {
-    private const int CurrentSettingsVersion = 2;
+    private const int CurrentSettingsVersion = 3;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -57,6 +57,7 @@ public sealed class CommentsViewSettings
 
     public int? SettingsVersion { get; set; }
     public string? SelectedSourceId { get; set; }
+    public List<string> SelectedSourceIds { get; set; } = [];
     public int Limit { get; set; } = 1000;
     public string Search { get; set; } = "";
     public int FetchSinceDays { get; set; }
@@ -119,10 +120,21 @@ public sealed class CommentsViewSettings
 
     private void ApplyDefaultsAndMigrations()
     {
-        if (SettingsVersion.GetValueOrDefault() < CurrentSettingsVersion)
+        var previousVersion = SettingsVersion.GetValueOrDefault();
+
+        if (previousVersion < 2)
         {
             LayoutMode = CommentsLayoutMode.Flat;
         }
+
+        if (previousVersion < 3
+            && SelectedSourceIds.Count == 0
+            && !string.IsNullOrEmpty(SelectedSourceId))
+        {
+            SelectedSourceIds.Add(SelectedSourceId);
+        }
+
+        SelectedSourceId = null;
 
         SettingsVersion = CurrentSettingsVersion;
         Appearance ??= new();

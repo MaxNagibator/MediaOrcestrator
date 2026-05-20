@@ -19,6 +19,11 @@ public partial class CommentsHtmlControl : UserControl
 
     private readonly ConcurrentDictionary<(string SourceId, string ExternalMediaId), byte> _authorsInFlight = new();
 
+    private readonly HashSet<string> _selectedSourceIds = new(StringComparer.Ordinal);
+    private readonly List<ToolStripMenuItem> _sourceMenuItems = [];
+    private ToolStripMenuItem? _anySourceMenuItem;
+    private bool _suppressMenuCheck;
+
     private Orcestrator? _orcestrator;
     private CommentsService? _commentsService;
     private ActionHolder? _actionHolder;
@@ -99,7 +104,7 @@ public partial class CommentsHtmlControl : UserControl
         {
             using (Splash.Current.StartSpan("Список источников"))
             {
-                ReloadSourcesCombo();
+                ReloadSourcesMenu();
             }
 
             ApplySettingsToUi();
@@ -124,8 +129,58 @@ public partial class CommentsHtmlControl : UserControl
         ApplyFilters(warmAuthors: true);
     }
 
-    private void uiSourceComboBox_SelectedIndexChanged(object? sender, EventArgs e)
+    private void uiSourceFilterButton_Click(object? sender, EventArgs e)
     {
+        uiSourceMenu.Show(uiSourceFilterButton, new(0, uiSourceFilterButton.Height));
+    }
+
+    private void uiSourceMenu_Closing(object? sender, ToolStripDropDownClosingEventArgs e)
+    {
+        if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked)
+        {
+            e.Cancel = true;
+        }
+    }
+
+    private void uiSourceMenuItem_Click(object? sender, EventArgs e)
+    {
+        if (_suppressMenuCheck || sender is not ToolStripMenuItem item)
+        {
+            return;
+        }
+
+        var sourceId = item.Tag as string;
+        _suppressMenuCheck = true;
+        try
+        {
+            if (sourceId == null)
+            {
+                _selectedSourceIds.Clear();
+                SyncMenuChecksFromState();
+            }
+            else
+            {
+                if (item.Checked)
+                {
+                    _selectedSourceIds.Add(sourceId);
+                }
+                else
+                {
+                    _selectedSourceIds.Remove(sourceId);
+                }
+
+                if (_anySourceMenuItem != null)
+                {
+                    _anySourceMenuItem.Checked = _selectedSourceIds.Count == 0;
+                }
+            }
+        }
+        finally
+        {
+            _suppressMenuCheck = false;
+        }
+
+        UpdateSourceFilterButtonText();
         SaveSettings();
         UpdateForceFetchButtonState();
         ApplyFilters(warmAuthors: true);
@@ -215,13 +270,19 @@ public partial class CommentsHtmlControl : UserControl
             return;
         }
 
-        if (uiSourceComboBox.SelectedItem is not SourceComboItem { SourceId: { } sourceId })
+        if (_selectedSourceIds.Count == 0)
         {
             return;
         }
 
-        var source = _orcestrator.GetSources().FirstOrDefault(s => s.Id == sourceId);
-        if (source == null)
+        var allSources = _orcestrator.GetSources();
+        var sources = _selectedSourceIds
+            .Select(id => allSources.FirstOrDefault(s => s.Id == id))
+            .Where(s => s != null)
+            .Cast<Source>()
+            .ToList();
+
+        if (sources.Count == 0)
         {
             return;
         }
@@ -236,31 +297,38 @@ public partial class CommentsHtmlControl : UserControl
         _settings.FetchOnlyRecent = dialog.OnlyRecent;
         _settings.Save();
 
-        await FetchAllForSourceAsync(source);
+        foreach (var source in sources)
+        {
+            await FetchAllForSourceAsync(source);
+        }
     }
 
     private static List<CommentRecord> LoadComments(
         Orcestrator orcestrator,
         CommentsService commentsService,
-        string? sourceId,
+        IReadOnlyCollection<string>? sourceIds,
         string search,
         int limit,
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(search))
         {
-            return commentsService.Query(sourceId, limit: limit);
+            return commentsService.Query(sourceIds, limit: limit);
         }
 
-        var byText = commentsService.Query(sourceId, textContains: search, limit: limit);
+        var byText = commentsService.Query(sourceIds, textContains: search, limit: limit);
 
         ct.ThrowIfCancellationRequested();
+
+        var sourceFilter = sourceIds is { Count: > 0 }
+            ? sourceIds as HashSet<string> ?? new HashSet<string>(sourceIds, StringComparer.Ordinal)
+            : null;
 
         var titleMatches = orcestrator.GetMedias()
             .Where(m => !string.IsNullOrEmpty(m.Title) && m.Title.Contains(search, StringComparison.OrdinalIgnoreCase))
             .SelectMany(m => m.Sources)
             .Where(l => !string.IsNullOrEmpty(l.SourceId) && !string.IsNullOrEmpty(l.ExternalId))
-            .Where(l => sourceId == null || l.SourceId == sourceId)
+            .Where(l => sourceFilter == null || sourceFilter.Contains(l.SourceId))
             .Select(l => (l.SourceId, l.ExternalId))
             .Distinct()
             .ToList();
@@ -560,12 +628,21 @@ public partial class CommentsHtmlControl : UserControl
 
             ReparentBrowserToActiveTab();
 
-            if (!string.IsNullOrEmpty(_settings.SelectedSourceId)
-                && uiSourceComboBox.DataSource is List<SourceComboItem> items
-                && items.FirstOrDefault(x => x.SourceId == _settings.SelectedSourceId) is { } match)
+            _selectedSourceIds.Clear();
+            if (_orcestrator != null)
             {
-                uiSourceComboBox.SelectedItem = match;
+                var existing = _orcestrator.GetSources().Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+                foreach (var id in _settings.SelectedSourceIds)
+                {
+                    if (existing.Contains(id))
+                    {
+                        _selectedSourceIds.Add(id);
+                    }
+                }
             }
+
+            SyncMenuChecksFromState();
+            UpdateSourceFilterButtonText();
         }
         finally
         {
@@ -607,7 +684,7 @@ public partial class CommentsHtmlControl : UserControl
             return;
         }
 
-        _settings.SelectedSourceId = (uiSourceComboBox.SelectedItem as SourceComboItem)?.SourceId;
+        _settings.SelectedSourceIds = _selectedSourceIds.ToList();
         _settings.Search = uiSearchTextBox.Text;
         _settings.Limit = (int)uiLimitNumeric.Value;
 
@@ -635,46 +712,85 @@ public partial class CommentsHtmlControl : UserControl
         }
     }
 
-    private void ReloadSourcesCombo()
+    private void ReloadSourcesMenu()
     {
         if (_orcestrator == null)
         {
             return;
         }
 
-        var previousValue = uiSourceComboBox.SelectedItem as SourceComboItem;
-        var sources = _orcestrator.GetSources();
-        var items = new List<SourceComboItem>
+        uiSourceMenu.Items.Clear();
+        _sourceMenuItems.Clear();
+
+        _anySourceMenuItem = new(AnySourceLabel)
         {
-            new(null, AnySourceLabel),
+            CheckOnClick = false,
+            Tag = null,
         };
 
-        foreach (var source in sources.OrderBy(s => s.TitleFull))
+        _anySourceMenuItem.Click += uiSourceMenuItem_Click;
+        uiSourceMenu.Items.Add(_anySourceMenuItem);
+        uiSourceMenu.Items.Add(new ToolStripSeparator());
+
+        foreach (var source in _orcestrator.GetSources().OrderBy(s => s.TitleFull))
         {
-            items.Add(new(source.Id, source.TitleFull));
+            var item = new ToolStripMenuItem(source.TitleFull)
+            {
+                CheckOnClick = true,
+                Tag = source.Id,
+            };
+
+            item.Click += uiSourceMenuItem_Click;
+            uiSourceMenu.Items.Add(item);
+            _sourceMenuItems.Add(item);
         }
 
-        uiSourceComboBox.BeginUpdate();
+        var existing = _orcestrator.GetSources().Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+        _selectedSourceIds.RemoveWhere(id => !existing.Contains(id));
+
+        SyncMenuChecksFromState();
+        UpdateSourceFilterButtonText();
+    }
+
+    private void SyncMenuChecksFromState()
+    {
+        _suppressMenuCheck = true;
         try
         {
-            uiSourceComboBox.DataSource = items;
-            uiSourceComboBox.DisplayMember = nameof(SourceComboItem.Label);
-            uiSourceComboBox.ValueMember = nameof(SourceComboItem.SourceId);
-
-            if (previousValue?.SourceId != null
-                && items.FirstOrDefault(x => x.SourceId == previousValue.SourceId) is { } match)
+            if (_anySourceMenuItem != null)
             {
-                uiSourceComboBox.SelectedItem = match;
+                _anySourceMenuItem.Checked = _selectedSourceIds.Count == 0;
             }
-            else
+
+            foreach (var item in _sourceMenuItems)
             {
-                uiSourceComboBox.SelectedIndex = 0;
+                var id = (string?)item.Tag;
+                item.Checked = id != null && _selectedSourceIds.Contains(id);
             }
         }
         finally
         {
-            uiSourceComboBox.EndUpdate();
+            _suppressMenuCheck = false;
         }
+    }
+
+    private void UpdateSourceFilterButtonText()
+    {
+        if (_selectedSourceIds.Count == 0)
+        {
+            uiSourceFilterButton.Text = AnySourceLabel;
+            return;
+        }
+
+        if (_selectedSourceIds.Count == 1)
+        {
+            var only = _selectedSourceIds.First();
+            var match = _sourceMenuItems.FirstOrDefault(i => (string?)i.Tag == only);
+            uiSourceFilterButton.Text = match?.Text ?? only;
+            return;
+        }
+
+        uiSourceFilterButton.Text = $"Выбрано: {_selectedSourceIds.Count}";
     }
 
     private async void ApplyFilters(bool warmAuthors = false)
@@ -693,7 +809,10 @@ public partial class CommentsHtmlControl : UserControl
 
         var orcestrator = _orcestrator;
         var commentsService = _commentsService;
-        var sourceId = (uiSourceComboBox.SelectedItem as SourceComboItem)?.SourceId;
+        var sourceIds = _selectedSourceIds.Count == 0
+            ? null
+            : new HashSet<string>(_selectedSourceIds, StringComparer.Ordinal);
+
         var search = uiSearchTextBox.Text.Trim();
         var limit = (int)uiLimitNumeric.Value;
         var layout = GetActiveLayoutMode();
@@ -708,7 +827,7 @@ public partial class CommentsHtmlControl : UserControl
             {
                 ct.ThrowIfCancellationRequested();
 
-                var fetched = LoadComments(orcestrator, commentsService, sourceId, search, limit + 1, ct);
+                var fetched = LoadComments(orcestrator, commentsService, sourceIds, search, limit + 1, ct);
 
                 ct.ThrowIfCancellationRequested();
 
@@ -808,8 +927,7 @@ public partial class CommentsHtmlControl : UserControl
 
     private void UpdateForceFetchButtonState()
     {
-        var sourceItem = uiSourceComboBox.SelectedItem as SourceComboItem;
-        uiForceFetchAllButton.Enabled = sourceItem?.SourceId != null;
+        uiForceFetchAllButton.Enabled = _selectedSourceIds.Count > 0;
     }
 
     private void OpenMediaById(string mediaId)
@@ -1510,17 +1628,6 @@ public partial class CommentsHtmlControl : UserControl
     }
 
     private sealed record FetchProgress(int Processed, string StatusText, string CounterText);
-
-    private sealed class SourceComboItem(string? sourceId, string label)
-    {
-        public string? SourceId { get; } = sourceId;
-        public string Label { get; } = label;
-
-        public override string ToString()
-        {
-            return Label;
-        }
-    }
 
     private sealed class ReplyStatusComboItem(CommentsReplyStatusFilter key, string label)
     {
