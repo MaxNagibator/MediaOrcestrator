@@ -47,7 +47,10 @@ public sealed class CommentsAppearance
 
 public sealed class CommentsViewSettings
 {
-    private const int CurrentSettingsVersion = 3;
+    public const int DefaultFetchMaxParallelism = 4;
+    public const int MinFetchMaxParallelism = 1;
+    public const int MaxFetchMaxParallelism = 64;
+    private const int CurrentSettingsVersion = 4;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -62,6 +65,7 @@ public sealed class CommentsViewSettings
     public string Search { get; set; } = "";
     public int FetchSinceDays { get; set; }
     public int FetchOnlyRecent { get; set; }
+    public int FetchMaxParallelism { get; set; } = DefaultFetchMaxParallelism;
     public CommentsLayoutMode LayoutMode { get; set; } = CommentsLayoutMode.Flat;
     public CommentsReplyStatusFilter ReplyStatus { get; set; } = CommentsReplyStatusFilter.WithoutReplyAndLike;
     public CommentsAppearance Appearance { get; set; } = new();
@@ -135,6 +139,15 @@ public sealed class CommentsViewSettings
         }
 
         SelectedSourceId = null;
+
+        if (previousVersion < 4 && FetchMaxParallelism == 0)
+        {
+            FetchMaxParallelism = DefaultFetchMaxParallelism;
+        }
+
+        FetchMaxParallelism = FetchMaxParallelism <= 0
+            ? DefaultFetchMaxParallelism
+            : Math.Clamp(FetchMaxParallelism, MinFetchMaxParallelism, MaxFetchMaxParallelism);
 
         SettingsVersion = CurrentSettingsVersion;
         Appearance ??= new();

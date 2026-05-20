@@ -312,6 +312,7 @@ public partial class CommentsHtmlControl : UserControl
 
         _settings.FetchSinceDays = dialog.SinceDays;
         _settings.FetchOnlyRecent = dialog.OnlyRecent;
+        _settings.FetchMaxParallelism = dialog.MaxParallelism;
         _settings.Save();
 
         await FetchFromSourcesAsync(sources);
@@ -1639,9 +1640,15 @@ public partial class CommentsHtmlControl : UserControl
 
         try
         {
+            var maxParallelism = _settings.FetchMaxParallelism <= 0
+                ? CommentsViewSettings.DefaultFetchMaxParallelism
+                : Math.Clamp(_settings.FetchMaxParallelism,
+                    CommentsViewSettings.MinFetchMaxParallelism,
+                    CommentsViewSettings.MaxFetchMaxParallelism);
+
             var parallelOptions = new ParallelOptions
             {
-                MaxDegreeOfParallelism = 3,
+                MaxDegreeOfParallelism = maxParallelism,
                 CancellationToken = childCts.Token,
             };
 
