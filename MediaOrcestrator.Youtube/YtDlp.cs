@@ -139,6 +139,49 @@ internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRun
         return info is null ? null : MapVideoInfo(info);
     }
 
+    public async Task<IReadOnlyList<YtDlpCommentJson>> GetCommentsAsync(
+        string url,
+        CancellationToken cancellationToken = default)
+    {
+        var arguments = new List<string>
+        {
+            "--dump-single-json",
+            "--skip-download",
+            "--write-comments",
+            "--extractor-args", "youtube:max_comments=all,all,all,all",
+            "--no-warnings",
+            "--no-colors",
+        };
+
+        if (!string.IsNullOrEmpty(cookiePath))
+        {
+            arguments.Add("--cookies");
+            arguments.Add(cookiePath);
+        }
+
+        if (!string.Equals(jsRuntime, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            arguments.Add("--js-runtimes");
+            arguments.Add(jsRuntime);
+        }
+
+        arguments.Add(url);
+
+        using var stdOut = new MemoryStream();
+        var stdErr = new StringBuilder();
+        await ExecuteAsync(arguments, stdOutStream: stdOut, stdErrBuilder: stdErr, cancellationToken: cancellationToken);
+
+        if (stdOut.Length == 0)
+        {
+            var stderrSummary = stdErr.Length == 0 ? "(stderr пустой)" : stdErr.ToString().Trim();
+            throw new InvalidOperationException($"yt-dlp вернул пустой ответ при получении комментариев для {url}. stderr: {stderrSummary}");
+        }
+
+        stdOut.Position = 0;
+        var info = await JsonSerializer.DeserializeAsync(stdOut, YoutubeJsonContext.Default.YtDlpInfoJson, cancellationToken);
+        return info?.Comments ?? [];
+    }
+
     private static YtDlpVideoInfo MapVideoInfo(YtDlpInfoJson info)
     {
         var duration = info.Duration.HasValue
@@ -189,12 +232,13 @@ internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRun
         IProgress<double>? progress = null,
         Action<string>? outputCallback = null,
         Stream? stdOutStream = null,
+        StringBuilder? stdErrBuilder = null,
         CancellationToken cancellationToken = default)
     {
         var argumentsList = arguments.ToList();
         var commandString = $"{path} {string.Join(" ", argumentsList.Select(a => a.Contains(' ') ? $"\"{a}\"" : a))}";
 
-        StringBuilder stdErrBuffer = new();
+        var stdErrBuffer = stdErrBuilder ?? new StringBuilder();
 
         var stdOutPipe = PipeTarget.Merge(progress?.Pipe(CreateProgressRouter) ?? PipeTarget.Null,
             outputCallback != null ? PipeTarget.ToDelegate(outputCallback) : PipeTarget.Null,

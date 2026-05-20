@@ -4,6 +4,7 @@ namespace MediaOrcestrator.Youtube;
 
 [JsonSourceGenerationOptions(WriteIndented = false, DefaultIgnoreCondition = JsonIgnoreCondition.Never, PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(YtDlpInfoJson))]
+[JsonSerializable(typeof(YtDlpCommentJson))]
 [JsonSerializable(typeof(PlaywrightAuthState))]
 internal sealed partial class YoutubeJsonContext : JsonSerializerContext
 {
@@ -22,6 +23,21 @@ internal sealed class YtDlpInfoJson
     public long? Timestamp { get; set; }
     public string? UploadDate { get; set; }
     public List<string>? Tags { get; set; }
+    public List<YtDlpCommentJson>? Comments { get; set; }
+}
+
+internal sealed class YtDlpCommentJson
+{
+    public string? Id { get; set; }
+    public string? Parent { get; set; }
+    public string? Text { get; set; }
+    public string? Author { get; set; }
+    public string? AuthorId { get; set; }
+    public string? AuthorThumbnail { get; set; }
+    public bool? AuthorIsUploader { get; set; }
+    public long? Timestamp { get; set; }
+    public int? LikeCount { get; set; }
+    public bool? IsFavorited { get; set; }
 }
 
 internal sealed class PlaywrightAuthState
