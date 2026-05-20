@@ -5,8 +5,9 @@ var __replyPrefixTemplate = {{replyPrefix}};
     var data = __commentsData || { groups: [], search: "" };
     var root = document.getElementById("root");
 
-    var TOKEN_RE = /\[(id|club|public)(\d+)\|([^\]]+)\]|https?:\/\/[^\s<>"']+/g;
+    var TOKEN_RE = /\[(id|club|public)(\d+)\|([^\]]+)\]|@@?([A-Za-z][A-Za-z0-9_.\-]*|[А-Яа-яЁё][А-Яа-яЁё0-9_.\-]*)|https?:\/\/[^\s<>"']+/g;
     var TRAIL_RE = /[)\].,!?;:]+$/;
+    var YT_HANDLE_RE = /^[A-Za-z][A-Za-z0-9_.\-]*$/;
 
     function el(tag, className) {
         var node = document.createElement(tag);
@@ -33,6 +34,14 @@ var __replyPrefixTemplate = {{replyPrefix}};
                 mentionToken.url = mentionUrl;
                 mentionToken.name = m[3];
                 tokens.push(mentionToken);
+            } else if (m[4]) {
+                var ytName = m[4];
+                var ytToken = { kind: "mention" };
+                ytToken.name = ytName;
+                if (YT_HANDLE_RE.test(ytName)) {
+                    ytToken.url = "https://www.youtube.com/@" + ytName;
+                }
+                tokens.push(ytToken);
             } else {
                 var rawText = m[0];
                 var trailing = "";
@@ -84,12 +93,17 @@ var __replyPrefixTemplate = {{replyPrefix}};
             if (tok.kind === "text") {
                 appendHighlightedText(parent, tok.value, search);
             } else if (tok.kind === "mention") {
-                var link = el("a", "mention");
-                link.setAttribute("href", tok.url);
-                link.setAttribute("target", "_blank");
-                link.setAttribute("rel", "noopener");
-                link.appendChild(text("@" + tok.name));
-                parent.appendChild(link);
+                var mentionEl;
+                if (tok.url) {
+                    mentionEl = el("a", "mention");
+                    mentionEl.setAttribute("href", tok.url);
+                    mentionEl.setAttribute("target", "_blank");
+                    mentionEl.setAttribute("rel", "noopener");
+                } else {
+                    mentionEl = el("span", "mention");
+                }
+                mentionEl.appendChild(text("@" + tok.name));
+                parent.appendChild(mentionEl);
             } else if (tok.kind === "url") {
                 var urlLink = el("a");
                 urlLink.setAttribute("href", tok.url);
@@ -119,9 +133,19 @@ var __replyPrefixTemplate = {{replyPrefix}};
         return index;
     }
 
+    function stripLeadingAt(name) {
+        if (!name) return "";
+        return String(name).replace(/^@+/, "");
+    }
+
+    function displayHandle(name) {
+        var bare = stripLeadingAt(name);
+        return bare ? "@" + bare : "";
+    }
+
     function initialOf(name) {
         if (!name) return "?";
-        var trimmed = name.replace(/^\s+/, "");
+        var trimmed = stripLeadingAt(name).replace(/^\s+/, "");
         if (!trimmed) return "?";
         return trimmed.charAt(0);
     }
@@ -477,10 +501,10 @@ var __replyPrefixTemplate = {{replyPrefix}};
     }
 
     function replyPrefix(author) {
-        var name = (author || "").replace(/^\s+|\s+$/g, "");
+        var bare = stripLeadingAt((author || "").replace(/^\s+|\s+$/g, ""));
         var tpl = typeof __replyPrefixTemplate === "string" ? __replyPrefixTemplate : "{name}, ";
-        if (!name && tpl.indexOf("{name}") >= 0) return "";
-        return tpl.replace(/\{name\}/g, name);
+        if (!bare && tpl.indexOf("{name}") >= 0) return "";
+        return tpl.replace(/\{name\}/g, bare);
     }
 
     window.__setReplyPrefix = function (tpl) {
@@ -545,7 +569,7 @@ var __replyPrefixTemplate = {{replyPrefix}};
             replyBtn.onclick = function () {
                 while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
                 var authorSelect = c.hasAuthors ? buildAuthorSelect(c.sourceId, c.externalMediaId) : null;
-                var form = buildForm(replyPrefix(c.author), "Ответ для " + (c.author || ""), "Отправить",
+                var form = buildForm(replyPrefix(c.author), "Ответ для " + (displayHandle(c.author) || "—"), "Отправить",
                     function (value) {
                         var authorId = authorSelect && authorSelect.__getAuthorId ? authorSelect.__getAuthorId() : "";
                         notify("Create", c.sourceId, c.externalMediaId, "", c.externalCommentId, value, authorId);
@@ -736,7 +760,7 @@ var __replyPrefixTemplate = {{replyPrefix}};
 
         var head = el("div", "head");
         var author = el("span", "author");
-        author.appendChild(text(c.author || "—"));
+        author.appendChild(text(c.author ? displayHandle(c.author) : "—"));
         head.appendChild(author);
 
         if (c.isAuthor) {
@@ -962,7 +986,7 @@ var __replyPrefixTemplate = {{replyPrefix}};
         var head = el("div", "flat-head");
         var chip = el("span", "flat-author-chip" + (c.isAuthor ? " is-author" : ""));
         if (c.isAuthor) chip.setAttribute("title", "Комментарий от автора");
-        chip.appendChild(text(c.author ? "@" + c.author : "—"));
+        chip.appendChild(text(c.author ? displayHandle(c.author) : "—"));
         head.appendChild(chip);
 
         if (c.likes > 0) {
@@ -1098,7 +1122,7 @@ var __replyPrefixTemplate = {{replyPrefix}};
             replyBtn.onclick = function () {
                 while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
                 var authorSelect = c.hasAuthors ? buildAuthorSelect(c.sourceId, c.externalMediaId) : null;
-                var form = buildForm(replyPrefix(c.author), "Ответ для " + (c.author || ""), "Отправить",
+                var form = buildForm(replyPrefix(c.author), "Ответ для " + (displayHandle(c.author) || "—"), "Отправить",
                     function (value) {
                         var authorId = authorSelect && authorSelect.__getAuthorId ? authorSelect.__getAuthorId() : "";
                         notify("Create", c.sourceId, c.externalMediaId, "", c.externalCommentId, value, authorId);

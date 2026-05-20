@@ -158,6 +158,11 @@ internal static partial class YoutubeServiceLog
         string videoId,
         Exception exception);
 
+    [LoggerMessage(EventId = 5052, Level = LogLevel.Information, Message = "YouTube: у видео {VideoId} отключены комментарии — пропуск")]
+    public static partial void CommentsDisabled(
+        this ILogger logger,
+        string videoId);
+
     [LoggerMessage(EventId = 5030, Level = LogLevel.Information, Message = "Превью сохранено через yt-dlp: {ThumbnailPath}")]
     public static partial void YtDlpThumbnailSaved(
         this ILogger logger,
