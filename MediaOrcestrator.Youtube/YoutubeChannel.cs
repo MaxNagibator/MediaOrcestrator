@@ -97,6 +97,7 @@ internal sealed class YoutubeChannel(
             IsRequired = false,
             Title = "OAuth Client ID",
             Description = "Client ID из Google Cloud Console (необходим для загрузки видео)",
+            Type = SettingType.Secret,
         },
         new()
         {
@@ -104,6 +105,7 @@ internal sealed class YoutubeChannel(
             IsRequired = false,
             Title = "OAuth Client Secret",
             Description = "Client Secret из Google Cloud Console (необходим для загрузки видео)",
+            Type = SettingType.Secret,
         },
         new()
         {

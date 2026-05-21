@@ -8,6 +8,7 @@ public partial class SourceSettingsForm : Form
 {
     private readonly Dictionary<string, Control> _controls = [];
     private readonly List<Button> _loadButtons = [];
+    private readonly ToolTip _toolTip = new();
     private IEnumerable<SourceSettings> _settingsKeys = [];
     private List<Source> _availableSources = [];
     private Source? _editSource;
@@ -536,7 +537,48 @@ public partial class SourceSettingsForm : Form
             return CreatePathPanel(setting);
         }
 
+        if (setting.Type == SettingType.Secret)
+        {
+            return CreateSecretPanel(setting);
+        }
+
         return CreateTextBox(setting);
+    }
+
+    private Panel CreateSecretPanel(SourceSettings setting)
+    {
+        var panel = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 27,
+        };
+
+        var textBox = CreateTextBox(setting);
+        textBox.Dock = DockStyle.Fill;
+        textBox.UseSystemPasswordChar = true;
+
+        var toggleButton = new Button
+        {
+            Font = new("Segoe MDL2 Assets", 10F),
+            Text = "",
+            Width = 32,
+            Dock = DockStyle.Right,
+            FlatStyle = FlatStyle.System,
+        };
+
+        _toolTip.SetToolTip(toggleButton, "Показать");
+
+        toggleButton.Click += (_, _) =>
+        {
+            textBox.UseSystemPasswordChar = !textBox.UseSystemPasswordChar;
+            toggleButton.Text = textBox.UseSystemPasswordChar ? "" : "";
+            _toolTip.SetToolTip(toggleButton, textBox.UseSystemPasswordChar ? "Показать" : "Скрыть");
+        };
+
+        panel.Controls.Add(textBox);
+        panel.Controls.Add(toggleButton);
+
+        return panel;
     }
 
     private void PopulateComboBox(SourceSettings setting, ComboBox comboBox)

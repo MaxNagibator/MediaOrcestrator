@@ -32,6 +32,7 @@ public sealed class TelegramChannel(
             IsRequired = true,
             Title = "API ID",
             Description = "API ID приложения с my.telegram.org",
+            Type = SettingType.Secret,
         },
         new()
         {
@@ -39,6 +40,7 @@ public sealed class TelegramChannel(
             IsRequired = true,
             Title = "API Hash",
             Description = "API Hash приложения с my.telegram.org",
+            Type = SettingType.Secret,
         },
         new()
         {
@@ -46,6 +48,7 @@ public sealed class TelegramChannel(
             IsRequired = true,
             Title = "номер телефона",
             Description = "Номер телефона аккаунта Telegram (формат: +7XXXXXXXXXX)",
+            Type = SettingType.Secret,
         },
         new()
         {
