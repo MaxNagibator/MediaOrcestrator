@@ -1,4 +1,5 @@
-﻿using Google.Apis.YouTube.v3;
+﻿using Google;
+using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
 using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
@@ -32,7 +33,17 @@ internal sealed class YoutubeCommentsReadService(ILogger<YoutubeCommentsReadServ
             request.TextFormat = CommentThreadsResource.ListRequest.TextFormatEnum.PlainText;
             request.PageToken = pageToken;
 
-            var response = await request.ExecuteAsync(cancellationToken);
+            CommentThreadListResponse response;
+            try
+            {
+                response = await request.ExecuteAsync(cancellationToken);
+            }
+            catch (GoogleApiException ex) when (IsCommentsDisabled(ex))
+            {
+                logger.CommentsDisabled(videoId);
+                yield break;
+            }
+
             if (response.Items is null || response.Items.Count == 0)
             {
                 break;
@@ -124,10 +135,10 @@ internal sealed class YoutubeCommentsReadService(ILogger<YoutubeCommentsReadServ
         {
             ExternalId = comment.Id,
             ParentExternalId = parentExternalId ?? snippet?.ParentId,
-            AuthorName = snippet?.AuthorDisplayName ?? string.Empty,
+            AuthorName = NormalizeAuthorName(snippet?.AuthorDisplayName),
             AuthorExternalId = authorChannelId,
             AuthorAvatarUrl = snippet?.AuthorProfileImageUrl,
-            Text = snippet?.TextDisplay ?? snippet?.TextOriginal ?? string.Empty,
+            Text = snippet?.TextOriginal ?? snippet?.TextDisplay ?? string.Empty,
             PublishedAt = snippet?.PublishedAtDateTimeOffset?.UtcDateTime ?? DateTime.UtcNow,
             LikeCount = snippet?.LikeCount is { } likes ? (int)likes : null,
             IsDeleted = false,
@@ -138,11 +149,32 @@ internal sealed class YoutubeCommentsReadService(ILogger<YoutubeCommentsReadServ
         };
     }
 
+    private static string NormalizeAuthorName(string? name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return string.Empty;
+        }
+
+        var i = 0;
+        while (i < name.Length && name[i] == '@')
+        {
+            i++;
+        }
+
+        return i == 0 ? name : name[i..];
+    }
+
     private static string? ExtractAuthorChannelId(CommentSnippet? snippet)
     {
         var holder = snippet?.AuthorChannelId;
         var valueProp = holder?.GetType().GetProperty("Value");
         return valueProp?.GetValue(holder) as string;
+    }
+
+    private static bool IsCommentsDisabled(GoogleApiException ex)
+    {
+        return ex.Error?.Errors?.Any(static e => string.Equals(e.Reason, "commentsDisabled", StringComparison.Ordinal)) == true;
     }
 
     private async Task<string?> GetVideoOwnerChannelIdAsync(

@@ -18,6 +18,7 @@ internal sealed class YoutubeChannel(
     YoutubeYtDlpReadService ytDlpReadService,
     YoutubeApiReadService apiReadService,
     YoutubeCommentsReadService commentsReadService,
+    YoutubeYtDlpCommentsReadService ytDlpCommentsReadService,
     YoutubeUploadService uploadService)
     : ISourceType, IAuthenticatable, IToolConsumer, ISupportsComments
 {
@@ -260,9 +261,21 @@ internal sealed class YoutubeChannel(
         Dictionary<string, string> settings,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        var ytDlpComments = await TryGetYtDlpCommentsAsync(externalId, settings, cancellationToken);
+
+        if (ytDlpComments is not null)
+        {
+            foreach (var comment in ytDlpComments)
+            {
+                yield return comment;
+            }
+
+            yield break;
+        }
+
         if (!IsOAuthConfigured(settings))
         {
-            throw new InvalidOperationException("Для получения комментариев YouTube необходимо настроить OAuth (client_id и client_secret)");
+            throw new InvalidOperationException("Для получения комментариев YouTube необходимо установить yt-dlp или настроить OAuth (client_id и client_secret)");
         }
 
         using var lease = await AcquireServiceLeaseAsync(settings, cancellationToken);
@@ -628,6 +641,38 @@ internal sealed class YoutubeChannel(
             var value = cookie.Value ?? "";
 
             await writer.WriteLineAsync($"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{name}\t{value}");
+        }
+    }
+
+    private async Task<IReadOnlyList<CommentDto>?> TryGetYtDlpCommentsAsync(
+        string externalId,
+        Dictionary<string, string> settings,
+        CancellationToken cancellationToken)
+    {
+        YtDlp ytDlp;
+
+        try
+        {
+            ytDlp = BuildYtDlp(settings);
+        }
+        catch (Exception ex)
+        {
+            logger.YtDlpCommentsUnavailable(externalId, ex);
+            return null;
+        }
+
+        try
+        {
+            return await ytDlpCommentsReadService.GetCommentsAsync(externalId, ytDlp, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.YtDlpCommentsFailed(externalId, ex);
+            return null;
         }
     }
 

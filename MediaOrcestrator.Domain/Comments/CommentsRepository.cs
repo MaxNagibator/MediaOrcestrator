@@ -33,7 +33,7 @@ public sealed class CommentsRepository
     }
 
     public List<CommentRecord> Query(
-        string? sourceId = null,
+        IReadOnlyCollection<string>? sourceIds = null,
         string? externalMediaId = null,
         DateTime? from = null,
         DateTime? to = null,
@@ -42,9 +42,18 @@ public sealed class CommentsRepository
     {
         var query = Collection.Query();
 
-        if (sourceId != null)
+        if (sourceIds is { Count: > 0 })
         {
-            query = query.Where(x => x.SourceId == sourceId);
+            if (sourceIds.Count == 1)
+            {
+                var only = sourceIds.First();
+                query = query.Where(x => x.SourceId == only);
+            }
+            else
+            {
+                var set = sourceIds as HashSet<string> ?? new HashSet<string>(sourceIds, StringComparer.Ordinal);
+                query = query.Where(x => set.Contains(x.SourceId));
+            }
         }
 
         if (externalMediaId != null)

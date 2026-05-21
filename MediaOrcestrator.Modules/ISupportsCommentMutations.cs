@@ -16,7 +16,16 @@ public interface ISupportsCommentMutations
     /// </summary>
     /// <param name="externalMediaId">Идентификатор медиа в источнике.</param>
     /// <param name="parentExternalCommentId">
-    /// Идентификатор комментария, на который отвечаем; <see langword="null" /> для корневого.
+    /// Идентификатор комментария, на который отвечаем (адресат ответа); <see langword="null" /> для корневого.
+    /// </param>
+    /// <param name="rootExternalCommentId">
+    /// Идентификатор корневого комментария всей цепочки; <see langword="null" />, если сам ответ корневой.
+    /// Полезно для источников с плоским двухуровневым деревом (например, RuTube), где API принимает только
+    /// id корня в качестве parent.
+    /// </param>
+    /// <param name="replyToAuthorName">
+    /// Отображаемое имя автора <paramref name="parentExternalCommentId" /> — для @-меншена в тексте,
+    /// если источник теряет адресность при подъёме parent до корня. <see langword="null" />, если не нужно.
     /// </param>
     /// <param name="text">Текст нового комментария.</param>
     /// <param name="settings">Конфигурация источника.</param>
@@ -25,6 +34,8 @@ public interface ISupportsCommentMutations
     Task<CommentDto> CreateCommentAsync(
         string externalMediaId,
         string? parentExternalCommentId,
+        string? rootExternalCommentId,
+        string? replyToAuthorName,
         string text,
         Dictionary<string, string> settings,
         CancellationToken cancellationToken = default);

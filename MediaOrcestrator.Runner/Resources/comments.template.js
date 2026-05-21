@@ -1,11 +1,13 @@
 ﻿var __commentsData = {{data}};
+var __replyPrefixTemplate = {{replyPrefix}};
 
 (function () {
     var data = __commentsData || { groups: [], search: "" };
     var root = document.getElementById("root");
 
-    var TOKEN_RE = /\[(id|club|public)(\d+)\|([^\]]+)\]|https?:\/\/[^\s<>"']+/g;
+    var TOKEN_RE = /\[(id|club|public)(\d+)\|([^\]]+)\]|@@?([A-Za-z][A-Za-z0-9_.\-]*|[А-Яа-яЁё][А-Яа-яЁё0-9_.\-]*)|https?:\/\/[^\s<>"']+/g;
     var TRAIL_RE = /[)\].,!?;:]+$/;
+    var YT_HANDLE_RE = /^[A-Za-z][A-Za-z0-9_.\-]*$/;
 
     function el(tag, className) {
         var node = document.createElement(tag);
@@ -32,6 +34,14 @@
                 mentionToken.url = mentionUrl;
                 mentionToken.name = m[3];
                 tokens.push(mentionToken);
+            } else if (m[4]) {
+                var ytName = m[4];
+                var ytToken = { kind: "mention" };
+                ytToken.name = ytName;
+                if (YT_HANDLE_RE.test(ytName)) {
+                    ytToken.url = "https://www.youtube.com/@" + ytName;
+                }
+                tokens.push(ytToken);
             } else {
                 var rawText = m[0];
                 var trailing = "";
@@ -83,12 +93,17 @@
             if (tok.kind === "text") {
                 appendHighlightedText(parent, tok.value, search);
             } else if (tok.kind === "mention") {
-                var link = el("a", "mention");
-                link.setAttribute("href", tok.url);
-                link.setAttribute("target", "_blank");
-                link.setAttribute("rel", "noopener");
-                link.appendChild(text("@" + tok.name));
-                parent.appendChild(link);
+                var mentionEl;
+                if (tok.url) {
+                    mentionEl = el("a", "mention");
+                    mentionEl.setAttribute("href", tok.url);
+                    mentionEl.setAttribute("target", "_blank");
+                    mentionEl.setAttribute("rel", "noopener");
+                } else {
+                    mentionEl = el("span", "mention");
+                }
+                mentionEl.appendChild(text("@" + tok.name));
+                parent.appendChild(mentionEl);
             } else if (tok.kind === "url") {
                 var urlLink = el("a");
                 urlLink.setAttribute("href", tok.url);
@@ -118,9 +133,19 @@
         return index;
     }
 
+    function stripLeadingAt(name) {
+        if (!name) return "";
+        return String(name).replace(/^@+/, "");
+    }
+
+    function displayHandle(name) {
+        var bare = stripLeadingAt(name);
+        return bare ? "@" + bare : "";
+    }
+
     function initialOf(name) {
         if (!name) return "?";
-        var trimmed = name.replace(/^\s+/, "");
+        var trimmed = stripLeadingAt(name).replace(/^\s+/, "");
         if (!trimmed) return "?";
         return trimmed.charAt(0);
     }
@@ -157,13 +182,20 @@
         }
     }
 
+    var __authorsCache = {};
+    var __selectedAuthorByKey = {};
+
     function loadAuthors(sourceId, externalMediaId) {
+        var key = authorKey(sourceId, externalMediaId);
+        if (__authorsCache[key]) return __authorsCache[key];
         try {
             if (!window.external) return [];
             var raw = window.external.GetAuthors(sourceId || "", externalMediaId || "");
             if (!raw) return [];
             var parsed = JSON.parse(String(raw));
-            return Array.isArray(parsed) ? parsed : [];
+            var arr = Array.isArray(parsed) ? parsed : [];
+            if (arr.length) __authorsCache[key] = arr;
+            return arr;
         } catch (err) {
             return [];
         }
@@ -193,11 +225,15 @@
 
     window.__setAuthors = function (sourceId, externalMediaId, json) {
         try {
-            var list = __authorSubscribers[authorKey(sourceId, externalMediaId)];
-            if (!list || list.length === 0) return true;
+            var key = authorKey(sourceId, externalMediaId);
 
             var parsed = json ? JSON.parse(String(json)) : [];
             if (!Array.isArray(parsed)) parsed = [];
+
+            if (parsed.length) __authorsCache[key] = parsed;
+
+            var list = __authorSubscribers[key];
+            if (!list || list.length === 0) return true;
 
             var snapshot = list.slice();
             for (var i = 0; i < snapshot.length; i++) {
@@ -310,7 +346,8 @@
         var menu = el("div", "author-select-menu");
         wrap.appendChild(menu);
 
-        var selectedId = "";
+        var key = authorKey(sourceId, externalMediaId);
+        var selectedId = __selectedAuthorByKey[key] || "";
         var byId = {};
         var defaultId = "";
 
@@ -350,6 +387,7 @@
                     opt.onclick = function (ev) {
                         if (ev && ev.stopPropagation) ev.stopPropagation();
                         selectedId = author.id;
+                        __selectedAuthorByKey[key] = author.id;
                         renderTrigger();
                         renderMenu();
                         closeActiveAuthorSelect();
@@ -463,9 +501,47 @@
     }
 
     function replyPrefix(author) {
-        var name = (author || "").replace(/^\s+|\s+$/g, "");
-        return name ? name + ", " : "";
+        var bare = stripLeadingAt((author || "").replace(/^\s+|\s+$/g, ""));
+        var tpl = typeof __replyPrefixTemplate === "string" ? __replyPrefixTemplate : "{name}, ";
+        if (!bare && tpl.indexOf("{name}") >= 0) return "";
+        return tpl.replace(/\{name\}/g, bare);
     }
+
+    window.__setReplyPrefix = function (tpl) {
+        __replyPrefixTemplate = typeof tpl === "string" ? tpl : "{name}, ";
+        return true;
+    };
+
+    function ensureBusyOverlay() {
+        var existing = document.getElementById("__busy");
+        if (existing) return existing;
+        var overlay = el("div", "busy-overlay");
+        overlay.id = "__busy";
+        var box = el("div", "busy-box");
+        box.appendChild(text("Загрузка комментариев..."));
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+
+    window.__showLoading = function () {
+        try {
+            ensureBusyOverlay().style.display = "flex";
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    window.__hideLoading = function () {
+        try {
+            var overlay = document.getElementById("__busy");
+            if (overlay) overlay.style.display = "none";
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
 
     function renderActions(c, bodyHost, formHost) {
         if (!c.hasMutations && !c.hasLikes) return null;
@@ -493,7 +569,7 @@
             replyBtn.onclick = function () {
                 while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
                 var authorSelect = c.hasAuthors ? buildAuthorSelect(c.sourceId, c.externalMediaId) : null;
-                var form = buildForm(replyPrefix(c.author), "Ответ для " + (c.author || ""), "Отправить",
+                var form = buildForm(replyPrefix(c.author), "Ответ для " + (displayHandle(c.author) || "—"), "Отправить",
                     function (value) {
                         var authorId = authorSelect && authorSelect.__getAuthorId ? authorSelect.__getAuthorId() : "";
                         notify("Create", c.sourceId, c.externalMediaId, "", c.externalCommentId, value, authorId);
@@ -684,7 +760,7 @@
 
         var head = el("div", "head");
         var author = el("span", "author");
-        author.appendChild(text(c.author || "—"));
+        author.appendChild(text(c.author ? displayHandle(c.author) : "—"));
         head.appendChild(author);
 
         if (c.isAuthor) {
@@ -910,7 +986,7 @@
         var head = el("div", "flat-head");
         var chip = el("span", "flat-author-chip" + (c.isAuthor ? " is-author" : ""));
         if (c.isAuthor) chip.setAttribute("title", "Комментарий от автора");
-        chip.appendChild(text(c.author ? "@" + c.author : "—"));
+        chip.appendChild(text(c.author ? displayHandle(c.author) : "—"));
         head.appendChild(chip);
 
         if (c.likes > 0) {
@@ -1046,7 +1122,7 @@
             replyBtn.onclick = function () {
                 while (formHost.firstChild) formHost.removeChild(formHost.firstChild);
                 var authorSelect = c.hasAuthors ? buildAuthorSelect(c.sourceId, c.externalMediaId) : null;
-                var form = buildForm(replyPrefix(c.author), "Ответ для " + (c.author || ""), "Отправить",
+                var form = buildForm(replyPrefix(c.author), "Ответ для " + (displayHandle(c.author) || "—"), "Отправить",
                     function (value) {
                         var authorId = authorSelect && authorSelect.__getAuthorId ? authorSelect.__getAuthorId() : "";
                         notify("Create", c.sourceId, c.externalMediaId, "", c.externalCommentId, value, authorId);
@@ -1120,6 +1196,7 @@
             toggle.appendChild(text((hasReplies ? "▾ " : "") + label));
             var expanded = false;
             var repliesHost = null;
+
             function doExpand() {
                 if (expanded || !hasReplies) return;
                 expanded = true;
@@ -1135,6 +1212,7 @@
                     }
                 }
             }
+
             function doCollapse() {
                 if (!expanded) return;
                 expanded = false;
@@ -1145,6 +1223,7 @@
                 }
                 repliesHost = null;
             }
+
             if (hasReplies) {
                 toggle.onclick = function () {
                     if (expanded) doCollapse(); else doExpand();
@@ -1152,8 +1231,12 @@
             }
             if (rowDiv) {
                 rowDiv.__expandReplies = doExpand;
-                rowDiv.__hasExpandedReplies = function () { return expanded; };
-                rowDiv.__getRepliesHost = function () { return repliesHost; };
+                rowDiv.__hasExpandedReplies = function () {
+                    return expanded;
+                };
+                rowDiv.__getRepliesHost = function () {
+                    return repliesHost;
+                };
             }
             bar.appendChild(toggle);
             hasAny = true;
@@ -1204,20 +1287,21 @@
     function render() {
         if (isFlat()) {
             renderFlat();
-            return;
+        } else {
+            clear(root);
+            if (!data.groups || data.groups.length === 0) {
+                var empty = el("div", "empty");
+                empty.appendChild(text("Ничего не найдено"));
+                root.appendChild(empty);
+            } else {
+                var frag = document.createDocumentFragment();
+                for (var i = 0; i < data.groups.length; i++) {
+                    frag.appendChild(renderGroup(data.groups[i]));
+                }
+                root.appendChild(frag);
+            }
         }
-        clear(root);
-        if (!data.groups || data.groups.length === 0) {
-            var empty = el("div", "empty");
-            empty.appendChild(text("Ничего не найдено"));
-            root.appendChild(empty);
-            return;
-        }
-        var frag = document.createDocumentFragment();
-        for (var i = 0; i < data.groups.length; i++) {
-            frag.appendChild(renderGroup(data.groups[i]));
-        }
-        root.appendChild(frag);
+        if (window.__hideLoading) window.__hideLoading();
     }
 
     render();
@@ -1475,16 +1559,12 @@
                         }
                     }
 
-                    var existingReplies = null;
-                    var siblings = parentRow.childNodes;
-                    for (var sIdx = 0; sIdx < siblings.length; sIdx++) {
-                        var sib = siblings[sIdx];
-                        if (sib && sib.nodeType === 1 && (sib.className || "") === "flat-replies") {
-                            existingReplies = sib;
-                            break;
-                        }
-                    }
-                    if (existingReplies) parentRow.removeChild(existingReplies);
+                    var parentMain = findDescendantByClass(parentRow, "flat-main");
+                    var existingReplies = parentMain ? findDirectChildByClass(parentMain, "flat-replies") : null;
+                    if (existingReplies) existingReplies.parentNode.removeChild(existingReplies);
+
+                    var parentFormHost = parentMain ? findDescendantByClass(parentMain, "flat-form-host") : null;
+                    if (parentFormHost) clearChildren(parentFormHost);
 
                     rebuildFlatActions(parentRow);
                     if (parentRow.__expandReplies) parentRow.__expandReplies();

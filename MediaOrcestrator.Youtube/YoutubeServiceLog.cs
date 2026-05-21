@@ -158,6 +158,11 @@ internal static partial class YoutubeServiceLog
         string videoId,
         Exception exception);
 
+    [LoggerMessage(EventId = 5052, Level = LogLevel.Information, Message = "YouTube: у видео {VideoId} отключены комментарии — пропуск")]
+    public static partial void CommentsDisabled(
+        this ILogger logger,
+        string videoId);
+
     [LoggerMessage(EventId = 5030, Level = LogLevel.Information, Message = "Превью сохранено через yt-dlp: {ThumbnailPath}")]
     public static partial void YtDlpThumbnailSaved(
         this ILogger logger,
@@ -272,4 +277,34 @@ internal static partial class YoutubeServiceLog
         string username,
         string title,
         string channelId);
+
+    [LoggerMessage(EventId = 5053, Level = LogLevel.Information, Message = "yt-dlp: получение комментариев для видео {VideoId}")]
+    public static partial void YtDlpCommentsFetching(
+        this ILogger logger,
+        string videoId);
+
+    [LoggerMessage(EventId = 5054, Level = LogLevel.Information, Message = "yt-dlp: комментарии для видео {VideoId} не получены (пусто или отключены)")]
+    public static partial void YtDlpCommentsEmpty(
+        this ILogger logger,
+        string videoId);
+
+    [LoggerMessage(EventId = 5055, Level = LogLevel.Information, Message = "yt-dlp комментарии: видео {VideoId}, верхних {TopLevel}, ответов {Replies}, макс. глубина {MaxDepth}")]
+    public static partial void YtDlpCommentsCompleted(
+        this ILogger logger,
+        string videoId,
+        int topLevel,
+        int replies,
+        int maxDepth);
+
+    [LoggerMessage(EventId = 5056, Level = LogLevel.Warning, Message = "yt-dlp не смог получить комментарии для видео {VideoId}, пробую YouTube API fallback")]
+    public static partial void YtDlpCommentsFailed(
+        this ILogger logger,
+        string videoId,
+        Exception exception);
+
+    [LoggerMessage(EventId = 5057, Level = LogLevel.Information, Message = "yt-dlp для комментариев недоступен (видео {VideoId}), пробую YouTube API fallback")]
+    public static partial void YtDlpCommentsUnavailable(
+        this ILogger logger,
+        string videoId,
+        Exception exception);
 }

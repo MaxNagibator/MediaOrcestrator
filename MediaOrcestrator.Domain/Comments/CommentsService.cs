@@ -23,13 +23,13 @@ public sealed class CommentsService(
     }
 
     public List<CommentRecord> Query(
-        string? sourceId = null,
+        IReadOnlyCollection<string>? sourceIds = null,
         DateTime? from = null,
         DateTime? to = null,
         string? textContains = null,
         int limit = 1000)
     {
-        return repository.Query(sourceId, null, from, to, textContains, limit);
+        return repository.Query(sourceIds, null, from, to, textContains, limit);
     }
 
     public async Task<int> RefreshAsync(
@@ -77,12 +77,15 @@ public sealed class CommentsService(
         CancellationToken cancellationToken = default)
     {
         var mutator = RequireMutator(source);
+        var (rootExternalCommentId, replyToAuthorName) = ResolveThreadContext(source.Id, link.ExternalId, parentExternalCommentId);
 
         CommentDto dto;
         if (!string.IsNullOrEmpty(authorId) && source.Type is ISupportsCommentAuthors authors)
         {
             dto = await authors.CreateCommentAsAsync(link.ExternalId,
                 parentExternalCommentId,
+                rootExternalCommentId,
+                replyToAuthorName,
                 text,
                 authorId,
                 source.Settings,
@@ -92,6 +95,8 @@ public sealed class CommentsService(
         {
             dto = await mutator.CreateCommentAsync(link.ExternalId,
                 parentExternalCommentId,
+                rootExternalCommentId,
+                replyToAuthorName,
                 text,
                 source.Settings,
                 cancellationToken);
@@ -275,5 +280,29 @@ public sealed class CommentsService(
             CanDelete = dto.CanDelete,
             Raw = dto.Raw,
         };
+    }
+
+    private (string? RootExternalCommentId, string? ReplyToAuthorName) ResolveThreadContext(
+        string sourceId,
+        string externalMediaId,
+        string? parentExternalCommentId)
+    {
+        if (string.IsNullOrEmpty(parentExternalCommentId))
+        {
+            return (null, null);
+        }
+
+        var parent = repository.GetById($"{sourceId}|{externalMediaId}|{parentExternalCommentId}");
+        if (parent == null)
+        {
+            return (null, null);
+        }
+
+        if (string.IsNullOrEmpty(parent.ParentExternalCommentId))
+        {
+            return (parent.ExternalCommentId, null);
+        }
+
+        return (parent.ParentExternalCommentId, parent.AuthorName);
     }
 }

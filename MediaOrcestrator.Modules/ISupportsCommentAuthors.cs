@@ -33,7 +33,14 @@ public interface ISupportsCommentAuthors
     /// </summary>
     /// <param name="externalMediaId">Идентификатор медиа в источнике.</param>
     /// <param name="parentExternalCommentId">
-    /// Идентификатор комментария, на который отвечаем; <see langword="null" /> для корневого.
+    /// Идентификатор комментария, на который отвечаем (адресат ответа); <see langword="null" /> для корневого.
+    /// </param>
+    /// <param name="rootExternalCommentId">
+    /// Идентификатор корневого комментария всей цепочки; <see langword="null" />, если сам ответ корневой.
+    /// </param>
+    /// <param name="replyToAuthorName">
+    /// Отображаемое имя автора <paramref name="parentExternalCommentId" /> для @-меншена; <see langword="null" />, если не
+    /// нужно.
     /// </param>
     /// <param name="text">Текст нового комментария.</param>
     /// <param name="authorId">
@@ -45,6 +52,8 @@ public interface ISupportsCommentAuthors
     Task<CommentDto> CreateCommentAsAsync(
         string externalMediaId,
         string? parentExternalCommentId,
+        string? rootExternalCommentId,
+        string? replyToAuthorName,
         string text,
         string? authorId,
         Dictionary<string, string> settings,

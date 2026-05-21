@@ -6,7 +6,8 @@ public interface IRutubeServiceFactory
 {
     RutubeService Create(
         string cookieString,
-        string csrfToken);
+        string studioCsrfToken,
+        string playerCsrfToken);
 }
 
 public sealed class RutubeServiceFactory(IHttpClientFactory httpClientFactory, ILogger<RutubeService> logger) : IRutubeServiceFactory
@@ -16,10 +17,11 @@ public sealed class RutubeServiceFactory(IHttpClientFactory httpClientFactory, I
 
     public RutubeService Create(
         string cookieString,
-        string csrfToken)
+        string studioCsrfToken,
+        string playerCsrfToken)
     {
         var apiClient = httpClientFactory.CreateClient(ApiClientName);
         var uploadClient = httpClientFactory.CreateClient(UploadClientName);
-        return new(apiClient, uploadClient, cookieString, csrfToken, logger);
+        return new(apiClient, uploadClient, cookieString, studioCsrfToken, playerCsrfToken, logger);
     }
 }

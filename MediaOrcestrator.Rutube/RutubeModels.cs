@@ -271,6 +271,150 @@ public class GetVideoApiResponse
     public int VideoCount { get; set; }
 }
 
+public sealed class RutubeCommentsResponse
+{
+    [JsonPropertyName("comments_count")]
+    public int CommentsCount { get; set; }
+
+    [JsonPropertyName("has_next")]
+    public bool HasNext { get; set; }
+
+    [JsonPropertyName("results")]
+    public List<RutubeCommentItem> Results { get; set; } = new();
+
+    [JsonPropertyName("pinned_comment")]
+    public RutubeCommentItem? PinnedComment { get; set; }
+
+    [JsonPropertyName("my_comment")]
+    public RutubeCommentItem? MyComment { get; set; }
+}
+
+public sealed class RutubeCommentItem
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+
+    [JsonPropertyName("video_id")]
+    public string VideoId { get; set; } = string.Empty;
+
+    [JsonPropertyName("created_ts_real")]
+    public long CreatedTsReal { get; set; }
+
+    [JsonPropertyName("updated_ts_real")]
+    public long UpdatedTsReal { get; set; }
+
+    [JsonPropertyName("edited_ts_real")]
+    public long? EditedTsReal { get; set; }
+
+    [JsonPropertyName("parent_id")]
+    public string? ParentId { get; set; }
+
+    [JsonPropertyName("bro_id")]
+    public string? BroId { get; set; }
+
+    [JsonPropertyName("user")]
+    public RutubeCommentUser User { get; set; } = new();
+
+    [JsonPropertyName("bro_user")]
+    public RutubeCommentBroUser? BroUser { get; set; }
+
+    [JsonPropertyName("replies_number")]
+    public int RepliesNumber { get; set; }
+
+    [JsonPropertyName("likes_number")]
+    public int LikesNumber { get; set; }
+
+    [JsonPropertyName("dislikes_number")]
+    public int DislikesNumber { get; set; }
+
+    [JsonPropertyName("state")]
+    public int State { get; set; }
+
+    [JsonPropertyName("is_deleted")]
+    public bool IsDeleted { get; set; }
+
+    [JsonPropertyName("is_pinned")]
+    public bool IsPinned { get; set; }
+
+    [JsonPropertyName("is_parent")]
+    public bool IsParent { get; set; }
+
+    [JsonPropertyName("author_replied")]
+    public bool AuthorReplied { get; set; }
+
+    [JsonPropertyName("current_user_liked")]
+    public bool CurrentUserLiked { get; set; }
+
+    [JsonPropertyName("current_user_disliked")]
+    public bool CurrentUserDisliked { get; set; }
+}
+
+public sealed class RutubeCommentUser
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("avatar_url")]
+    public string? AvatarUrl { get; set; }
+
+    [JsonPropertyName("site_url")]
+    public string? SiteUrl { get; set; }
+
+    [JsonPropertyName("is_official")]
+    public bool IsOfficial { get; set; }
+}
+
+public sealed class RutubeCommentBroUser
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+public sealed class RutubeCreateCommentRequest
+{
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+
+    [JsonPropertyName("parent_id")]
+    public string? ParentId { get; set; }
+}
+
+public sealed class RutubeEditCommentRequest
+{
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+}
+
+public sealed class RutubeReactionRequest
+{
+    [JsonPropertyName("reaction")]
+    public string Reaction { get; set; } = string.Empty;
+}
+
+public sealed class RutubeReactionResponse
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("comment_id")]
+    public string CommentId { get; set; } = string.Empty;
+
+    [JsonPropertyName("reaction")]
+    public string Reaction { get; set; } = string.Empty;
+
+    [JsonPropertyName("user_id")]
+    public long UserId { get; set; }
+}
+
 public class GetVideoApiItem : IRutubeVideoInfo
 {
     public string CreatedTsFormatted => CreatedTs.ToString("O");
