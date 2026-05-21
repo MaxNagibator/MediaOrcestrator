@@ -63,7 +63,7 @@ namespace MediaOrcestrator.Runner
             uiRefreshButton.Name = "uiRefreshButton";
             uiRefreshButton.Size = new Size(75, 23);
             uiRefreshButton.TabIndex = 2;
-            uiRefreshButton.Text = "button1";
+            uiRefreshButton.Text = "Обновить";
             uiRefreshButton.UseVisualStyleBackColor = true;
             uiRefreshButton.Click += uiRefreshButton_Click;
             // 
@@ -74,7 +74,7 @@ namespace MediaOrcestrator.Runner
             uiSearchTextBox.Size = new Size(100, 23);
             uiSearchTextBox.TabIndex = 3;
             uiSearchTextBox.Visible = false;
-            //
+            // 
             // uiMergerSelectedMediaButton
             // 
             uiMergerSelectedMediaButton.Location = new Point(453, 28);
@@ -84,9 +84,9 @@ namespace MediaOrcestrator.Runner
             uiMergerSelectedMediaButton.Text = "Объеденить выбранные";
             uiMergerSelectedMediaButton.UseVisualStyleBackColor = true;
             uiMergerSelectedMediaButton.Click += uiMergerSelectedMediaButton_Click;
-            //
+            // 
             // uiMergeAssistantButton
-            //
+            // 
             uiMergeAssistantButton.Location = new Point(616, 28);
             uiMergeAssistantButton.Name = "uiMergeAssistantButton";
             uiMergeAssistantButton.Size = new Size(180, 23);
@@ -94,7 +94,7 @@ namespace MediaOrcestrator.Runner
             uiMergeAssistantButton.Text = "Ассистент объединения";
             uiMergeAssistantButton.UseVisualStyleBackColor = true;
             uiMergeAssistantButton.Click += uiMergeAssistantButton_Click;
-            //
+            // 
             // uiLoadingLabel
             // 
             uiLoadingLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -127,41 +127,41 @@ namespace MediaOrcestrator.Runner
             uiFilteredCountLabel.Name = "uiFilteredCountLabel";
             uiFilteredCountLabel.Size = new Size(107, 17);
             uiFilteredCountLabel.Text = "Отфильтровано: 0";
-            //
+            // 
             // uiConvertProgressBar
-            //
+            // 
             uiConvertProgressBar.Name = "uiConvertProgressBar";
             uiConvertProgressBar.Size = new Size(150, 16);
             uiConvertProgressBar.Visible = false;
             uiConvertProgressBar.MouseDown += uiConvertProgressBar_MouseDown;
-            //
+            // 
             // uiConvertStatusLabel
-            //
+            // 
             uiConvertStatusLabel.Name = "uiConvertStatusLabel";
             uiConvertStatusLabel.Size = new Size(0, 17);
             uiConvertStatusLabel.Visible = false;
-            //
+            // 
             // uiFilterControl
-            //
+            // 
             uiFilterControl.Dock = DockStyle.Top;
             uiFilterControl.Location = new Point(0, 0);
             uiFilterControl.Name = "uiFilterControl";
             uiFilterControl.ShowStatusFilter = true;
             uiFilterControl.Size = new Size(1131, 25);
             uiFilterControl.TabIndex = 7;
-            //
+            // 
             // uiConvertCancelMenu
-            //
+            // 
             uiConvertCancelMenu.Items.AddRange(new ToolStripItem[] { uiCancelConvertItem });
             uiConvertCancelMenu.Name = "uiConvertCancelMenu";
             uiConvertCancelMenu.Size = new Size(206, 26);
-            //
+            // 
             // uiCancelConvertItem
-            //
+            // 
             uiCancelConvertItem.Name = "uiCancelConvertItem";
             uiCancelConvertItem.Size = new Size(205, 22);
             uiCancelConvertItem.Text = "Отменить конвертацию";
-            //
+            // 
             // MediaMatrixGridControl
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
