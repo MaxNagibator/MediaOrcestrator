@@ -276,6 +276,11 @@ public class Orcestrator(
                                 var existsVideos = cache.GetMedia(mediaSource.Id);
                                 foreach (var existsVideo in existsVideos)
                                 {
+                                    if (existsVideo.Status == MediaStatus.Skipped || string.IsNullOrEmpty(existsVideo.ExternalId))
+                                    {
+                                        continue;
+                                    }
+
                                     if (!foundIds.Contains(existsVideo.ExternalId))
                                     {
                                         existsVideo.Status = MediaStatus.Missing;

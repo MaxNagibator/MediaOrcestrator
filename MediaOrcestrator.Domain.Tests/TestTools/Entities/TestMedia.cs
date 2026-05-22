@@ -4,6 +4,8 @@ public class TestMedia : TestObject
 {
     private readonly List<MediaSourceLink> _links = [];
 
+    public string Id { get; private set; } = TestRandom.GetString("media");
+
     public string Title { get; private set; } = TestRandom.GetString("Title");
     public string Description { get; } = TestRandom.GetString("Desc");
 
@@ -21,6 +23,12 @@ public class TestMedia : TestObject
     public TestMedia SetTitle(string value)
     {
         Title = value;
+        return this;
+    }
+
+    public TestMedia AsSnapshotOf(TestMedia saved)
+    {
+        Id = saved.Id;
         return this;
     }
 
@@ -43,7 +51,7 @@ public class TestMedia : TestObject
     {
         var media = new Media
         {
-            Id = Environment.MediaId,
+            Id = Id,
             Title = Title,
             Description = Description,
             Sources = [],
@@ -65,5 +73,14 @@ public class TestMedia : TestObject
         }
 
         return media;
+    }
+
+    /// <summary>
+    /// Перечитывает связь с источником из БД — синхронизация правит БД мимо in-memory объекта.
+    /// </summary>
+    public MediaSourceLink? LinkTo(Source source)
+    {
+        var media = Environment.Database.GetCollection<Media>("medias").FindById(Id);
+        return media is null ? null : media.LinkTo(source);
     }
 }
