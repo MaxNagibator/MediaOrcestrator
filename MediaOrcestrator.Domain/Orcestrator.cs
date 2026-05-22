@@ -427,6 +427,8 @@ public class Orcestrator(
             await UpdateSourceMetadataAsync(media, sourceLink.SourceId, ct);
         }
 
+        SyncMediaTitleFromSingleSource(media);
+
         UpdateMedia(media);
         logger.LogInformation("Завершено принудительное обновление метаданных для {MediaTitle}", media.Title);
     }
@@ -435,6 +437,7 @@ public class Orcestrator(
     {
         media.Metadata.RemoveAll(m => m.SourceId == sourceId);
         await UpdateSourceMetadataAsync(media, sourceId, ct);
+        SyncMediaTitleFromSingleSource(media);
         UpdateMedia(media);
         logger.LogInformation("Обновлены метаданные источника {SourceId} для {MediaTitle}", sourceId, media.Title);
     }
@@ -1198,6 +1201,24 @@ public class Orcestrator(
         {
             logger.LogError(ex, "Ошибка при обновлении метаданных из источника {SourceTitle}", source.TitleFull);
         }
+    }
+
+    private void SyncMediaTitleFromSingleSource(Media media)
+    {
+        if (media.Sources.Count != 1)
+        {
+            return;
+        }
+
+        var sourceTitle = media.Sources[0].Title;
+
+        if (string.IsNullOrEmpty(sourceTitle) || media.Title == sourceTitle)
+        {
+            return;
+        }
+
+        logger.LogInformation("Название медиа обновлено: «{OldTitle}» → «{NewTitle}»", media.Title, sourceTitle);
+        media.Title = sourceTitle;
     }
 
     private void MarkUploadFailure(Media media, string toSourceId, string errorMessage)
