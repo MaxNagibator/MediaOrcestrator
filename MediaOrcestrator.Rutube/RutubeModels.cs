@@ -127,6 +127,9 @@ public sealed class VideoDetailsResponse : IRutubeVideoInfo
     [JsonPropertyName("is_hidden")]
     public bool IsHidden { get; set; }
 
+    [JsonPropertyName("is_adult")]
+    public bool IsAdult { get; set; }
+
     [JsonPropertyName("is_deleted")]
     public bool IsDeleted { get; set; }
 

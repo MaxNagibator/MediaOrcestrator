@@ -234,4 +234,21 @@ internal static partial class HardDiskDriveLog
         this ILogger logger,
         string backupPath,
         Exception exception);
+
+    [LoggerMessage(EventId = 1044, Level = LogLevel.Information, Message = "Обновление метаданных на HDD. ID: {ExternalId}, Название: '{Title}'")]
+    public static partial void UpdateStartingHdd(
+        this ILogger logger,
+        string externalId,
+        string title);
+
+    [LoggerMessage(EventId = 1045, Level = LogLevel.Warning, Message = "Файл {ExternalId} не найден в БД при обновлении метаданных")]
+    public static partial void UpdateFileMissing(
+        this ILogger logger,
+        string externalId);
+
+    [LoggerMessage(EventId = 1046, Level = LogLevel.Information, Message = "Метаданные на HDD обновлены. ID: {ExternalId}, Название: '{Title}'")]
+    public static partial void UpdateCompleted(
+        this ILogger logger,
+        string externalId,
+        string title);
 }

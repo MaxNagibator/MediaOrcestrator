@@ -139,6 +139,7 @@ public partial class MediaMatrixGridControl : UserControl, IMediaActionUi
         var selection = new MediaSelection(selectedMedia, specificSource)
         {
             InSelectionOrder = uiMediaGrid.GetSelectedMediaBySelectionOrder(),
+            GridSources = uiMediaGrid.CurrentSources,
         };
 
         _menuController.Show(selection, screenLocation);

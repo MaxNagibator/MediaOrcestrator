@@ -305,6 +305,12 @@ public sealed class UploadResult
     /// <see langword="null" /> – элемент не был создан.
     /// </summary>
     public string? Id { get; set; }
+
+    /// <summary>
+    /// Название, которое площадка вернула в ответе на запись. <see langword="null" /> – площадка не подтвердила
+    /// название в ответе.
+    /// </summary>
+    public string? ConfirmedTitle { get; set; }
 }
 
 /// <summary>

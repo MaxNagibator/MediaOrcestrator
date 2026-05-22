@@ -40,17 +40,11 @@ internal sealed class EditAction : IMediaMenuAction
     private static Task RunRename(MediaSelection selection, MediaActionContext ctx)
     {
         var medias = selection.Items.ToList();
-        using var form = new BatchRenameForm(medias, ctx.BatchRenameService);
 
-        if (!selection.IsBatch)
-        {
-            form.Text = $"Переименование «{medias[0].Title}»";
-        }
-
-        if (form.ShowDialog(ctx.Ui.Owner) == DialogResult.OK)
-        {
-            ctx.Ui.NotifyDataChanged();
-        }
+        var gridSourceIds = selection.GridSources?.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+        var form = new BatchRenameForm(medias, ctx.BatchRenameService, selection.SpecificSource, gridSourceIds);
+        form.DataChanged += (_, _) => ctx.Ui.NotifyDataChanged();
+        form.Show(ctx.Ui.Owner);
 
         return Task.CompletedTask;
     }

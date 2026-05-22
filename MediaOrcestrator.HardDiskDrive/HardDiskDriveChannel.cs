@@ -266,7 +266,35 @@ public sealed class HardDiskDriveChannel(
         Dictionary<string, string> settings,
         CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        logger.UpdateStartingHdd(externalId, tempMedia.Title);
+
+        using var db = HardDiskDriveStore.OpenOrThrow(settings, out _);
+        var collection = db.GetCollection<DriveMedia>("files");
+        var file = collection.FindById(externalId);
+
+        if (file == null)
+        {
+            logger.UpdateFileMissing(externalId);
+
+            return Task.FromResult(new UploadResult
+            {
+                Status = MediaStatusHelper.GetById(MediaStatus.Missing),
+                Id = externalId,
+                Message = "Файл не найден в БД источника",
+            });
+        }
+
+        file.Title = tempMedia.Title;
+        file.Description = tempMedia.Description ?? string.Empty;
+        collection.Update(file);
+
+        logger.UpdateCompleted(externalId, tempMedia.Title);
+
+        return Task.FromResult(new UploadResult
+        {
+            Status = MediaStatusHelper.Ok(),
+            Id = externalId,
+        });
     }
 
     public Task DeleteAsync(

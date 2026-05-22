@@ -132,7 +132,7 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
         }
 
         var updateRequest = service.Videos.Update(video, "snippet,status");
-        await updateRequest.ExecuteAsync(cancellationToken);
+        var updated = await updateRequest.ExecuteAsync(cancellationToken);
 
         logger.UpdateCompleted(externalId);
 
@@ -145,6 +145,7 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
         {
             Status = MediaStatusHelper.Ok(),
             Id = externalId,
+            ConfirmedTitle = updated?.Snippet?.Title,
         };
     }
 

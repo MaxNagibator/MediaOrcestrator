@@ -205,9 +205,13 @@ public sealed partial class RutubeService
 
     public async Task<VideoDetailsResponse> GetVideoByIdAsync(
         string videoId,
+        bool ownChannel = true,
         CancellationToken cancellationToken = default)
     {
-        var url = $"https://studio.rutube.ru/api/v2/video/{videoId}/?client=vulp";
+        var url = ownChannel
+            ? $"https://studio.rutube.ru/api/v2/video/private/{videoId}/?client=vulp"
+            : $"https://studio.rutube.ru/api/v2/video/{videoId}/?client=vulp";
+
         _logger.RequestingVideoInfo(videoId);
 
         using var request = CreateRequest(HttpMethod.Get, url);
@@ -226,6 +230,48 @@ public sealed partial class RutubeService
 
         _logger.VideoInfoReceived(result.Title);
         return result;
+    }
+
+    public async Task<VideoDetailsResponse> UpdateVideoMetadataAsync(
+        string videoId,
+        string title,
+        string description,
+        CancellationToken cancellationToken = default)
+    {
+        var current = await GetVideoByIdAsync(videoId, true, cancellationToken);
+
+        var url = $"https://studio.rutube.ru/api/v2/video/{videoId}/?client=vulp";
+        var payload = new MetadataUpdateRequest
+        {
+            Title = title,
+            Description = description ?? string.Empty,
+            IsHidden = current.IsHidden,
+            IsAdult = current.IsAdult,
+            Category = current.Category.Id.ToString(),
+            Properties = new()
+            {
+                HideComments = current.Properties.HideComments,
+            },
+        };
+
+        var jsonPayload = JsonSerializer.Serialize(payload, RutubeJsonContext.Default.MetadataUpdateRequest);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        using var request = CreateRequest(HttpMethod.Patch, url, content);
+        using var response = await SendApiAsync(Operations.UpdateMetadata, request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.MetadataUpdateFailed(response.StatusCode, err);
+            throw new HttpRequestException($"Не удалось обновить метаданные видео {videoId}: {response.StatusCode}. Ответ: {err}");
+        }
+
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var videoDetails = await JsonSerializer.DeserializeAsync(body, RutubeJsonContext.Default.VideoDetailsResponse, cancellationToken)
+                           ?? throw new InvalidOperationException($"RuTube вернул пустой ответ на обновление видео {videoId}");
+
+        _logger.MetadataConfirmed(videoDetails.Title, videoDetails.Category.Name, videoDetails.IsHidden);
+        return videoDetails;
     }
 
     public async Task<List<CategoryInfo>> GetCategoriesAsync(CancellationToken cancellationToken = default)

@@ -9,4 +9,5 @@ public sealed record MediaSelection(IReadOnlyList<Media> Items, Source? Specific
     public Media First => Items[0];
 
     public IReadOnlyList<Media> InSelectionOrder { get; init; } = Items;
+    public IReadOnlyList<Source>? GridSources { get; init; }
 }
