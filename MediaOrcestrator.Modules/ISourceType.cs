@@ -281,6 +281,12 @@ public enum SettingType
 
     /// <summary>Выбор файла через диалог.</summary>
     FilePath = 4,
+
+    /// <summary>
+    /// Чувствительные данные (токены, секреты, пароли). Значение по умолчанию маскируется,
+    /// у поля есть кнопка переключения видимости.
+    /// </summary>
+    Secret = 5,
 }
 
 /// <summary>
@@ -299,6 +305,12 @@ public sealed class UploadResult
     /// <see langword="null" /> – элемент не был создан.
     /// </summary>
     public string? Id { get; set; }
+
+    /// <summary>
+    /// Название, которое площадка вернула в ответе на запись. <see langword="null" /> – площадка не подтвердила
+    /// название в ответе.
+    /// </summary>
+    public string? ConfirmedTitle { get; set; }
 }
 
 /// <summary>

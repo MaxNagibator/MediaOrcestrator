@@ -57,6 +57,32 @@ file sealed class OrcestratorTransferByRelationTests
     }
 
     [Test]
+    public async Task Провал_заливки_помечает_действие_заливки_ошибкой_а_не_успехом()
+    {
+        _env.WithMedia()
+            .WithSourceLink(_env.From, MediaStatus.Ok);
+
+        _env.Save();
+
+        var media = _env.SnapshotMedia()
+            .WithSourceLink(_env.From, MediaStatus.Ok)
+            .Build();
+
+        _env.WhenUploadFails("Превышена квота YouTube API");
+
+        var result = await _env.Transfer(media);
+
+        var uploadAction = _env.Actions.CompletedSnapshot()
+            .Single(action => action.Kind == ActionKind.Upload);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Error, Is.Not.Null, "Провальная заливка должна провалить трансфер");
+            Assert.That(uploadAction.State, Is.EqualTo(ActionState.Failed));
+        }
+    }
+
+    [Test]
     public async Task Трансфер_не_блокируется_когда_связи_с_целевым_источником_ещё_нет()
     {
         _env.WithMedia()

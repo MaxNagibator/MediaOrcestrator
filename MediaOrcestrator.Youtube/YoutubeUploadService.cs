@@ -47,20 +47,16 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
 
         request.ProgressChanged += progress =>
         {
-            switch (progress.Status)
+            if (progress.Status != UploadStatus.Uploading)
             {
-                case UploadStatus.Uploading:
-                    var percent = rawFileStream.Length > 0
-                        ? (double)progress.BytesSent / rawFileStream.Length
-                        : 0;
-
-                    bucketedProgress.Report(percent);
-                    break;
-
-                case UploadStatus.Failed:
-                    logger.UploadFailed(progress.Exception?.Message ?? "Неизвестная ошибка");
-                    break;
+                return;
             }
+
+            var percent = rawFileStream.Length > 0
+                ? (double)progress.BytesSent / rawFileStream.Length
+                : 0;
+
+            bucketedProgress.Report(percent);
         };
 
         var response = await request.UploadAsync(cancellationToken);
@@ -69,15 +65,15 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
         {
             var errorMessage = response.Exception?.Message ?? "Неизвестная ошибка";
 
-            if (errorMessage.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase))
+            if (IsUploadLimitError(errorMessage))
             {
                 logger.QuotaExceeded();
-                errorMessage = "Превышена квота YouTube API (лимит ~6 видео/день)";
+
+                throw new NonRetriableException("Превышена квота YouTube API (лимит ~6 видео/день)",
+                    response.Exception ?? new InvalidOperationException(errorMessage));
             }
-            else
-            {
-                logger.UploadFailed(errorMessage);
-            }
+
+            logger.UploadFailed(errorMessage);
 
             return new()
             {
@@ -136,7 +132,7 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
         }
 
         var updateRequest = service.Videos.Update(video, "snippet,status");
-        await updateRequest.ExecuteAsync(cancellationToken);
+        var updated = await updateRequest.ExecuteAsync(cancellationToken);
 
         logger.UpdateCompleted(externalId);
 
@@ -149,7 +145,15 @@ internal sealed class YoutubeUploadService(ILogger<YoutubeUploadService> logger)
         {
             Status = MediaStatusHelper.Ok(),
             Id = externalId,
+            ConfirmedTitle = updated?.Snippet?.Title,
         };
+    }
+
+    private static bool IsUploadLimitError(string errorMessage)
+    {
+        return errorMessage.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase)
+               || errorMessage.Contains("uploadLimitExceeded", StringComparison.OrdinalIgnoreCase)
+               || errorMessage.Contains("number of videos they may upload", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Video CreateVideoResource(

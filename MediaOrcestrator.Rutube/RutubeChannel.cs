@@ -133,7 +133,8 @@ public sealed class RutubeChannel(
     {
         logger.RequestingChannelMedia(externalId);
         var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
-        var video = await rutubeService.GetVideoByIdAsync(externalId, cancellationToken);
+        var ownChannel = GetForeignUserId(settings) == null;
+        var video = await rutubeService.GetVideoByIdAsync(externalId, ownChannel, cancellationToken);
         return CreateMediaDto(video);
     }
 
@@ -362,19 +363,29 @@ public sealed class RutubeChannel(
         EnsureWritable(settings);
         logger.UpdateStarting(media.Title);
 
-        var rutubeCategoryId = settings["category_id"];
         var rutubeService = await CreateRutubeServiceAsync(settings, cancellationToken);
 
         try
         {
-            // пока тока превью обновляем
-            var result = await rutubeService.UploadVideoAsync(externalId,
-                null,
-                media.Title,
-                media.Description,
-                rutubeCategoryId,
-                media.TempPreviewPath,
-                cancellationToken: cancellationToken);
+            var updated = await rutubeService.UpdateVideoMetadataAsync(externalId, media.Title, media.Description, cancellationToken);
+
+            if (!string.IsNullOrEmpty(media.TempPreviewPath))
+            {
+                await rutubeService.UploadVideoAsync(externalId,
+                    null,
+                    media.Title,
+                    media.Description,
+                    settings.GetValueOrDefault("category_id", string.Empty),
+                    media.TempPreviewPath,
+                    cancellationToken: cancellationToken);
+            }
+
+            var result = new UploadResult
+            {
+                Status = MediaStatusHelper.Ok(),
+                Id = externalId,
+                ConfirmedTitle = updated.Title,
+            };
 
             logger.VideoUploaded(result.Status.Id, result.Id, media.Title);
 

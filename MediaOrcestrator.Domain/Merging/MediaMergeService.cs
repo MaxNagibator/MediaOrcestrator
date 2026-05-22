@@ -1,3 +1,4 @@
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
 
 namespace MediaOrcestrator.Domain.Merging;
@@ -41,14 +42,21 @@ public sealed class MediaMergeService(Orcestrator orcestrator, ILogger<MediaMerg
         {
             foreach (var sourceLink in media.Sources ?? [])
             {
-                if (sourceDict.TryAdd(sourceLink.SourceId, sourceLink))
+                if (sourceDict.TryGetValue(sourceLink.SourceId, out var kept))
                 {
+                    var source = allSources.FirstOrDefault(s => s.Id == sourceLink.SourceId);
+                    var sourceName = source?.TitleFull ?? sourceLink.SourceId;
+                    conflicts.Add($"Источник '{sourceName}' присутствует в нескольких медиа");
+
+                    if (StatusRank(sourceLink.Status) > StatusRank(kept.Status))
+                    {
+                        sourceDict[sourceLink.SourceId] = sourceLink;
+                    }
+
                     continue;
                 }
 
-                var source = allSources.FirstOrDefault(s => s.Id == sourceLink.SourceId);
-                var sourceName = source?.TitleFull ?? sourceLink.SourceId;
-                conflicts.Add($"Источник '{sourceName}' присутствует в нескольких медиа");
+                sourceDict[sourceLink.SourceId] = sourceLink;
             }
         }
 
@@ -88,5 +96,19 @@ public sealed class MediaMergeService(Orcestrator orcestrator, ILogger<MediaMerg
 
         logger.LogInformation("Объединение завершено. Итого источников: {TotalSourcesCount}",
             preview.TotalSourcesCount);
+    }
+
+    private static int StatusRank(string? status)
+    {
+        return status switch
+        {
+            MediaStatus.Ok => 5,
+            MediaStatus.PartialOk => 4,
+            MediaStatus.Skipped => 3,
+            MediaStatus.None => 2,
+            MediaStatus.Error => 1,
+            MediaStatus.Missing => 0,
+            _ => -1,
+        };
     }
 }
