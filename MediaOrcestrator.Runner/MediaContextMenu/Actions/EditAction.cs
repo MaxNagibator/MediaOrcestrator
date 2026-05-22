@@ -42,7 +42,7 @@ internal sealed class EditAction : IMediaMenuAction
         var medias = selection.Items.ToList();
 
         var gridSourceIds = selection.GridSources?.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
-        var form = new BatchRenameForm(medias, ctx.BatchRenameService, selection.SpecificSource, gridSourceIds);
+        var form = new BatchRenameForm(medias, ctx.BatchRenameService, ctx.Logger, ctx.ActionHolder, selection.SpecificSource, gridSourceIds);
         form.DataChanged += (_, _) => ctx.Ui.NotifyDataChanged();
         form.Show(ctx.Ui.Owner);
 

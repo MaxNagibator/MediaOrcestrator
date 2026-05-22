@@ -36,12 +36,18 @@ partial class BatchRenameForm
         uiSourcesAllLink = new LinkLabel();
         uiSourcesNoneLink = new LinkLabel();
 
+        uiRowSelectPanel = new FlowLayoutPanel();
+        uiRowSelectLabel = new Label();
+        uiRowAllLink = new LinkLabel();
+        uiRowNoneLink = new LinkLabel();
+
         uiPreviewGrid = new DataGridView();
         uiApplyColumn = new DataGridViewCheckBoxColumn();
         uiOldTitleColumn = new DataGridViewTextBoxColumn();
         uiNewTitleColumn = new DataGridViewTextBoxColumn();
+        uiSourcesColumn = new DataGridViewTextBoxColumn();
 
-        uiLogTextBox = new TextBox();
+        uiLogBox = new RichTextBox();
 
         uiStatusPanel = new TableLayoutPanel();
         uiProgressBar = new ProgressBar();
@@ -54,6 +60,7 @@ partial class BatchRenameForm
 
         uiMainLayout.SuspendLayout();
         uiInputPanel.SuspendLayout();
+        uiRowSelectPanel.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)uiPreviewGrid).BeginInit();
         uiStatusPanel.SuspendLayout();
         uiButtonPanel.SuspendLayout();
@@ -71,15 +78,17 @@ partial class BatchRenameForm
         uiMainLayout.ColumnCount = 1;
         uiMainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         uiMainLayout.Controls.Add(uiInputPanel, 0, 0);
-        uiMainLayout.Controls.Add(uiPreviewGrid, 0, 1);
-        uiMainLayout.Controls.Add(uiLogTextBox, 0, 2);
-        uiMainLayout.Controls.Add(uiStatusPanel, 0, 3);
-        uiMainLayout.Controls.Add(uiButtonPanel, 0, 4);
+        uiMainLayout.Controls.Add(uiRowSelectPanel, 0, 1);
+        uiMainLayout.Controls.Add(uiPreviewGrid, 0, 2);
+        uiMainLayout.Controls.Add(uiLogBox, 0, 3);
+        uiMainLayout.Controls.Add(uiStatusPanel, 0, 4);
+        uiMainLayout.Controls.Add(uiButtonPanel, 0, 5);
         uiMainLayout.Dock = DockStyle.Fill;
         uiMainLayout.Location = new Point(0, 0);
         uiMainLayout.Name = "uiMainLayout";
         uiMainLayout.Padding = new Padding(10);
-        uiMainLayout.RowCount = 5;
+        uiMainLayout.RowCount = 6;
+        uiMainLayout.RowStyles.Add(new RowStyle());
         uiMainLayout.RowStyles.Add(new RowStyle());
         uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 62F));
         uiMainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 38F));
@@ -235,6 +244,47 @@ partial class BatchRenameForm
         uiSourcesNoneLink.LinkClicked += (s, e) => SetAllSources(false);
 
         //
+        // uiRowSelectPanel
+        //
+        uiRowSelectPanel.AutoSize = true;
+        uiRowSelectPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        uiRowSelectPanel.Dock = DockStyle.Fill;
+        uiRowSelectPanel.FlowDirection = FlowDirection.LeftToRight;
+        uiRowSelectPanel.Margin = new Padding(3, 6, 3, 2);
+        uiRowSelectPanel.Name = "uiRowSelectPanel";
+        uiRowSelectPanel.WrapContents = false;
+        uiRowSelectPanel.TabIndex = 1;
+        uiRowSelectPanel.Controls.Add(uiRowSelectLabel);
+        uiRowSelectPanel.Controls.Add(uiRowAllLink);
+        uiRowSelectPanel.Controls.Add(uiRowNoneLink);
+
+        //
+        // uiRowSelectLabel
+        //
+        uiRowSelectLabel.AutoSize = true;
+        uiRowSelectLabel.Name = "uiRowSelectLabel";
+        uiRowSelectLabel.Text = "Записи:";
+        uiRowSelectLabel.Margin = new Padding(0, 3, 4, 3);
+
+        //
+        // uiRowAllLink
+        //
+        uiRowAllLink.AutoSize = true;
+        uiRowAllLink.Name = "uiRowAllLink";
+        uiRowAllLink.Text = "выбрать все";
+        uiRowAllLink.Margin = new Padding(4, 3, 4, 3);
+        uiRowAllLink.LinkClicked += (s, e) => SetAllRows(true);
+
+        //
+        // uiRowNoneLink
+        //
+        uiRowNoneLink.AutoSize = true;
+        uiRowNoneLink.Name = "uiRowNoneLink";
+        uiRowNoneLink.Text = "снять все";
+        uiRowNoneLink.Margin = new Padding(4, 3, 4, 3);
+        uiRowNoneLink.LinkClicked += (s, e) => SetAllRows(false);
+
+        //
         // uiPreviewGrid
         //
         uiPreviewGrid.AllowUserToAddRows = false;
@@ -247,13 +297,14 @@ partial class BatchRenameForm
             uiApplyColumn,
             uiOldTitleColumn,
             uiNewTitleColumn,
+            uiSourcesColumn,
         });
         uiPreviewGrid.Dock = DockStyle.Fill;
         uiPreviewGrid.Name = "uiPreviewGrid";
         uiPreviewGrid.RowHeadersVisible = false;
         uiPreviewGrid.SelectionMode = DataGridViewSelectionMode.RowHeaderSelect;
         uiPreviewGrid.MultiSelect = false;
-        uiPreviewGrid.TabIndex = 1;
+        uiPreviewGrid.TabIndex = 2;
         uiPreviewGrid.CellValueChanged += uiPreviewGrid_CellValueChanged;
         uiPreviewGrid.CurrentCellDirtyStateChanged += uiPreviewGrid_CurrentCellDirtyStateChanged;
 
@@ -273,6 +324,7 @@ partial class BatchRenameForm
         uiOldTitleColumn.HeaderText = "Было";
         uiOldTitleColumn.Name = "uiOldTitleColumn";
         uiOldTitleColumn.ReadOnly = true;
+        uiOldTitleColumn.FillWeight = 85F;
         uiOldTitleColumn.DefaultCellStyle.ForeColor = Color.Gray;
 
         //
@@ -280,20 +332,29 @@ partial class BatchRenameForm
         //
         uiNewTitleColumn.HeaderText = "Стало (двойной клик — править)";
         uiNewTitleColumn.Name = "uiNewTitleColumn";
+        uiNewTitleColumn.FillWeight = 125F;
 
         //
-        // uiLogTextBox
+        // uiSourcesColumn
         //
-        uiLogTextBox.BackColor = SystemColors.Window;
-        uiLogTextBox.Dock = DockStyle.Fill;
-        uiLogTextBox.Multiline = true;
-        uiLogTextBox.Name = "uiLogTextBox";
-        uiLogTextBox.PlaceholderText = "Журнал переименования";
-        uiLogTextBox.ReadOnly = true;
-        uiLogTextBox.ScrollBars = ScrollBars.Vertical;
-        uiLogTextBox.TabIndex = 2;
-        uiLogTextBox.TabStop = false;
-        uiLogTextBox.Margin = new Padding(3, 6, 3, 6);
+        uiSourcesColumn.HeaderText = "Площадки";
+        uiSourcesColumn.Name = "uiSourcesColumn";
+        uiSourcesColumn.ReadOnly = true;
+        uiSourcesColumn.FillWeight = 95F;
+
+        //
+        // uiLogBox
+        //
+        uiLogBox.BackColor = SystemColors.Window;
+        uiLogBox.BorderStyle = BorderStyle.FixedSingle;
+        uiLogBox.DetectUrls = false;
+        uiLogBox.Dock = DockStyle.Fill;
+        uiLogBox.HideSelection = false;
+        uiLogBox.Name = "uiLogBox";
+        uiLogBox.ReadOnly = true;
+        uiLogBox.ScrollBars = RichTextBoxScrollBars.Vertical;
+        uiLogBox.TabStop = false;
+        uiLogBox.Margin = new Padding(3, 6, 3, 6);
 
         //
         // uiStatusPanel
@@ -355,7 +416,6 @@ partial class BatchRenameForm
         //
         // uiCancelButton
         //
-        uiCancelButton.DialogResult = DialogResult.Cancel;
         uiCancelButton.Name = "uiCancelButton";
         uiCancelButton.Size = new Size(100, 27);
         uiCancelButton.TabIndex = 0;
@@ -391,6 +451,8 @@ partial class BatchRenameForm
         uiMainLayout.PerformLayout();
         uiInputPanel.ResumeLayout(false);
         uiInputPanel.PerformLayout();
+        uiRowSelectPanel.ResumeLayout(false);
+        uiRowSelectPanel.PerformLayout();
         ((System.ComponentModel.ISupportInitialize)uiPreviewGrid).EndInit();
         uiStatusPanel.ResumeLayout(false);
         uiStatusPanel.PerformLayout();
@@ -415,11 +477,16 @@ partial class BatchRenameForm
     private FlowLayoutPanel uiSourcesPanel;
     private LinkLabel uiSourcesAllLink;
     private LinkLabel uiSourcesNoneLink;
+    private FlowLayoutPanel uiRowSelectPanel;
+    private Label uiRowSelectLabel;
+    private LinkLabel uiRowAllLink;
+    private LinkLabel uiRowNoneLink;
     private DataGridView uiPreviewGrid;
     private DataGridViewCheckBoxColumn uiApplyColumn;
     private DataGridViewTextBoxColumn uiOldTitleColumn;
     private DataGridViewTextBoxColumn uiNewTitleColumn;
-    private TextBox uiLogTextBox;
+    private DataGridViewTextBoxColumn uiSourcesColumn;
+    private RichTextBox uiLogBox;
     private TableLayoutPanel uiStatusPanel;
     private ProgressBar uiProgressBar;
     private Label uiStatusLabel;

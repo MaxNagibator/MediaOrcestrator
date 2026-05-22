@@ -322,22 +322,144 @@ public sealed class BatchRenameServiceTests
         }
     }
 
+    [Test]
+    public async Task Площадка_уже_с_нужным_названием_не_дёргается_а_отставшая_досинхронизируется()
+    {
+        using var bed = TestBed.Create();
+        var synced = bed.RegisterSource<FakeSourceA>("src-a");
+        var drifted = bed.RegisterSource<FakeSourceB>("src-b");
+
+        var media = bed.AddMedia("Целевое",
+            ("src-a", "ext-a", MediaStatus.Ok),
+            ("src-b", "ext-b", MediaStatus.Ok));
+
+        media.Sources.Single(s => s.SourceId == "src-b").Title = "Старое";
+        bed.SaveMedia(media);
+
+        var results = await bed.Service.ApplyAsync([new(media, "Целевое", null)],
+            null,
+            null,
+            CancellationToken.None);
+
+        var result = results.Single();
+        var persisted = bed.GetMedia(media.Id);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Success, Is.True);
+            Assert.That(synced.UpdateCalls, Is.Empty, "Площадку с актуальным названием повторно дёргать не нужно");
+            Assert.That(drifted.UpdateCalls.Select(c => c.Dto.Title), Is.EqualTo(["Целевое"]),
+                "Отставшая площадка получает досинхрон, даже когда media.Title уже целевой");
+
+            Assert.That(result.Sources.Single(s => s.SourceId == "src-a").Outcome, Is.EqualTo(BatchRenameSourceOutcome.AlreadyUpToDate));
+            Assert.That(result.Sources.Single(s => s.SourceId == "src-b").Outcome, Is.EqualTo(BatchRenameSourceOutcome.Updated));
+            Assert.That(persisted.Sources.Single(s => s.SourceId == "src-b").Title, Is.EqualTo("Целевое"));
+        }
+    }
+
+    [Test]
+    public async Task Все_площадки_уже_синхронны_успех_без_запросов_к_источникам()
+    {
+        using var bed = TestBed.Create();
+        var source = bed.RegisterSource<FakeSourceA>("src-a");
+
+        var media = bed.AddMedia("Актуальное", ("src-a", "ext-a", MediaStatus.Ok));
+
+        var results = await bed.Service.ApplyAsync([new(media, "Актуальное", null)],
+            null,
+            null,
+            CancellationToken.None);
+
+        var result = results.Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Success, Is.True, "Повторное переименование уже синхронной media — чистый no-op, а не провал");
+            Assert.That(source.UpdateCalls, Is.Empty);
+            Assert.That(result.Sources.Single().Outcome, Is.EqualTo(BatchRenameSourceOutcome.AlreadyUpToDate));
+        }
+    }
+
+    [Test]
+    public async Task Отмена_подзадачи_одного_медиа_не_валит_батч_остальные_идут_дальше()
+    {
+        using var bed = TestBed.Create();
+        var source = bed.RegisterSource<FakeSourceA>("src-a");
+
+        var first = bed.AddMedia("Первое", ("src-a", "ext-1", MediaStatus.Ok));
+        var second = bed.AddMedia("Второе", ("src-a", "ext-2", MediaStatus.Ok));
+        var third = bed.AddMedia("Третье", ("src-a", "ext-3", MediaStatus.Ok));
+
+        source.UpdateHandler = (externalId, _, _, token) =>
+        {
+            if (externalId == "ext-2")
+            {
+                var active = bed.ActionHolder.Snapshot().Single(a => a.Name.Contains("Второе"));
+                active.Cancel();
+                token.ThrowIfCancellationRequested();
+            }
+
+            return Task.FromResult(new UploadResult { Status = MediaStatusHelper.Ok(), Id = externalId });
+        };
+
+        var results = await bed.Service.ApplyAsync([
+                new(first, "Н1", null),
+                new(second, "Н2", null),
+                new(third, "Н3", null),
+            ],
+            null,
+            null,
+            CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(3));
+            Assert.That(results[0].Success, Is.True, "Первое медиа доехало до отмены второго");
+            Assert.That(results[1].Success, Is.False);
+            Assert.That(results[1].ErrorMessage, Does.Contain("Отменено"));
+            Assert.That(results[2].Success, Is.True,
+                "Третье медиа отрабатывает — отмена подзадачи режет только её, не весь батч");
+
+            Assert.That(source.UpdateCalls.Select(c => c.ExternalId), Is.EqualTo(["ext-1", "ext-2", "ext-3"]),
+                "Третий ext-id всё равно должен был получить запрос");
+        }
+    }
+
+    [Test]
+    public void Префлайт_авторизации_возвращает_только_неавторизованные_площадки()
+    {
+        using var bed = TestBed.Create();
+
+        var loggedIn = bed.RegisterSource<FakeAuthSource>("src-auth-ok");
+        loggedIn.Authenticated = true;
+
+        bed.RegisterSource<FakeAuthSource>("src-auth-no");
+        bed.RegisterSource<FakeSourceA>("src-plain");
+
+        var pending = bed.Service.GetUnauthenticatedSources(["src-auth-ok", "src-auth-no", "src-plain"]);
+
+        Assert.That(pending.Select(p => p.SourceId), Is.EquivalentTo(["src-auth-no"]),
+            "Префлайт зовёт вход только для площадок с авторизацией, которая ещё не пройдена");
+    }
+
     private sealed class TestBed : IDisposable
     {
         private readonly List<FakeSourceTypeBase> _sourceTypes = [];
 
-        private TestBed(LiteDatabase database, Orcestrator orcestrator, PluginManager pluginManager, BatchRenameService service)
+        private TestBed(LiteDatabase database, Orcestrator orcestrator, PluginManager pluginManager, BatchRenameService service, ActionHolder actionHolder)
         {
             Database = database;
             Orcestrator = orcestrator;
             PluginManager = pluginManager;
             Service = service;
+            ActionHolder = actionHolder;
         }
 
         public LiteDatabase Database { get; }
         public Orcestrator Orcestrator { get; }
         public PluginManager PluginManager { get; }
         public BatchRenameService Service { get; }
+        public ActionHolder ActionHolder { get; }
 
         public static TestBed Create()
         {
@@ -345,10 +467,11 @@ public sealed class BatchRenameServiceTests
             var pluginManager = new PluginManager([], null!, NullLogger<PluginManager>.Instance);
             var actionHolder = new ActionHolder(NullLogger<ActionHolder>.Instance);
             var tempManager = new TempManager(Path.Combine(Path.GetTempPath(), "MediaOrcestratorTests"), database, NullLogger<TempManager>.Instance);
-            var orcestrator = new Orcestrator(pluginManager, database, tempManager, null!, actionHolder, NullLogger<Orcestrator>.Instance);
-            var service = new BatchRenameService(orcestrator, NullLogger<BatchRenameService>.Instance);
+            var stateManager = new StateManager(Path.Combine(Path.GetTempPath(), "MediaOrcestratorTests", "state"), database, NullLogger<StateManager>.Instance);
+            var orcestrator = new Orcestrator(pluginManager, database, tempManager, stateManager, actionHolder, NullLogger<Orcestrator>.Instance);
+            var service = new BatchRenameService(orcestrator, actionHolder, NullLogger<BatchRenameService>.Instance);
 
-            return new(database, orcestrator, pluginManager, service);
+            return new(database, orcestrator, pluginManager, service, actionHolder);
         }
 
         public T RegisterSource<T>(string sourceId) where T : FakeSourceTypeBase, new()
@@ -489,4 +612,20 @@ public sealed class BatchRenameServiceTests
     private sealed class FakeSourceA : FakeSourceTypeBase;
 
     private sealed class FakeSourceB : FakeSourceTypeBase;
+
+    private sealed class FakeAuthSource : FakeSourceTypeBase, IAuthenticatable
+    {
+        public bool Authenticated { get; set; }
+
+        public bool IsAuthenticated(Dictionary<string, string> settings)
+        {
+            return Authenticated;
+        }
+
+        public Task AuthenticateAsync(Dictionary<string, string> settings, IAuthUI ui, CancellationToken ct)
+        {
+            Authenticated = true;
+            return Task.CompletedTask;
+        }
+    }
 }
