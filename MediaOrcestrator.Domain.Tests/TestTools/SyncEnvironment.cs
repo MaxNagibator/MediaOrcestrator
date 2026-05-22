@@ -15,12 +15,13 @@ public sealed class SyncEnvironment : IDisposable
     private SyncEnvironment()
     {
         Database = new(":memory:");
+        Actions = new(NullLogger<ActionHolder>.Instance);
 
         _orcestrator = new(null!,
             Database,
             null!,
             null!,
-            new(NullLogger<ActionHolder>.Instance),
+            Actions,
             NullLogger<Orcestrator>.Instance);
 
         FromType = Substitute.For<ISourceType>();
@@ -49,6 +50,8 @@ public sealed class SyncEnvironment : IDisposable
     public string MediaId { get; } = TestRandom.GetString("media");
 
     public LiteDatabase Database { get; }
+
+    public ActionHolder Actions { get; }
 
     public ISourceType FromType { get; }
     public ISourceType ToType { get; }
@@ -95,6 +98,15 @@ public sealed class SyncEnvironment : IDisposable
         FromType
             .DownloadAsync(Arg.Any<string>(), Arg.Any<Dictionary<string, string>>(), Arg.Any<IProgress<DownloadProgress>>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException(message));
+
+        return this;
+    }
+
+    public SyncEnvironment WhenUploadFails(string message)
+    {
+        ToType
+            .UploadAsync(Arg.Any<MediaDto>(), Arg.Any<Dictionary<string, string>>(), Arg.Any<IProgress<UploadProgress>>(), Arg.Any<CancellationToken>())
+            .Returns(new UploadResult { Status = MediaStatusHelper.GetById(MediaStatus.Error), Message = message });
 
         return this;
     }

@@ -1121,7 +1121,16 @@ public class Orcestrator(
 
             var result = await target.Type!.UploadAsync(dto, target.Settings, uploadProgress, uploadCts.Token);
             uploadAction.Subtitle = string.Empty;
-            uploadAction.Finish("Залито");
+
+            if (result.Id is null)
+            {
+                uploadAction.Fail($"Ошибка: {result.Status.Text} {result.Message}");
+            }
+            else
+            {
+                uploadAction.Finish("Залито");
+            }
+
             return result;
         }
         catch (OperationCanceledException)
