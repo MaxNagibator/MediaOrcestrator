@@ -46,12 +46,21 @@
             uiBrowseCoverButton = new Button();
             uiClearCoverButton = new Button();
             uiCoverPreviewPictureBox = new PictureBox();
+            uiCoverTemplateGroup = new GroupBox();
+            uiCoverProfileLabel = new Label();
+            uiCoverProfileCombo = new ComboBox();
+            uiSetupTemplateButton = new Button();
+            uiCoverNumberLabel = new Label();
+            uiCoverNumberInput = new NumericUpDown();
+            uiGenerateCoverButton = new Button();
             uiRunChainCheckBox = new CheckBox();
             uiPublishButton = new Button();
             uiPublishProgressBar = new ProgressBar();
             uiStatusLabel = new Label();
             uiToolTip = new ToolTip(components);
             ((System.ComponentModel.ISupportInitialize)uiCoverPreviewPictureBox).BeginInit();
+            uiCoverTemplateGroup.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)uiCoverNumberInput).BeginInit();
             SuspendLayout();
             //
             // uiSourceLabel
@@ -249,6 +258,85 @@
             uiToolTip.SetToolTip(uiCoverPreviewPictureBox, "Нажмите, чтобы выбрать обложку");
             uiCoverPreviewPictureBox.Click += uiCoverPathTextBox_Click;
             //
+            // uiCoverTemplateGroup
+            //
+            uiCoverTemplateGroup.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiCoverTemplateGroup.Controls.Add(uiCoverProfileLabel);
+            uiCoverTemplateGroup.Controls.Add(uiCoverProfileCombo);
+            uiCoverTemplateGroup.Controls.Add(uiSetupTemplateButton);
+            uiCoverTemplateGroup.Controls.Add(uiCoverNumberLabel);
+            uiCoverTemplateGroup.Controls.Add(uiCoverNumberInput);
+            uiCoverTemplateGroup.Controls.Add(uiGenerateCoverButton);
+            uiCoverTemplateGroup.Location = new Point(280, 305);
+            uiCoverTemplateGroup.Name = "uiCoverTemplateGroup";
+            uiCoverTemplateGroup.Size = new Size(596, 95);
+            uiCoverTemplateGroup.TabIndex = 17;
+            uiCoverTemplateGroup.TabStop = false;
+            uiCoverTemplateGroup.Text = "Из шаблона";
+            //
+            // uiCoverProfileLabel
+            //
+            uiCoverProfileLabel.AutoSize = true;
+            uiCoverProfileLabel.Location = new Point(10, 25);
+            uiCoverProfileLabel.Name = "uiCoverProfileLabel";
+            uiCoverProfileLabel.Size = new Size(54, 15);
+            uiCoverProfileLabel.TabIndex = 0;
+            uiCoverProfileLabel.Text = "Профиль:";
+            //
+            // uiCoverProfileCombo
+            //
+            uiCoverProfileCombo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiCoverProfileCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            uiCoverProfileCombo.Location = new Point(75, 22);
+            uiCoverProfileCombo.Name = "uiCoverProfileCombo";
+            uiCoverProfileCombo.Size = new Size(395, 23);
+            uiCoverProfileCombo.TabIndex = 1;
+            uiToolTip.SetToolTip(uiCoverProfileCombo, "Сохранённый профиль шаблона обложки");
+            uiCoverProfileCombo.SelectedIndexChanged += uiCoverProfileCombo_SelectedIndexChanged;
+            //
+            // uiSetupTemplateButton
+            //
+            uiSetupTemplateButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            uiSetupTemplateButton.Location = new Point(478, 21);
+            uiSetupTemplateButton.Name = "uiSetupTemplateButton";
+            uiSetupTemplateButton.Size = new Size(110, 25);
+            uiSetupTemplateButton.TabIndex = 2;
+            uiSetupTemplateButton.Text = "Настроить…";
+            uiSetupTemplateButton.UseVisualStyleBackColor = true;
+            uiToolTip.SetToolTip(uiSetupTemplateButton, "Открыть редактор шаблонов обложек");
+            uiSetupTemplateButton.Click += uiSetupTemplateButton_Click;
+            //
+            // uiCoverNumberLabel
+            //
+            uiCoverNumberLabel.AutoSize = true;
+            uiCoverNumberLabel.Location = new Point(10, 59);
+            uiCoverNumberLabel.Name = "uiCoverNumberLabel";
+            uiCoverNumberLabel.Size = new Size(22, 15);
+            uiCoverNumberLabel.TabIndex = 3;
+            uiCoverNumberLabel.Text = "№:";
+            //
+            // uiCoverNumberInput
+            //
+            uiCoverNumberInput.Location = new Point(40, 56);
+            uiCoverNumberInput.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
+            uiCoverNumberInput.Minimum = new decimal(new int[] { 0, 0, 0, 0 });
+            uiCoverNumberInput.Name = "uiCoverNumberInput";
+            uiCoverNumberInput.Size = new Size(80, 23);
+            uiCoverNumberInput.TabIndex = 4;
+            uiCoverNumberInput.Value = new decimal(new int[] { 1, 0, 0, 0 });
+            uiToolTip.SetToolTip(uiCoverNumberInput, "Номер для подстановки в {number}. По названию резолвится автоматически.");
+            //
+            // uiGenerateCoverButton
+            //
+            uiGenerateCoverButton.Location = new Point(135, 55);
+            uiGenerateCoverButton.Name = "uiGenerateCoverButton";
+            uiGenerateCoverButton.Size = new Size(200, 25);
+            uiGenerateCoverButton.TabIndex = 5;
+            uiGenerateCoverButton.Text = "Сгенерировать обложку";
+            uiGenerateCoverButton.UseVisualStyleBackColor = true;
+            uiToolTip.SetToolTip(uiGenerateCoverButton, "Сгенерировать обложку из выбранного шаблона и поставить её на публикацию");
+            uiGenerateCoverButton.Click += uiGenerateCoverButton_Click;
+            //
             // uiRunChainCheckBox
             //
             uiRunChainCheckBox.AutoSize = true;
@@ -305,6 +393,7 @@
             Controls.Add(uiPublishProgressBar);
             Controls.Add(uiPublishButton);
             Controls.Add(uiRunChainCheckBox);
+            Controls.Add(uiCoverTemplateGroup);
             Controls.Add(uiCoverPreviewPictureBox);
             Controls.Add(uiClearCoverButton);
             Controls.Add(uiBrowseCoverButton);
@@ -325,6 +414,9 @@
             Name = "PublishControl";
             Size = new Size(891, 486);
             ((System.ComponentModel.ISupportInitialize)uiCoverPreviewPictureBox).EndInit();
+            uiCoverTemplateGroup.ResumeLayout(false);
+            uiCoverTemplateGroup.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)uiCoverNumberInput).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -348,6 +440,13 @@
         private Button uiBrowseCoverButton;
         private Button uiClearCoverButton;
         private PictureBox uiCoverPreviewPictureBox;
+        private GroupBox uiCoverTemplateGroup;
+        private Label uiCoverProfileLabel;
+        private ComboBox uiCoverProfileCombo;
+        private Button uiSetupTemplateButton;
+        private Label uiCoverNumberLabel;
+        private NumericUpDown uiCoverNumberInput;
+        private Button uiGenerateCoverButton;
         private CheckBox uiRunChainCheckBox;
         private Button uiPublishButton;
         private ProgressBar uiPublishProgressBar;

@@ -1,4 +1,4 @@
-using SkiaSharp;
+﻿using SkiaSharp;
 
 namespace MediaOrcestrator.Domain;
 
@@ -8,12 +8,21 @@ public enum CoverNumberMode
     TitleRegex = 1,
 }
 
+public enum CoverFontStyle
+{
+    Bold = 0,
+    Regular = 1,
+    Italic = 2,
+    BoldItalic = 3,
+}
+
 public sealed record CoverTextLayer(
     string TextTemplate,
     float TextX,
     float TextY,
     float FontSizeRatio,
     string FontFamily,
+    CoverFontStyle FontStyle,
     SKColor FillColor,
     SKColor StrokeColor,
     float StrokeWidthRatio);
@@ -32,6 +41,7 @@ public sealed record CoverTemplate(
         0.5f,
         0.25f,
         "Impact",
+        CoverFontStyle.Bold,
         new(255, 255, 255),
         new(0, 0, 0),
         0.01f);

@@ -1,6 +1,4 @@
 ﻿using MediaOrcestrator.Domain;
-using SkiaSharp;
-using System.Text.RegularExpressions;
 
 namespace MediaOrcestrator.Runner;
 
@@ -10,6 +8,7 @@ public partial class BatchPreviewForm : Form
     private readonly BatchPreviewService _service;
     private readonly CoverGenerator _coverGenerator;
     private readonly CoverTemplateStore _coverTemplateStore;
+    private readonly Dictionary<string, DataGridViewRow> _rowsByKey = new(StringComparer.Ordinal);
 
     private bool _hasSuccess;
     private CancellationTokenSource? _applyCts;
@@ -34,7 +33,6 @@ public partial class BatchPreviewForm : Form
         _service = service;
         _coverGenerator = coverGenerator;
         _coverTemplateStore = coverTemplateStore;
-        _coverTemplate = coverTemplateStore.LoadLast();
 
         Text = $"Обновление превью ({medias.Count} видео)";
 
@@ -149,59 +147,14 @@ public partial class BatchPreviewForm : Form
 
         try
         {
-            var sampleNumber = ResolveSampleNumber(_coverTemplate);
+            var sampleTitle = _medias.Count > 0 ? _medias[0].Title : null;
+            var sampleNumber = CoverNumberResolver.Resolve(_coverTemplate, sampleTitle, 0);
             using var skBitmap = _coverGenerator.Render(_coverTemplate, sampleNumber);
-            using var skImage = SKImage.FromBitmap(skBitmap);
-            using var data = skImage.Encode(SKEncodedImageFormat.Png, 90);
-            using var ms = new MemoryStream(data.ToArray());
-            using var sourceBitmap = new Bitmap(ms);
-            uiCoverThumbnail.Image = new Bitmap(sourceBitmap);
+            uiCoverThumbnail.Image = SkiaInterop.ToBitmap(skBitmap);
         }
         catch
         {
         }
-    }
-
-    private int ResolveSampleNumber(CoverTemplate template)
-    {
-        if (template.NumberMode != CoverNumberMode.TitleRegex || _medias.Count == 0)
-        {
-            return template.StartNumber;
-        }
-
-        var title = _medias[0].Title;
-
-        if (string.IsNullOrEmpty(title))
-        {
-            return template.StartNumber;
-        }
-
-        var pattern = string.IsNullOrWhiteSpace(template.TitleRegexPattern)
-            ? CoverTemplate.DefaultTitleRegex
-            : template.TitleRegexPattern;
-
-        try
-        {
-            var match = Regex.Match(title, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(100));
-
-            if (match.Success)
-            {
-                var captured = match.Groups.Count > 1 && match.Groups[1].Success ? match.Groups[1].Value : match.Value;
-
-                if (int.TryParse(captured, out var parsed))
-                {
-                    return parsed;
-                }
-            }
-        }
-        catch (ArgumentException)
-        {
-        }
-        catch (RegexMatchTimeoutException)
-        {
-        }
-
-        return template.StartNumber;
     }
 
     private void RefreshProfilesCombo()
@@ -215,7 +168,16 @@ public partial class BatchPreviewForm : Form
             uiProfileCombo.Items.Add(name);
         }
 
-        uiProfileCombo.SelectedIndex = 0;
+        if (!string.IsNullOrEmpty(_currentProfileName))
+        {
+            var idx = uiProfileCombo.Items.IndexOf(_currentProfileName);
+            uiProfileCombo.SelectedIndex = idx >= 0 ? idx : 0;
+        }
+        else
+        {
+            uiProfileCombo.SelectedIndex = 0;
+        }
+
         _suppressProfileComboEvents = false;
     }
 
@@ -250,7 +212,6 @@ public partial class BatchPreviewForm : Form
 
         _coverTemplate = loaded;
         _currentProfileName = name;
-        _coverTemplateStore.SaveLast(loaded);
         RefreshCoverThumbnail();
         UpdatePreview();
     }
@@ -288,6 +249,7 @@ public partial class BatchPreviewForm : Form
     private void UpdatePreview()
     {
         uiResultGrid.Rows.Clear();
+        _rowsByKey.Clear();
         var targets = GetSelectedTargets();
 
         foreach (var media in _medias)
@@ -300,9 +262,12 @@ public partial class BatchPreviewForm : Form
                     continue;
                 }
 
-                var row = uiResultGrid.Rows.Add(media.Title, target.TitleFull, "Ожидание");
-                uiResultGrid.Rows[row].Tag = RowKey(media.Id, target.Id);
-                uiResultGrid.Rows[row].DefaultCellStyle.ForeColor = Color.Gray;
+                var rowIndex = uiResultGrid.Rows.Add(media.Title, target.TitleFull, "Ожидание");
+                var row = uiResultGrid.Rows[rowIndex];
+                var key = RowKey(media.Id, target.Id);
+                row.Tag = key;
+                row.DefaultCellStyle.ForeColor = Color.Gray;
+                _rowsByKey[key] = row;
             }
         }
 
@@ -340,27 +305,18 @@ public partial class BatchPreviewForm : Form
         var statusText = result.Success ? "Готово" : $"Ошибка: {result.ErrorMessage}";
         var color = result.Success ? Color.DarkGreen : Color.DarkRed;
 
-        DataGridViewRow? matchingRow = null;
-
-        foreach (DataGridViewRow gridRow in uiResultGrid.Rows)
-        {
-            if (gridRow.Tag is string rowKey && rowKey == key)
-            {
-                matchingRow = gridRow;
-                break;
-            }
-        }
-
-        if (matchingRow != null)
+        if (_rowsByKey.TryGetValue(key, out var matchingRow))
         {
             matchingRow.Cells[uiStatusColumn.Name].Value = statusText;
             matchingRow.DefaultCellStyle.ForeColor = color;
         }
         else
         {
-            var row = uiResultGrid.Rows.Add(result.Media.Title, result.Target.TitleFull, statusText);
-            uiResultGrid.Rows[row].Tag = key;
-            uiResultGrid.Rows[row].DefaultCellStyle.ForeColor = color;
+            var rowIndex = uiResultGrid.Rows.Add(result.Media.Title, result.Target.TitleFull, statusText);
+            var row = uiResultGrid.Rows[rowIndex];
+            row.Tag = key;
+            row.DefaultCellStyle.ForeColor = color;
+            _rowsByKey[key] = row;
         }
     }
 
@@ -393,7 +349,7 @@ public partial class BatchPreviewForm : Form
         }
 
         _coverTemplate = form.Result;
-        _coverTemplateStore.SaveLast(_coverTemplate);
+        _currentProfileName = form.CurrentProfileName;
         RefreshProfilesCombo();
         RefreshCoverThumbnail();
         UpdatePreview();

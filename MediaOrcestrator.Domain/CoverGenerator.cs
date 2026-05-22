@@ -1,10 +1,15 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using SkiaSharp;
 
 namespace MediaOrcestrator.Domain;
 
-public sealed class CoverGenerator(ILogger<CoverGenerator> logger)
+public sealed class CoverGenerator(ILogger<CoverGenerator> logger) : IDisposable
 {
+    private readonly object _cacheLock = new();
+    private string? _cachedPath;
+    private DateTime _cachedMtime;
+    private SKBitmap? _cachedBitmap;
+
     public string Generate(CoverTemplate template, int number, string outputDir)
     {
         using var bitmap = Render(template, number);
@@ -22,13 +27,8 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger)
 
     public SKBitmap Render(CoverTemplate template, int number)
     {
-        if (!File.Exists(template.TemplatePath))
-        {
-            throw new FileNotFoundException("Шаблон обложки не найден", template.TemplatePath);
-        }
-
-        var bitmap = SKBitmap.Decode(template.TemplatePath)
-                     ?? throw new InvalidOperationException($"Не удалось декодировать шаблон: {template.TemplatePath}");
+        var source = GetCachedBackground(template.TemplatePath);
+        var bitmap = source.Copy() ?? throw new InvalidOperationException($"Не удалось скопировать декодированный шаблон: {template.TemplatePath}");
 
         using var canvas = new SKCanvas(bitmap);
 
@@ -39,6 +39,16 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger)
 
         logger.LogTrace("Отрисована обложка №{Number} ({Width}×{Height}, слоёв: {Layers})", number, bitmap.Width, bitmap.Height, template.Layers.Count);
         return bitmap;
+    }
+
+    public void Dispose()
+    {
+        lock (_cacheLock)
+        {
+            _cachedBitmap?.Dispose();
+            _cachedBitmap = null;
+            _cachedPath = null;
+        }
     }
 
     private static void DrawLayer(SKCanvas canvas, int width, int height, CoverTextLayer layer, int number)
@@ -53,7 +63,8 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger)
         var fontSize = height * layer.FontSizeRatio;
         var strokeWidth = height * layer.StrokeWidthRatio;
 
-        var ownedTypeface = SKTypeface.FromFamilyName(layer.FontFamily, SKFontStyle.Bold);
+        var skiaStyle = ToSkiaStyle(layer.FontStyle);
+        var ownedTypeface = SKTypeface.FromFamilyName(layer.FontFamily, skiaStyle);
         var typeface = ownedTypeface ?? SKTypeface.Default;
 
         try
@@ -97,8 +108,48 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger)
         }
     }
 
+    private static SKFontStyle ToSkiaStyle(CoverFontStyle style)
+    {
+        return style switch
+        {
+            CoverFontStyle.Regular => SKFontStyle.Normal,
+            CoverFontStyle.Italic => SKFontStyle.Italic,
+            CoverFontStyle.BoldItalic => SKFontStyle.BoldItalic,
+            _ => SKFontStyle.Bold,
+        };
+    }
+
     private static string ResolveText(string template, int number)
     {
         return string.IsNullOrEmpty(template) ? string.Empty : template.Replace("{number}", number.ToString());
+    }
+
+    private SKBitmap GetCachedBackground(string templatePath)
+    {
+        if (!File.Exists(templatePath))
+        {
+            throw new FileNotFoundException("Шаблон обложки не найден", templatePath);
+        }
+
+        var mtime = File.GetLastWriteTimeUtc(templatePath);
+
+        lock (_cacheLock)
+        {
+            if (_cachedBitmap != null
+                && string.Equals(_cachedPath, templatePath, StringComparison.OrdinalIgnoreCase)
+                && _cachedMtime == mtime)
+            {
+                return _cachedBitmap;
+            }
+
+            var decoded = SKBitmap.Decode(templatePath)
+                          ?? throw new InvalidOperationException($"Не удалось декодировать шаблон: {templatePath}");
+
+            _cachedBitmap?.Dispose();
+            _cachedBitmap = decoded;
+            _cachedPath = templatePath;
+            _cachedMtime = mtime;
+            return decoded;
+        }
     }
 }

@@ -1,22 +1,33 @@
-using MediaOrcestrator.Domain;
+﻿using MediaOrcestrator.Domain;
 using SkiaSharp;
+using System.Text.RegularExpressions;
 using DrawingColor = System.Drawing.Color;
 
 namespace MediaOrcestrator.Runner;
 
 public partial class CoverTemplateForm : Form
 {
+    private static readonly (string Label, CoverFontStyle Style)[] FontStyleOptions =
+    [
+        ("Обычный", CoverFontStyle.Regular),
+        ("Жирный", CoverFontStyle.Bold),
+        ("Курсив", CoverFontStyle.Italic),
+        ("Жирный курсив", CoverFontStyle.BoldItalic),
+    ];
+
     private readonly CoverGenerator _coverGenerator;
     private readonly CoverTemplateStore _store;
 
     private readonly List<MutableLayer> _layers = [];
 
     private string? _templatePath;
-    private string? _currentProfileName;
     private bool _suppressPreview;
     private bool _suppressLayerEdits;
     private int _prevSelectedLayerIndex = -1;
     private bool _isDraggingLayer;
+
+    private string? _regexWarning;
+    private string? _templateSizeWarning;
 
     public CoverTemplateForm()
     {
@@ -24,15 +35,16 @@ public partial class CoverTemplateForm : Form
         _store = null!;
         InitializeComponent();
         PopulateFontFamilies();
+        PopulateFontStyles();
     }
 
     public CoverTemplateForm(CoverGenerator coverGenerator, CoverTemplateStore store, CoverTemplate? initial, string? initialProfileName = null) : this()
     {
         _coverGenerator = coverGenerator;
         _store = store;
-        _currentProfileName = initialProfileName;
+        CurrentProfileName = initialProfileName;
 
-        Text = FormatTitle(_currentProfileName);
+        Text = FormatTitle(CurrentProfileName);
 
         if (initial != null)
         {
@@ -43,6 +55,7 @@ public partial class CoverTemplateForm : Form
             _layers.Add(MutableLayer.FromDomain(CoverTemplate.DefaultNumberLayer));
             RefreshLayersList();
             uiLayersList.SelectedIndex = 0;
+            uiTitleRegexTextBox.Text = CoverTemplate.DefaultTitleRegex;
         }
 
         UpdateNumberModeUi();
@@ -50,6 +63,8 @@ public partial class CoverTemplateForm : Form
     }
 
     public CoverTemplate? Result { get; private set; }
+
+    public string? CurrentProfileName { get; private set; }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
@@ -109,6 +124,7 @@ public partial class CoverTemplateForm : Form
 
         uiTitleRegexRadio.Checked = false;
         UpdateNumberModeUi();
+        ValidateRegex();
         UpdatePreview();
     }
 
@@ -121,6 +137,7 @@ public partial class CoverTemplateForm : Form
 
         uiSequentialRadio.Checked = false;
         UpdateNumberModeUi();
+        ValidateRegex();
         UpdatePreview();
     }
 
@@ -131,6 +148,7 @@ public partial class CoverTemplateForm : Form
 
     private void uiTitleRegexTextBox_TextChanged(object? sender, EventArgs e)
     {
+        ValidateRegex();
         UpdatePreview();
     }
 
@@ -159,6 +177,11 @@ public partial class CoverTemplateForm : Form
         OnLayerFieldChanged(layer => layer.FontFamily = uiFontFamily.SelectedItem?.ToString() ?? "Arial");
     }
 
+    private void uiFontStyle_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        OnLayerFieldChanged(layer => layer.FontStyle = GetSelectedFontStyle());
+    }
+
     private void uiFontSize_ValueChanged(object? sender, EventArgs e)
     {
         OnLayerFieldChanged(layer => layer.FontSizeRatio = (float)uiFontSize.Value / 100f);
@@ -177,6 +200,24 @@ public partial class CoverTemplateForm : Form
     private void uiStrokeColorButton_Click(object? sender, EventArgs e)
     {
         PickColor(false);
+    }
+
+    private void uiFillAlpha_ValueChanged(object? sender, EventArgs e)
+    {
+        OnLayerFieldChanged(layer =>
+        {
+            var c = layer.FillColor;
+            layer.FillColor = DrawingColor.FromArgb((int)uiFillAlpha.Value, c.R, c.G, c.B);
+        });
+    }
+
+    private void uiStrokeAlpha_ValueChanged(object? sender, EventArgs e)
+    {
+        OnLayerFieldChanged(layer =>
+        {
+            var c = layer.StrokeColor;
+            layer.StrokeColor = DrawingColor.FromArgb((int)uiStrokeAlpha.Value, c.R, c.G, c.B);
+        });
     }
 
     private void uiAddLayerButton_Click(object? sender, EventArgs e)
@@ -231,14 +272,50 @@ public partial class CoverTemplateForm : Form
             : $"Шаблон обложки — {profileName}";
     }
 
+    private static CoverFontStyle GetFontStyleAt(int index)
+    {
+        return index >= 0 && index < FontStyleOptions.Length ? FontStyleOptions[index].Style : CoverFontStyle.Bold;
+    }
+
+    private static int IndexOfFontStyle(CoverFontStyle style)
+    {
+        for (var i = 0; i < FontStyleOptions.Length; i++)
+        {
+            if (FontStyleOptions[i].Style == style)
+            {
+                return i;
+            }
+        }
+
+        return IndexOfFontStyle(CoverFontStyle.Bold);
+    }
+
     private void PopulateFontFamilies()
     {
         uiFontFamily.Items.Clear();
 
-        foreach (var family in FontFamily.Families.OrderBy(f => f.Name))
+        foreach (var family in SKFontManager.Default.GetFontFamilies()
+                     .Where(f => !string.IsNullOrWhiteSpace(f))
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
         {
-            uiFontFamily.Items.Add(family.Name);
+            uiFontFamily.Items.Add(family);
         }
+    }
+
+    private void PopulateFontStyles()
+    {
+        uiFontStyle.Items.Clear();
+
+        foreach (var (label, _) in FontStyleOptions)
+        {
+            uiFontStyle.Items.Add(label);
+        }
+    }
+
+    private CoverFontStyle GetSelectedFontStyle()
+    {
+        return GetFontStyleAt(uiFontStyle.SelectedIndex);
     }
 
     private bool TryApplyDragPosition(Point location)
@@ -271,6 +348,7 @@ public partial class CoverTemplateForm : Form
 
         _templatePath = initial.TemplatePath;
         SetTemplatePathDisplay(initial.TemplatePath);
+        UpdateTemplateSizeWarning(initial.TemplatePath);
         uiStartNumber.Value = Math.Clamp(initial.StartNumber, (int)uiStartNumber.Minimum, (int)uiStartNumber.Maximum);
         uiSampleNumber.Value = Math.Clamp(initial.StartNumber, (int)uiSampleNumber.Minimum, (int)uiSampleNumber.Maximum);
         uiTitleRegexTextBox.Text = string.IsNullOrWhiteSpace(initial.TitleRegexPattern) ? CoverTemplate.DefaultTitleRegex : initial.TitleRegexPattern;
@@ -300,6 +378,7 @@ public partial class CoverTemplateForm : Form
         }
 
         UpdateNumberModeUi();
+        ValidateRegex();
         UpdatePreview();
     }
 
@@ -344,10 +423,13 @@ public partial class CoverTemplateForm : Form
         var familyIndex = uiFontFamily.Items.IndexOf(layer.FontFamily);
         uiFontFamily.SelectedIndex = familyIndex >= 0 ? familyIndex : Math.Max(0, uiFontFamily.Items.IndexOf("Impact"));
 
+        uiFontStyle.SelectedIndex = IndexOfFontStyle(layer.FontStyle);
         uiFontSize.Value = (decimal)Math.Clamp(layer.FontSizeRatio * 100f, (float)uiFontSize.Minimum, (float)uiFontSize.Maximum);
         uiStrokeWidth.Value = (decimal)Math.Clamp(layer.StrokeWidthRatio * 100f, (float)uiStrokeWidth.Minimum, (float)uiStrokeWidth.Maximum);
-        uiFillColorButton.BackColor = layer.FillColor;
-        uiStrokeColorButton.BackColor = layer.StrokeColor;
+        uiFillColorButton.BackColor = DrawingColor.FromArgb(layer.FillColor.R, layer.FillColor.G, layer.FillColor.B);
+        uiStrokeColorButton.BackColor = DrawingColor.FromArgb(layer.StrokeColor.R, layer.StrokeColor.G, layer.StrokeColor.B);
+        uiFillAlpha.Value = layer.FillColor.A;
+        uiStrokeAlpha.Value = layer.StrokeColor.A;
         _suppressLayerEdits = false;
 
         UpdatePositionLabel();
@@ -474,6 +556,7 @@ public partial class CoverTemplateForm : Form
 
         _templatePath = dialog.FileName;
         SetTemplatePathDisplay(dialog.FileName);
+        UpdateTemplateSizeWarning(dialog.FileName);
         UpdatePreview();
     }
 
@@ -488,6 +571,91 @@ public partial class CoverTemplateForm : Form
 
         uiTemplatePathTextBox.Text = Path.GetFileName(fullPath);
         uiToolTip.SetToolTip(uiTemplatePathTextBox, fullPath);
+    }
+
+    private void UpdateTemplateSizeWarning(string? path)
+    {
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        {
+            _templateSizeWarning = null;
+            RefreshWarning();
+            return;
+        }
+
+        try
+        {
+            using var codec = SKCodec.Create(path);
+
+            if (codec == null)
+            {
+                _templateSizeWarning = null;
+            }
+            else
+            {
+                var info = codec.Info;
+                _templateSizeWarning = info.Width < 1280 || info.Height < 720
+                    ? $"Шаблон {info.Width}×{info.Height} — мал для большинства площадок (рекомендуется ≥ 1280×720)."
+                    : null;
+            }
+        }
+        catch
+        {
+            _templateSizeWarning = null;
+        }
+
+        RefreshWarning();
+    }
+
+    private void ValidateRegex()
+    {
+        if (!uiTitleRegexRadio.Checked)
+        {
+            _regexWarning = null;
+            RefreshWarning();
+            return;
+        }
+
+        var pattern = string.IsNullOrWhiteSpace(uiTitleRegexTextBox.Text)
+            ? CoverTemplate.DefaultTitleRegex
+            : uiTitleRegexTextBox.Text;
+
+        try
+        {
+            _ = new Regex(pattern);
+            _regexWarning = null;
+        }
+        catch (ArgumentException ex)
+        {
+            _regexWarning = "Невалидный regex: " + ex.Message;
+        }
+
+        RefreshWarning();
+    }
+
+    private void RefreshWarning()
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrEmpty(_templateSizeWarning))
+        {
+            parts.Add(_templateSizeWarning);
+        }
+
+        if (!string.IsNullOrEmpty(_regexWarning))
+        {
+            parts.Add(_regexWarning);
+        }
+
+        if (parts.Count == 0)
+        {
+            uiWarningLabel.Visible = false;
+            uiWarningLabel.Text = string.Empty;
+        }
+        else
+        {
+            uiWarningLabel.Text = string.Join(Environment.NewLine, parts);
+            uiWarningLabel.Visible = true;
+        }
     }
 
     private void PopulateProfiles(string? select = null)
@@ -527,14 +695,14 @@ public partial class CoverTemplateForm : Form
             return;
         }
 
-        _currentProfileName = name;
-        Text = FormatTitle(_currentProfileName);
+        CurrentProfileName = name;
+        Text = FormatTitle(CurrentProfileName);
         ApplyInitial(loaded);
     }
 
     private void SaveAsProfile()
     {
-        using var dialog = new InputDialog("Имя профиля:", "Сохранение профиля", _currentProfileName ?? string.Empty);
+        using var dialog = new InputDialog("Имя профиля:", "Сохранение профиля", CurrentProfileName ?? string.Empty);
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
@@ -564,9 +732,14 @@ public partial class CoverTemplateForm : Form
             }
         }
 
-        _store.Save(name, BuildTemplate());
-        _currentProfileName = name;
-        Text = FormatTitle(_currentProfileName);
+        if (!_store.Save(name, BuildTemplate()))
+        {
+            MessageBox.Show($"Не удалось сохранить профиль '{name}'. Подробности в логах.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        CurrentProfileName = name;
+        Text = FormatTitle(CurrentProfileName);
         PopulateProfiles(name);
     }
 
@@ -588,9 +761,9 @@ public partial class CoverTemplateForm : Form
 
         _store.Delete(name);
 
-        if (string.Equals(name, _currentProfileName, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(name, CurrentProfileName, StringComparison.OrdinalIgnoreCase))
         {
-            _currentProfileName = null;
+            CurrentProfileName = null;
             Text = FormatTitle(null);
         }
 
@@ -606,9 +779,12 @@ public partial class CoverTemplateForm : Form
             return;
         }
 
+        var current = fill ? layer.FillColor : layer.StrokeColor;
+        var existingAlpha = current.A;
+
         using var dialog = new ColorDialog
         {
-            Color = fill ? layer.FillColor : layer.StrokeColor,
+            Color = DrawingColor.FromArgb(current.R, current.G, current.B),
             FullOpen = true,
         };
 
@@ -617,15 +793,18 @@ public partial class CoverTemplateForm : Form
             return;
         }
 
+        var picked = dialog.Color;
+        var withAlpha = DrawingColor.FromArgb(existingAlpha, picked.R, picked.G, picked.B);
+
         if (fill)
         {
-            layer.FillColor = dialog.Color;
-            uiFillColorButton.BackColor = dialog.Color;
+            layer.FillColor = withAlpha;
+            uiFillColorButton.BackColor = DrawingColor.FromArgb(picked.R, picked.G, picked.B);
         }
         else
         {
-            layer.StrokeColor = dialog.Color;
-            uiStrokeColorButton.BackColor = dialog.Color;
+            layer.StrokeColor = withAlpha;
+            uiStrokeColorButton.BackColor = DrawingColor.FromArgb(picked.R, picked.G, picked.B);
         }
 
         UpdatePreview();
@@ -688,13 +867,9 @@ public partial class CoverTemplateForm : Form
         {
             var template = BuildTemplate();
             using var skBitmap = _coverGenerator.Render(template, (int)uiSampleNumber.Value);
-            using var skImage = SKImage.FromBitmap(skBitmap);
-            using var data = skImage.Encode(SKEncodedImageFormat.Png, 90);
-            using var ms = new MemoryStream(data.ToArray());
-            using var sourceBitmap = new Bitmap(ms);
 
             uiPreview.Image?.Dispose();
-            uiPreview.Image = new Bitmap(sourceBitmap);
+            uiPreview.Image = SkiaInterop.ToBitmap(skBitmap);
         }
         catch (Exception ex)
         {
@@ -716,7 +891,15 @@ public partial class CoverTemplateForm : Form
             return;
         }
 
-        Result = BuildTemplate();
+        var template = BuildTemplate();
+
+        if (!string.IsNullOrEmpty(CurrentProfileName) && !_store.Save(CurrentProfileName, template))
+        {
+            MessageBox.Show($"Не удалось сохранить профиль '{CurrentProfileName}'. Подробности в логах.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        Result = template;
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -733,6 +916,7 @@ public partial class CoverTemplateForm : Form
         public float TextY { get; set; } = 0.5f;
         public float FontSizeRatio { get; set; } = 0.25f;
         public string FontFamily { get; set; } = "Impact";
+        public CoverFontStyle FontStyle { get; set; } = CoverFontStyle.Bold;
         public DrawingColor FillColor { get; set; } = DrawingColor.White;
         public DrawingColor StrokeColor { get; set; } = DrawingColor.Black;
         public float StrokeWidthRatio { get; set; } = 0.01f;
@@ -746,8 +930,9 @@ public partial class CoverTemplateForm : Form
                 TextY = layer.TextY,
                 FontSizeRatio = layer.FontSizeRatio,
                 FontFamily = layer.FontFamily,
-                FillColor = DrawingColor.FromArgb(layer.FillColor.Red, layer.FillColor.Green, layer.FillColor.Blue),
-                StrokeColor = DrawingColor.FromArgb(layer.StrokeColor.Red, layer.StrokeColor.Green, layer.StrokeColor.Blue),
+                FontStyle = layer.FontStyle,
+                FillColor = DrawingColor.FromArgb(layer.FillColor.Alpha, layer.FillColor.Red, layer.FillColor.Green, layer.FillColor.Blue),
+                StrokeColor = DrawingColor.FromArgb(layer.StrokeColor.Alpha, layer.StrokeColor.Red, layer.StrokeColor.Green, layer.StrokeColor.Blue),
                 StrokeWidthRatio = layer.StrokeWidthRatio,
             };
         }
@@ -759,8 +944,9 @@ public partial class CoverTemplateForm : Form
                 TextY,
                 FontSizeRatio,
                 FontFamily,
-                new(FillColor.R, FillColor.G, FillColor.B),
-                new(StrokeColor.R, StrokeColor.G, StrokeColor.B),
+                FontStyle,
+                new(FillColor.R, FillColor.G, FillColor.B, FillColor.A),
+                new(StrokeColor.R, StrokeColor.G, StrokeColor.B, StrokeColor.A),
                 StrokeWidthRatio);
         }
     }
