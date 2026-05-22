@@ -1,4 +1,4 @@
-using MediaOrcestrator.Domain;
+﻿using MediaOrcestrator.Domain;
 using SkiaSharp;
 using System.Text.RegularExpressions;
 
@@ -12,6 +12,7 @@ public partial class BatchPreviewForm : Form
     private readonly CoverTemplateStore _coverTemplateStore;
 
     private bool _hasSuccess;
+    private CancellationTokenSource? _applyCts;
     private List<Source> _donors = [];
     private List<Source> _targets = [];
     private CoverTemplate? _coverTemplate;
@@ -49,6 +50,8 @@ public partial class BatchPreviewForm : Form
         {
             DialogResult = _hasSuccess ? DialogResult.OK : DialogResult.Cancel;
         }
+
+        _applyCts?.Cancel();
 
         base.OnFormClosing(e);
     }
@@ -328,6 +331,11 @@ public partial class BatchPreviewForm : Form
 
     private void OnProgressReport(BatchPreviewResult result)
     {
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
         var key = RowKey(result.Media.Id, result.Target.Id);
         var statusText = result.Success ? "Готово" : $"Ошибка: {result.ErrorMessage}";
         var color = result.Success ? Color.DarkGreen : Color.DarkRed;
@@ -451,12 +459,21 @@ public partial class BatchPreviewForm : Form
         uiTargetsListBox.Enabled = false;
         uiStatusLabel.Text = "Обновление превью...";
 
+        using var cts = new CancellationTokenSource();
+        _applyCts = cts;
+        var token = cts.Token;
+
         try
         {
             var progress = new Progress<BatchPreviewResult>(OnProgressReport);
 
             var results = await Task.Run(() =>
-                _service.ApplyAsync(_medias, donor, targets, localFilePath, coverTemplate, progress, CancellationToken.None));
+                _service.ApplyAsync(_medias, donor, targets, localFilePath, coverTemplate, progress, token));
+
+            if (IsDisposed)
+            {
+                return;
+            }
 
             var successCount = results.Count(r => r.Success);
             var failCount = results.Count - successCount;
@@ -464,21 +481,33 @@ public partial class BatchPreviewForm : Form
 
             _hasSuccess = successCount > 0;
         }
+        catch (OperationCanceledException)
+        {
+            // Форму закрыли во время операции
+        }
         catch (Exception ex)
         {
-            uiStatusLabel.Text = $"Ошибка: {ex.Message}";
+            if (!IsDisposed)
+            {
+                uiStatusLabel.Text = $"Ошибка: {ex.Message}";
+            }
         }
         finally
         {
-            uiFromSourceRadio.Enabled = true;
-            uiFromFileRadio.Enabled = true;
-            uiFromTemplateRadio.Enabled = true;
-            uiTargetsListBox.Enabled = true;
-            uiDonorComboBox.Enabled = uiFromSourceRadio.Checked;
-            uiFilePathTextBox.Enabled = uiFromFileRadio.Checked;
-            uiBrowseButton.Enabled = uiFromFileRadio.Checked;
-            uiTemplateButton.Enabled = uiFromTemplateRadio.Checked;
-            uiApplyButton.Enabled = true;
+            _applyCts = null;
+
+            if (!IsDisposed)
+            {
+                uiFromSourceRadio.Enabled = true;
+                uiFromFileRadio.Enabled = true;
+                uiFromTemplateRadio.Enabled = true;
+                uiTargetsListBox.Enabled = true;
+                uiDonorComboBox.Enabled = uiFromSourceRadio.Checked;
+                uiFilePathTextBox.Enabled = uiFromFileRadio.Checked;
+                uiBrowseButton.Enabled = uiFromFileRadio.Checked;
+                uiTemplateButton.Enabled = uiFromTemplateRadio.Checked;
+                uiApplyButton.Enabled = true;
+            }
         }
     }
 }
