@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace MediaOrcestrator.Modules;
@@ -45,8 +44,12 @@ public sealed partial class VideoTranscoder(IToolPathProvider toolPathProvider, 
                 return _h264Encoder;
             }
 
-            var output = await process.StandardOutput.ReadToEndAsync();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
+
+            var output = await stdoutTask;
+            await stderrTask;
 
             _h264Encoder = output.Contains("h264_nvenc") ? "h264_nvenc" : "libx264";
             logger.LogInformation("Выбран H264 кодек: {Encoder}", _h264Encoder);
@@ -91,187 +94,59 @@ public sealed partial class VideoTranscoder(IToolPathProvider toolPathProvider, 
         return RunFfmpegAsync(arguments, inputPath, outputPath, totalDuration, progress, cancellationToken);
     }
 
-    public async Task<VideoFrameSize?> GetVideoFrameSizeAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<VideoFrameSize> GetVideoFrameSizeAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        var ffprobePath = toolPathProvider.GetCompanionPath(WellKnownTools.FFmpeg, "ffprobe");
+        var output = await RunFfprobeAsync($"-v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 \"{filePath}\"",
+            filePath,
+            "определение размера кадра видео",
+            cancellationToken);
 
-        if (ffprobePath is null)
+        var parts = output.Split('x');
+
+        if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
         {
-            logger.LogWarning("Отсутствует ffprobe для определения размера кадра");
-            return null;
+            return new(width, height);
         }
 
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffprobePath,
-                Arguments = $"-v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 \"{filePath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
+        logger.LogWarning("ffprobe не вернул размер кадра для файла {FilePath}: '{Output}'", filePath, output);
 
-            using var process = Process.Start(psi);
-
-            if (process is null)
-            {
-                return null;
-            }
-
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            if (process.ExitCode != 0)
-            {
-                logger.LogWarning("ffprobe завершился с кодом {ExitCode} для файла: {FilePath}", process.ExitCode, filePath);
-                return null;
-            }
-
-            var parts = output.Trim().Split('x');
-
-            if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
-            {
-                return new VideoFrameSize(width, height);
-            }
-
-            logger.LogWarning("Неожиданный вывод ffprobe: '{Output}' для файла: {FilePath}", output.Trim(), filePath);
-            return null;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Не удалось определить размер кадра видео через ffprobe: {FilePath}", filePath);
-            return null;
-        }
+        throw new NonRetriableException(output.Length == 0
+            ? "В файле не найдена видеодорожка — определить размер кадра невозможно"
+            : $"Не удалось разобрать размер кадра из вывода ffprobe: '{output}'");
     }
 
-    public async Task<TimeSpan?> GetVideoDurationAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<TimeSpan> GetVideoDurationAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        var ffprobePath = toolPathProvider.GetCompanionPath(WellKnownTools.FFmpeg, "ffprobe");
+        var output = await RunFfprobeAsync($"-v error -show_entries format=duration -of csv=p=0 \"{filePath}\"",
+            filePath,
+            "определение длительности видео",
+            cancellationToken);
 
-        if (ffprobePath is null)
+        if (double.TryParse(output, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
         {
-            logger.LogWarning("Отсутствует ffprobe для определения длительности видео");
-            return null;
+            return TimeSpan.FromSeconds(seconds);
         }
 
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffprobePath,
-                Arguments = $"-v error -show_entries format=duration -of csv=p=0 \"{filePath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
+        logger.LogWarning("ffprobe не вернул длительность для файла {FilePath}: '{Output}'", filePath, output);
 
-            using var process = Process.Start(psi);
-
-            if (process is null)
-            {
-                return null;
-            }
-
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            if (process.ExitCode != 0)
-            {
-                logger.LogWarning("ffprobe завершился с кодом {ExitCode} для файла: {FilePath}", process.ExitCode, filePath);
-                return null;
-            }
-
-            if (double.TryParse(output.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
-            {
-                return TimeSpan.FromSeconds(seconds);
-            }
-
-            logger.LogWarning("Неожиданный вывод ffprobe (длительность): '{Output}' для файла: {FilePath}", output.Trim(), filePath);
-            return null;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Не удалось определить длительность видео через ffprobe: {FilePath}", filePath);
-            return null;
-        }
+        throw new NonRetriableException($"Не удалось определить длительность видео из вывода ffprobe: '{output}'");
     }
 
     public async Task<string?> GetVideoCodecAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        var ffprobePath = toolPathProvider.GetCompanionPath(WellKnownTools.FFmpeg, "ffprobe");
+        var output = await RunFfprobeAsync($"-v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 \"{filePath}\"",
+            filePath,
+            "определение кодека видео",
+            cancellationToken);
 
-        if (ffprobePath is null)
+        if (output.Length != 0)
         {
-            return null;
+            return output;
         }
 
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = ffprobePath,
-                Arguments = $"-v quiet -print_format json -show_streams \"{filePath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
+        logger.LogWarning("ffprobe не нашёл видеодорожку в файле {FilePath}", filePath);
 
-            using var process = Process.Start(psi);
-
-            if (process is null)
-            {
-                return null;
-            }
-
-            var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            if (process.ExitCode != 0)
-            {
-                logger.LogWarning("ffprobe завершился с кодом {ExitCode} для файла: {FilePath}", process.ExitCode, filePath);
-                return null;
-            }
-
-            using var doc = JsonDocument.Parse(output);
-
-            if (!doc.RootElement.TryGetProperty("streams", out var streams))
-            {
-                return null;
-            }
-
-            foreach (var stream in streams.EnumerateArray())
-            {
-                var codecType = stream.TryGetProperty("codec_type", out var ct) ? ct.GetString() : null;
-
-                if (codecType == "video" && stream.TryGetProperty("codec_name", out var codecName))
-                {
-                    return codecName.GetString();
-                }
-            }
-
-            return null;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Не удалось определить кодек видео через ffprobe: {FilePath}", filePath);
-            return null;
-        }
+        return null;
     }
 
     private static bool TryParseFFmpegTime(string line, out double seconds)
@@ -293,6 +168,75 @@ public sealed partial class VideoTranscoder(IToolPathProvider toolPathProvider, 
 
     [GeneratedRegex(@"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})")]
     private static partial Regex FFmpegTimeRegex();
+
+    private async Task<string> RunFfprobeAsync(
+        string arguments,
+        string filePath,
+        string purpose,
+        CancellationToken cancellationToken)
+    {
+        var ffprobePath = toolPathProvider.GetCompanionPath(WellKnownTools.FFmpeg, "ffprobe");
+
+        if (ffprobePath is null)
+        {
+            logger.LogWarning("ffprobe не найден ({Purpose}): {FilePath}", purpose, filePath);
+
+            throw new NonRetriableException($"ffprobe не установлен — {purpose} невозможно. Установите ffmpeg через панель управления инструментами.");
+        }
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = ffprobePath,
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        Process? process;
+
+        try
+        {
+            process = Process.Start(psi);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Не удалось запустить ffprobe ({Purpose}): {FilePath}", purpose, filePath);
+
+            throw new NonRetriableException($"Не удалось запустить ffprobe — {purpose} невозможно: {ex.Message}", ex);
+        }
+
+        if (process is null)
+        {
+            logger.LogWarning("Process.Start вернул null для ffprobe ({Purpose}): {FilePath}", purpose, filePath);
+
+            throw new NonRetriableException($"Не удалось запустить ffprobe — {purpose} невозможно");
+        }
+
+        using (process)
+        {
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+            await process.WaitForExitAsync(cancellationToken);
+
+            var stdout = (await stdoutTask).Trim();
+            var stderr = (await stderrTask).Trim();
+
+            if (process.ExitCode == 0)
+            {
+                return stdout;
+            }
+
+            var details = stderr.Length == 0 ? "ffprobe не сообщил подробностей" : stderr;
+
+            logger.LogWarning("ffprobe завершился с кодом {ExitCode} ({Purpose}) для файла {FilePath}: {Stderr}",
+                process.ExitCode, purpose, filePath, details);
+
+            throw new NonRetriableException($"ffprobe завершился с ошибкой (код {process.ExitCode}) — {purpose} невозможно: {details}");
+        }
+    }
 
     private async Task<bool> TranscodeToH264Async(
         string inputPath,

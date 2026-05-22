@@ -261,7 +261,7 @@ public sealed class RutubeChannel(
 
         if (string.IsNullOrEmpty(codec))
         {
-            throw new NonRetriableException("Не удалось определить кодек видео. Убедитесь, что ffprobe доступен.");
+            throw new NonRetriableException("В файле не найдена видеодорожка — определить кодек видео невозможно");
         }
 
         if (string.Equals(codec, "vp9", StringComparison.OrdinalIgnoreCase))
