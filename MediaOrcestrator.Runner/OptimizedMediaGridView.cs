@@ -320,6 +320,7 @@ public class OptimizedMediaGridView : DataGridView
         var state = _savedState;
         _savedState = null;
 
+        var ordered = new List<DataGridViewColumn>(Columns.Count);
         foreach (DataGridViewColumn col in Columns)
         {
             if (!state.ColumnLayouts.TryGetValue(col.Name, out var layout))
@@ -328,7 +329,22 @@ public class OptimizedMediaGridView : DataGridView
             }
 
             col.Width = layout.Width;
-            col.DisplayIndex = layout.DisplayIndex;
+            ordered.Add(col);
+        }
+
+        ordered.Sort((a, b) =>
+            state.ColumnLayouts[a.Name]
+                .DisplayIndex
+                .CompareTo(state.ColumnLayouts[b.Name].DisplayIndex));
+
+        var maxIndex = Columns.Count - 1;
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var target = Math.Min(i, maxIndex);
+            if (ordered[i].DisplayIndex != target)
+            {
+                ordered[i].DisplayIndex = target;
+            }
         }
 
         if (state.SortColumnIndex is { } sortIdx
