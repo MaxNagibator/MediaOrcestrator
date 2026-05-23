@@ -22,10 +22,7 @@ public partial class BatchPreviewForm : Form
 
     private List<Source> _donors = [];
     private List<Source> _allTargets = [];
-    private CoverTemplate? _coverTemplate;
-    private string? _currentProfileName;
     private bool _suppressEvents;
-    private bool _suppressProfileComboEvents;
     private bool _isApplying;
     private bool _closeAfterCancel;
     private CancellationTokenSource? _applyCts;
@@ -71,8 +68,8 @@ public partial class BatchPreviewForm : Form
 
         ApplyInitialSplitterDistance();
         PopulateDonors();
+        uiCoverProfilePicker.Initialize(_coverTemplateStore, _coverGenerator);
         OnModeChanged();
-        RefreshProfilesCombo();
         RefreshCoverThumbnail();
     }
 
@@ -150,14 +147,11 @@ public partial class BatchPreviewForm : Form
         BrowseFile();
     }
 
-    private void OnTemplateButtonClick(object? sender, EventArgs e)
+    private void OnCoverProfilePickerTemplateChanged(object? sender, EventArgs e)
     {
-        OpenTemplateEditor();
-    }
-
-    private void OnProfileComboSelectedIndexChanged(object? sender, EventArgs e)
-    {
-        OnProfileComboChanged();
+        RefreshCoverThumbnail();
+        UpdateApplyButtonState();
+        UpdateStatusLine();
     }
 
     private void uiResultGrid_CurrentCellDirtyStateChanged(object? sender, EventArgs e)
@@ -257,7 +251,9 @@ public partial class BatchPreviewForm : Form
         uiCoverThumbnail.Image?.Dispose();
         uiCoverThumbnail.Image = null;
 
-        if (_coverTemplate == null || string.IsNullOrEmpty(_coverTemplate.TemplatePath) || !File.Exists(_coverTemplate.TemplatePath))
+        var template = uiCoverProfilePicker.Template;
+
+        if (template == null || string.IsNullOrEmpty(template.TemplatePath) || !File.Exists(template.TemplatePath))
         {
             return;
         }
@@ -265,73 +261,13 @@ public partial class BatchPreviewForm : Form
         try
         {
             var sampleTitle = _medias.Count > 0 ? _medias[0].Title : null;
-            var sampleNumber = CoverNumberResolver.Resolve(_coverTemplate, sampleTitle, 0);
-            using var skBitmap = _coverGenerator.Render(_coverTemplate, sampleNumber);
+            var sampleNumber = CoverNumberResolver.Resolve(template, sampleTitle, 0, _logger);
+            using var skBitmap = _coverGenerator.Render(template, sampleNumber);
             uiCoverThumbnail.Image = SkiaInterop.ToBitmap(skBitmap);
         }
         catch
         {
         }
-    }
-
-    private void RefreshProfilesCombo()
-    {
-        _suppressProfileComboEvents = true;
-        uiProfileCombo.Items.Clear();
-        uiProfileCombo.Items.Add("— выбрать профиль —");
-
-        foreach (var name in _coverTemplateStore.List())
-        {
-            uiProfileCombo.Items.Add(name);
-        }
-
-        if (!string.IsNullOrEmpty(_currentProfileName))
-        {
-            var idx = uiProfileCombo.Items.IndexOf(_currentProfileName);
-            uiProfileCombo.SelectedIndex = idx >= 0 ? idx : 0;
-        }
-        else
-        {
-            uiProfileCombo.SelectedIndex = 0;
-        }
-
-        _suppressProfileComboEvents = false;
-    }
-
-    private void OnProfileComboChanged()
-    {
-        if (_suppressProfileComboEvents)
-        {
-            return;
-        }
-
-        var idx = uiProfileCombo.SelectedIndex;
-
-        if (idx <= 0)
-        {
-            return;
-        }
-
-        var name = uiProfileCombo.SelectedItem?.ToString();
-
-        if (string.IsNullOrEmpty(name))
-        {
-            return;
-        }
-
-        var loaded = _coverTemplateStore.Load(name);
-
-        if (loaded == null)
-        {
-            MessageBox.Show(this, $"Не удалось загрузить профиль «{name}»", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        _coverTemplate = loaded;
-        _currentProfileName = name;
-        RefreshCoverThumbnail();
-        UpdateApplyButtonState();
-        UpdateStatusLine();
     }
 
     private void PopulateDonors()
@@ -503,8 +439,7 @@ public partial class BatchPreviewForm : Form
         uiDonorComboBox.Enabled = uiFromSourceRadio.Checked && !_isApplying;
         uiFilePathTextBox.Enabled = uiFromFileRadio.Checked && !_isApplying;
         uiBrowseButton.Enabled = uiFromFileRadio.Checked && !_isApplying;
-        uiTemplateButton.Enabled = uiFromTemplateRadio.Checked && !_isApplying;
-        uiProfileCombo.Enabled = uiFromTemplateRadio.Checked && !_isApplying;
+        uiCoverProfilePicker.Enabled = uiFromTemplateRadio.Checked && !_isApplying;
 
         if (uiFromSourceRadio.Checked)
         {
@@ -544,23 +479,6 @@ public partial class BatchPreviewForm : Form
         UpdateStatusLine();
     }
 
-    private void OpenTemplateEditor()
-    {
-        using var form = new CoverTemplateForm(_coverGenerator, _coverTemplateStore, _coverTemplate, _currentProfileName);
-
-        if (form.ShowDialog(this) != DialogResult.OK || form.Result == null)
-        {
-            return;
-        }
-
-        _coverTemplate = form.Result;
-        _currentProfileName = form.CurrentProfileName;
-        RefreshProfilesCombo();
-        RefreshCoverThumbnail();
-        UpdateApplyButtonState();
-        UpdateStatusLine();
-    }
-
     private bool HasSelectedSource()
     {
         if (uiFromSourceRadio.Checked)
@@ -573,7 +491,7 @@ public partial class BatchPreviewForm : Form
             return !string.IsNullOrEmpty(uiFilePathTextBox.Text) && File.Exists(uiFilePathTextBox.Text);
         }
 
-        return uiFromTemplateRadio.Checked && _coverTemplate != null;
+        return uiFromTemplateRadio.Checked && uiCoverProfilePicker.Template != null;
     }
 
     private int CountActionableRows()
@@ -685,7 +603,7 @@ public partial class BatchPreviewForm : Form
 
         var donor = uiFromSourceRadio.Checked ? GetSelectedDonor() : null;
         var localFilePath = uiFromFileRadio.Checked ? uiFilePathTextBox.Text : null;
-        var coverTemplate = uiFromTemplateRadio.Checked ? _coverTemplate : null;
+        var coverTemplate = uiFromTemplateRadio.Checked ? uiCoverProfilePicker.Template : null;
 
         var totalUnits = requests.Sum(r => r.Targets.Count);
 
@@ -1036,8 +954,7 @@ public partial class BatchPreviewForm : Form
         uiDonorComboBox.Enabled = !applying && uiFromSourceRadio.Checked;
         uiFilePathTextBox.Enabled = !applying && uiFromFileRadio.Checked;
         uiBrowseButton.Enabled = !applying && uiFromFileRadio.Checked;
-        uiTemplateButton.Enabled = !applying && uiFromTemplateRadio.Checked;
-        uiProfileCombo.Enabled = !applying && uiFromTemplateRadio.Checked;
+        uiCoverProfilePicker.Enabled = !applying && uiFromTemplateRadio.Checked;
         uiTargetsPanel.Enabled = !applying;
         uiRowSelectPanel.Enabled = !applying;
         uiStopOnErrorCheck.Enabled = !applying;

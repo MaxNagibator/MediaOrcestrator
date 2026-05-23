@@ -11,7 +11,6 @@ public partial class PublishControl : UserControl
     private const int MaxTitleSuggestions = 20;
     private const int MaxDescriptionSuggestions = 10;
     private const int DescriptionPreviewLength = 100;
-    private const string NoCoverProfileLabel = "— выбрать профиль —";
 
     private readonly Orcestrator? _orcestrator;
     private readonly SyncRetryRunner? _retryRunner;
@@ -36,11 +35,8 @@ public partial class PublishControl : UserControl
     private bool _suspendSourceChange;
     private bool _isMediasCacheValid;
 
-    private CoverTemplate? _coverTemplate;
-    private string? _coverProfileName;
-    private bool _suppressCoverProfileEvents;
-
     private bool _suppressCoverNumberAutoFill;
+    private bool _coverNumberManuallyEdited;
 
     private (string Dir, string File)? _pendingGeneratedCover;
 
@@ -129,7 +125,15 @@ public partial class PublishControl : UserControl
         UpdateCoverLabel();
         UpdateDescriptionCounter();
 
-        ReloadCoverProfiles();
+        if (_coverTemplateStore != null && _coverGenerator != null)
+        {
+            uiCoverProfilePicker.Initialize(_coverTemplateStore, _coverGenerator);
+        }
+        else
+        {
+            uiCoverProfilePicker.Enabled = false;
+        }
+
         UpdateGenerateCoverButtonState();
 
         SetStatus("Готов к публикации.", false);
@@ -273,24 +277,26 @@ public partial class PublishControl : UserControl
         TryAutoResolveCoverNumber();
     }
 
-    private void uiCoverProfileCombo_SelectedIndexChanged(object? sender, EventArgs e)
+    private void uiCoverProfilePicker_TemplateChanged(object? sender, EventArgs e)
     {
-        if (_suppressCoverProfileEvents)
-        {
-            return;
-        }
-
-        OnCoverProfileChanged();
-    }
-
-    private void uiSetupTemplateButton_Click(object? sender, EventArgs e)
-    {
-        OpenCoverTemplateEditor();
+        _coverNumberManuallyEdited = false;
+        TryAutoResolveCoverNumber();
+        UpdateGenerateCoverButtonState();
     }
 
     private async void uiGenerateCoverButton_Click(object? sender, EventArgs e)
     {
         await GenerateCoverFromTemplateAsync();
+    }
+
+    private void uiCoverNumberInput_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_suppressCoverNumberAutoFill)
+        {
+            return;
+        }
+
+        _coverNumberManuallyEdited = true;
     }
 
     private void uiTitleComboBox_DropDown(object? sender, EventArgs e)
@@ -440,6 +446,8 @@ public partial class PublishControl : UserControl
         }
         finally
         {
+            CleanupPendingGeneratedCover();
+
             _isPublishing = false;
             SetControlsBusy(false);
             UpdatePublishButtonState();
@@ -784,97 +792,6 @@ public partial class PublishControl : UserControl
         UpdateCoverLabel();
     }
 
-    private void ReloadCoverProfiles()
-    {
-        if (_coverTemplateStore == null)
-        {
-            uiCoverProfileCombo.Enabled = false;
-            uiSetupTemplateButton.Enabled = false;
-            return;
-        }
-
-        _suppressCoverProfileEvents = true;
-
-        try
-        {
-            uiCoverProfileCombo.BeginUpdate();
-            uiCoverProfileCombo.Items.Clear();
-            uiCoverProfileCombo.Items.Add(NoCoverProfileLabel);
-
-            foreach (var name in _coverTemplateStore.List())
-            {
-                uiCoverProfileCombo.Items.Add(name);
-            }
-
-            if (!string.IsNullOrEmpty(_coverProfileName))
-            {
-                var idx = uiCoverProfileCombo.Items.IndexOf(_coverProfileName);
-                uiCoverProfileCombo.SelectedIndex = idx >= 0 ? idx : 0;
-            }
-            else
-            {
-                uiCoverProfileCombo.SelectedIndex = 0;
-            }
-
-            uiCoverProfileCombo.EndUpdate();
-        }
-        finally
-        {
-            _suppressCoverProfileEvents = false;
-        }
-    }
-
-    private void OnCoverProfileChanged()
-    {
-        var idx = uiCoverProfileCombo.SelectedIndex;
-
-        if (idx <= 0 || _coverTemplateStore == null)
-        {
-            return;
-        }
-
-        var name = uiCoverProfileCombo.SelectedItem?.ToString();
-
-        if (string.IsNullOrEmpty(name))
-        {
-            return;
-        }
-
-        var loaded = _coverTemplateStore.Load(name);
-
-        if (loaded == null)
-        {
-            SetStatus($"Не удалось загрузить профиль '{name}'.", true);
-            return;
-        }
-
-        _coverTemplate = loaded;
-        _coverProfileName = name;
-        TryAutoResolveCoverNumber();
-        UpdateGenerateCoverButtonState();
-    }
-
-    private void OpenCoverTemplateEditor()
-    {
-        if (_coverGenerator == null || _coverTemplateStore == null)
-        {
-            return;
-        }
-
-        using var form = new CoverTemplateForm(_coverGenerator, _coverTemplateStore, _coverTemplate, _coverProfileName);
-
-        if (form.ShowDialog(FindForm()) != DialogResult.OK || form.Result == null)
-        {
-            return;
-        }
-
-        _coverTemplate = form.Result;
-        _coverProfileName = form.CurrentProfileName;
-        ReloadCoverProfiles();
-        TryAutoResolveCoverNumber();
-        UpdateGenerateCoverButtonState();
-    }
-
     private async Task GenerateCoverFromTemplateAsync()
     {
         if (_coverGenerator == null || _tempManager == null)
@@ -882,13 +799,15 @@ public partial class PublishControl : UserControl
             return;
         }
 
-        if (_coverTemplate == null)
+        var template = uiCoverProfilePicker.Template;
+
+        if (template == null)
         {
             SetStatus("Выберите профиль обложки или откройте 'Настроить…'.", true);
             return;
         }
 
-        if (string.IsNullOrEmpty(_coverTemplate.TemplatePath) || !File.Exists(_coverTemplate.TemplatePath))
+        if (string.IsNullOrEmpty(template.TemplatePath) || !File.Exists(template.TemplatePath))
         {
             SetStatus("Файл шаблона недоступен. Откройте 'Настроить…' и выберите заново.", true);
             return;
@@ -899,7 +818,6 @@ public partial class PublishControl : UserControl
         uiGenerateCoverButton.Enabled = false;
         SetStatus("Генерация обложки...", false);
 
-        var template = _coverTemplate;
         var coverGenerator = _coverGenerator;
         var tempPath = _tempManager.TempPath;
 
@@ -930,12 +848,14 @@ public partial class PublishControl : UserControl
 
     private void TryAutoResolveCoverNumber()
     {
-        if (_coverTemplate == null || _suppressCoverNumberAutoFill)
+        var template = uiCoverProfilePicker.Template;
+
+        if (template == null || _suppressCoverNumberAutoFill || _coverNumberManuallyEdited)
         {
             return;
         }
 
-        var resolved = CoverNumberResolver.Resolve(_coverTemplate, uiTitleComboBox.Text?.Trim(), 0);
+        var resolved = CoverNumberResolver.Resolve(template, uiTitleComboBox.Text?.Trim(), 0, _logger);
         var clamped = Math.Clamp(resolved, (int)uiCoverNumberInput.Minimum, (int)uiCoverNumberInput.Maximum);
 
         _suppressCoverNumberAutoFill = true;
@@ -953,7 +873,7 @@ public partial class PublishControl : UserControl
     private void UpdateGenerateCoverButtonState()
     {
         var canGenerate = !_isPublishing
-                          && _coverTemplate != null
+                          && uiCoverProfilePicker.Template != null
                           && _coverGenerator != null
                           && _tempManager != null;
 
@@ -1053,8 +973,7 @@ public partial class PublishControl : UserControl
         uiClearVideoButton.Enabled = !busy && !string.IsNullOrEmpty(_videoPath);
         uiClearCoverButton.Enabled = !busy && !string.IsNullOrEmpty(_coverPath);
 
-        uiCoverProfileCombo.Enabled = !busy && _coverTemplateStore != null;
-        uiSetupTemplateButton.Enabled = !busy && _coverTemplateStore != null && _coverGenerator != null;
+        uiCoverProfilePicker.Enabled = !busy && _coverTemplateStore != null && _coverGenerator != null;
         uiCoverNumberInput.Enabled = !busy;
         UpdateGenerateCoverButtonState();
 
@@ -1080,6 +999,7 @@ public partial class PublishControl : UserControl
         uiTitleComboBox.Text = string.Empty;
         _autoFilledTitle = null;
         _titleBeforeDropDown = null;
+        _coverNumberManuallyEdited = false;
         uiDescriptionTextBox.Clear();
         SetVideo(null);
         SetCover(null);

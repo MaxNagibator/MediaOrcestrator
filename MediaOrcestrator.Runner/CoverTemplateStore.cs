@@ -25,6 +25,16 @@ public sealed class CoverTemplateStore(SettingsManager settingsManager, ILogger<
         WriteIndented = true,
     };
 
+    public string Sanitize(string name)
+    {
+        return SanitizeName(name);
+    }
+
+    public bool Exists(string name)
+    {
+        return File.Exists(GetPath(name));
+    }
+
     public CoverTemplate? Load(string name)
     {
         var path = GetPath(name);

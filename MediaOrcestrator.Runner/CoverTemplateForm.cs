@@ -59,10 +59,8 @@ public partial class CoverTemplateForm : Form
         }
 
         UpdateNumberModeUi();
-        PopulateProfiles();
+        UpdateSaveButtonState();
     }
-
-    public CoverTemplate? Result { get; private set; }
 
     public string? CurrentProfileName { get; private set; }
 
@@ -209,6 +207,8 @@ public partial class CoverTemplateForm : Form
             var c = layer.FillColor;
             layer.FillColor = DrawingColor.FromArgb((int)uiFillAlpha.Value, c.R, c.G, c.B);
         });
+
+        uiFillColorButton.Invalidate();
     }
 
     private void uiStrokeAlpha_ValueChanged(object? sender, EventArgs e)
@@ -218,6 +218,8 @@ public partial class CoverTemplateForm : Form
             var c = layer.StrokeColor;
             layer.StrokeColor = DrawingColor.FromArgb((int)uiStrokeAlpha.Value, c.R, c.G, c.B);
         });
+
+        uiStrokeColorButton.Invalidate();
     }
 
     private void uiAddLayerButton_Click(object? sender, EventArgs e)
@@ -240,24 +242,57 @@ public partial class CoverTemplateForm : Form
         MoveSelectedLayer(1);
     }
 
-    private void uiLoadProfileButton_Click(object? sender, EventArgs e)
+    private void uiSaveProfileButton_Click(object? sender, EventArgs e)
     {
-        LoadSelectedProfile();
+        if (SaveCurrentProfile())
+        {
+            Close();
+        }
     }
 
     private void uiSaveAsProfileButton_Click(object? sender, EventArgs e)
     {
-        SaveAsProfile();
+        if (SaveAsProfile())
+        {
+            Close();
+        }
     }
 
-    private void uiDeleteProfileButton_Click(object? sender, EventArgs e)
+    private void uiFontFamily_Leave(object? sender, EventArgs e)
     {
-        DeleteSelectedProfile();
+        var entered = uiFontFamily.Text;
+
+        if (string.IsNullOrEmpty(entered))
+        {
+            return;
+        }
+
+        var idx = uiFontFamily.FindStringExact(entered);
+
+        if (idx >= 0)
+        {
+            if (uiFontFamily.SelectedIndex != idx)
+            {
+                uiFontFamily.SelectedIndex = idx;
+            }
+
+            return;
+        }
+
+        var layer = GetSelectedLayer();
+        var fallback = layer?.FontFamily ?? "Impact";
+        var fallbackIdx = uiFontFamily.FindStringExact(fallback);
+        uiFontFamily.SelectedIndex = fallbackIdx >= 0 ? fallbackIdx : Math.Max(0, uiFontFamily.Items.Count - 1);
     }
 
-    private void uiOkButton_Click(object? sender, EventArgs e)
+    private void uiFillColorButton_Paint(object? sender, PaintEventArgs e)
     {
-        OnApply();
+        PaintColorSwatch(e, GetSelectedLayer()?.FillColor ?? DrawingColor.White);
+    }
+
+    private void uiStrokeColorButton_Paint(object? sender, PaintEventArgs e)
+    {
+        PaintColorSwatch(e, GetSelectedLayer()?.StrokeColor ?? DrawingColor.Black);
     }
 
     private void uiHelpButton_Click(object? sender, EventArgs e)
@@ -270,6 +305,33 @@ public partial class CoverTemplateForm : Form
         return string.IsNullOrEmpty(profileName)
             ? "Шаблон обложки"
             : $"Шаблон обложки — {profileName}";
+    }
+
+    private static void PaintColorSwatch(PaintEventArgs e, DrawingColor color)
+    {
+        var bounds = e.ClipRectangle;
+
+        if (color.A < 255)
+        {
+            const int tile = 6;
+
+            using var darkBrush = new SolidBrush(DrawingColor.FromArgb(204, 204, 204));
+            using var lightBrush = new SolidBrush(DrawingColor.White);
+
+            for (var y = bounds.Top; y < bounds.Bottom; y += tile)
+            {
+                for (var x = bounds.Left; x < bounds.Right; x += tile)
+                {
+                    var brush = (x / tile + y / tile & 1) == 0 ? lightBrush : darkBrush;
+                    var width = Math.Min(tile, bounds.Right - x);
+                    var height = Math.Min(tile, bounds.Bottom - y);
+                    e.Graphics.FillRectangle(brush, x, y, width, height);
+                }
+            }
+        }
+
+        using var paintBrush = new SolidBrush(color);
+        e.Graphics.FillRectangle(paintBrush, bounds);
     }
 
     private static CoverFontStyle GetFontStyleAt(int index)
@@ -426,10 +488,10 @@ public partial class CoverTemplateForm : Form
         uiFontStyle.SelectedIndex = IndexOfFontStyle(layer.FontStyle);
         uiFontSize.Value = (decimal)Math.Clamp(layer.FontSizeRatio * 100f, (float)uiFontSize.Minimum, (float)uiFontSize.Maximum);
         uiStrokeWidth.Value = (decimal)Math.Clamp(layer.StrokeWidthRatio * 100f, (float)uiStrokeWidth.Minimum, (float)uiStrokeWidth.Maximum);
-        uiFillColorButton.BackColor = DrawingColor.FromArgb(layer.FillColor.R, layer.FillColor.G, layer.FillColor.B);
-        uiStrokeColorButton.BackColor = DrawingColor.FromArgb(layer.StrokeColor.R, layer.StrokeColor.G, layer.StrokeColor.B);
         uiFillAlpha.Value = layer.FillColor.A;
         uiStrokeAlpha.Value = layer.StrokeColor.A;
+        uiFillColorButton.Invalidate();
+        uiStrokeColorButton.Invalidate();
         _suppressLayerEdits = false;
 
         UpdatePositionLabel();
@@ -656,118 +718,116 @@ public partial class CoverTemplateForm : Form
             uiWarningLabel.Text = string.Join(Environment.NewLine, parts);
             uiWarningLabel.Visible = true;
         }
+
+        UpdateSaveButtonState();
     }
 
-    private void PopulateProfiles(string? select = null)
+    private bool SaveCurrentProfile()
     {
-        uiProfilesCombo.Items.Clear();
-
-        foreach (var name in _store.List())
+        if (string.IsNullOrEmpty(CurrentProfileName))
         {
-            uiProfilesCombo.Items.Add(name);
+            return false;
         }
 
-        if (!string.IsNullOrEmpty(select))
+        if (!CanSaveTemplate(out var template))
         {
-            var idx = uiProfilesCombo.Items.IndexOf(select);
-
-            if (idx >= 0)
-            {
-                uiProfilesCombo.SelectedIndex = idx;
-            }
+            return false;
         }
+
+        if (!_store.Save(CurrentProfileName, template))
+        {
+            MessageBox.Show($"Не удалось сохранить профиль '{CurrentProfileName}'. Подробности в логах.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+
+        return true;
     }
 
-    private void LoadSelectedProfile()
-    {
-        var name = uiProfilesCombo.SelectedItem?.ToString();
-
-        if (string.IsNullOrEmpty(name))
-        {
-            return;
-        }
-
-        var loaded = _store.Load(name);
-
-        if (loaded == null)
-        {
-            MessageBox.Show($"Не удалось загрузить профиль '{name}'", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        CurrentProfileName = name;
-        Text = FormatTitle(CurrentProfileName);
-        ApplyInitial(loaded);
-    }
-
-    private void SaveAsProfile()
+    private bool SaveAsProfile()
     {
         using var dialog = new InputDialog("Имя профиля:", "Сохранение профиля", CurrentProfileName ?? string.Empty);
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
-            return;
+            return false;
         }
 
-        var name = dialog.InputText?.Trim();
+        var rawName = dialog.InputText?.Trim();
+
+        if (string.IsNullOrEmpty(rawName))
+        {
+            return false;
+        }
+
+        var name = _store.Sanitize(rawName);
 
         if (string.IsNullOrEmpty(name))
         {
-            return;
+            MessageBox.Show("Имя профиля содержит только запрещённые символы.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
         }
 
-        if (string.IsNullOrEmpty(_templatePath) || !File.Exists(_templatePath))
+        if (!string.Equals(name, rawName, StringComparison.Ordinal))
         {
-            MessageBox.Show("Выберите файл шаблона", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
+            MessageBox.Show($"Имя приведено к '{name}' (убраны запрещённые в имени файла символы).", "Имя профиля", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        if (uiProfilesCombo.Items.Contains(name))
+        if (!CanSaveTemplate(out var template))
+        {
+            return false;
+        }
+
+        if (_store.Exists(name))
         {
             var confirm = MessageBox.Show($"Профиль '{name}' уже существует. Перезаписать?", "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
             if (confirm != DialogResult.Yes)
             {
-                return;
+                return false;
             }
         }
 
-        if (!_store.Save(name, BuildTemplate()))
+        if (!_store.Save(name, template))
         {
             MessageBox.Show($"Не удалось сохранить профиль '{name}'. Подробности в логах.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return;
+            return false;
         }
 
         CurrentProfileName = name;
         Text = FormatTitle(CurrentProfileName);
-        PopulateProfiles(name);
+        UpdateSaveButtonState();
+        return true;
     }
 
-    private void DeleteSelectedProfile()
+    private bool CanSaveTemplate(out CoverTemplate template)
     {
-        var name = uiProfilesCombo.SelectedItem?.ToString();
+        template = null!;
 
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrEmpty(_templatePath) || !File.Exists(_templatePath))
         {
-            return;
+            MessageBox.Show("Выберите файл шаблона", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
         }
 
-        var confirm = MessageBox.Show($"Удалить профиль '{name}'?", "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-        if (confirm != DialogResult.Yes)
+        if (_layers.Count == 0)
         {
-            return;
+            MessageBox.Show("Добавьте хотя бы один слой текста", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
         }
 
-        _store.Delete(name);
-
-        if (string.Equals(name, CurrentProfileName, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(_regexWarning))
         {
-            CurrentProfileName = null;
-            Text = FormatTitle(null);
+            MessageBox.Show(_regexWarning, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
         }
 
-        PopulateProfiles();
+        template = BuildTemplate();
+        return true;
+    }
+
+    private void UpdateSaveButtonState()
+    {
+        uiSaveProfileButton.Enabled = !string.IsNullOrEmpty(CurrentProfileName) && string.IsNullOrEmpty(_regexWarning);
     }
 
     private void PickColor(bool fill)
@@ -799,12 +859,12 @@ public partial class CoverTemplateForm : Form
         if (fill)
         {
             layer.FillColor = withAlpha;
-            uiFillColorButton.BackColor = DrawingColor.FromArgb(picked.R, picked.G, picked.B);
+            uiFillColorButton.Invalidate();
         }
         else
         {
             layer.StrokeColor = withAlpha;
-            uiStrokeColorButton.BackColor = DrawingColor.FromArgb(picked.R, picked.G, picked.B);
+            uiStrokeColorButton.Invalidate();
         }
 
         UpdatePreview();
@@ -875,33 +935,6 @@ public partial class CoverTemplateForm : Form
         {
             uiPositionLabel.Text = $"Ошибка превью: {ex.Message}";
         }
-    }
-
-    private void OnApply()
-    {
-        if (string.IsNullOrEmpty(_templatePath) || !File.Exists(_templatePath))
-        {
-            MessageBox.Show("Выберите файл шаблона", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        if (_layers.Count == 0)
-        {
-            MessageBox.Show("Добавьте хотя бы один слой текста", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        var template = BuildTemplate();
-
-        if (!string.IsNullOrEmpty(CurrentProfileName) && !_store.Save(CurrentProfileName, template))
-        {
-            MessageBox.Show($"Не удалось сохранить профиль '{CurrentProfileName}'. Подробности в логах.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return;
-        }
-
-        Result = template;
-        DialogResult = DialogResult.OK;
-        Close();
     }
 
     private void ShowHelp()

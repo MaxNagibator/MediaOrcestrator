@@ -27,8 +27,7 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger) : IDisposable
 
     public SKBitmap Render(CoverTemplate template, int number)
     {
-        var source = GetCachedBackground(template.TemplatePath);
-        var bitmap = source.Copy() ?? throw new InvalidOperationException($"Не удалось скопировать декодированный шаблон: {template.TemplatePath}");
+        var bitmap = CopyCachedBackground(template.TemplatePath);
 
         using var canvas = new SKCanvas(bitmap);
 
@@ -124,7 +123,7 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger) : IDisposable
         return string.IsNullOrEmpty(template) ? string.Empty : template.Replace("{number}", number.ToString());
     }
 
-    private SKBitmap GetCachedBackground(string templatePath)
+    private SKBitmap CopyCachedBackground(string templatePath)
     {
         if (!File.Exists(templatePath))
         {
@@ -135,21 +134,21 @@ public sealed class CoverGenerator(ILogger<CoverGenerator> logger) : IDisposable
 
         lock (_cacheLock)
         {
-            if (_cachedBitmap != null
-                && string.Equals(_cachedPath, templatePath, StringComparison.OrdinalIgnoreCase)
-                && _cachedMtime == mtime)
+            if (_cachedBitmap == null
+                || !string.Equals(_cachedPath, templatePath, StringComparison.OrdinalIgnoreCase)
+                || _cachedMtime != mtime)
             {
-                return _cachedBitmap;
+                var decoded = SKBitmap.Decode(templatePath)
+                              ?? throw new InvalidOperationException($"Не удалось декодировать шаблон: {templatePath}");
+
+                _cachedBitmap?.Dispose();
+                _cachedBitmap = decoded;
+                _cachedPath = templatePath;
+                _cachedMtime = mtime;
             }
 
-            var decoded = SKBitmap.Decode(templatePath)
-                          ?? throw new InvalidOperationException($"Не удалось декодировать шаблон: {templatePath}");
-
-            _cachedBitmap?.Dispose();
-            _cachedBitmap = decoded;
-            _cachedPath = templatePath;
-            _cachedMtime = mtime;
-            return decoded;
+            return _cachedBitmap.Copy()
+                   ?? throw new InvalidOperationException($"Не удалось скопировать декодированный шаблон: {templatePath}");
         }
     }
 }

@@ -48,8 +48,7 @@
             uiCoverPreviewPictureBox = new PictureBox();
             uiCoverTemplateGroup = new GroupBox();
             uiCoverProfileLabel = new Label();
-            uiCoverProfileCombo = new ComboBox();
-            uiSetupTemplateButton = new Button();
+            uiCoverProfilePicker = new CoverProfilePicker();
             uiCoverNumberLabel = new Label();
             uiCoverNumberInput = new NumericUpDown();
             uiGenerateCoverButton = new Button();
@@ -262,8 +261,7 @@
             //
             uiCoverTemplateGroup.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             uiCoverTemplateGroup.Controls.Add(uiCoverProfileLabel);
-            uiCoverTemplateGroup.Controls.Add(uiCoverProfileCombo);
-            uiCoverTemplateGroup.Controls.Add(uiSetupTemplateButton);
+            uiCoverTemplateGroup.Controls.Add(uiCoverProfilePicker);
             uiCoverTemplateGroup.Controls.Add(uiCoverNumberLabel);
             uiCoverTemplateGroup.Controls.Add(uiCoverNumberInput);
             uiCoverTemplateGroup.Controls.Add(uiGenerateCoverButton);
@@ -283,28 +281,15 @@
             uiCoverProfileLabel.TabIndex = 0;
             uiCoverProfileLabel.Text = "Профиль:";
             //
-            // uiCoverProfileCombo
+            // uiCoverProfilePicker
             //
-            uiCoverProfileCombo.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            uiCoverProfileCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-            uiCoverProfileCombo.Location = new Point(75, 22);
-            uiCoverProfileCombo.Name = "uiCoverProfileCombo";
-            uiCoverProfileCombo.Size = new Size(395, 23);
-            uiCoverProfileCombo.TabIndex = 1;
-            uiToolTip.SetToolTip(uiCoverProfileCombo, "Сохранённый профиль шаблона обложки");
-            uiCoverProfileCombo.SelectedIndexChanged += uiCoverProfileCombo_SelectedIndexChanged;
-            //
-            // uiSetupTemplateButton
-            //
-            uiSetupTemplateButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            uiSetupTemplateButton.Location = new Point(478, 21);
-            uiSetupTemplateButton.Name = "uiSetupTemplateButton";
-            uiSetupTemplateButton.Size = new Size(110, 25);
-            uiSetupTemplateButton.TabIndex = 2;
-            uiSetupTemplateButton.Text = "Настроить…";
-            uiSetupTemplateButton.UseVisualStyleBackColor = true;
-            uiToolTip.SetToolTip(uiSetupTemplateButton, "Открыть редактор шаблонов обложек");
-            uiSetupTemplateButton.Click += uiSetupTemplateButton_Click;
+            uiCoverProfilePicker.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            uiCoverProfilePicker.Location = new Point(75, 21);
+            uiCoverProfilePicker.Name = "uiCoverProfilePicker";
+            uiCoverProfilePicker.Size = new Size(513, 25);
+            uiCoverProfilePicker.TabIndex = 1;
+            uiToolTip.SetToolTip(uiCoverProfilePicker, "Сохранённый профиль шаблона обложки");
+            uiCoverProfilePicker.TemplateChanged += uiCoverProfilePicker_TemplateChanged;
             //
             // uiCoverNumberLabel
             //
@@ -324,6 +309,7 @@
             uiCoverNumberInput.Size = new Size(80, 23);
             uiCoverNumberInput.TabIndex = 4;
             uiCoverNumberInput.Value = new decimal(new int[] { 1, 0, 0, 0 });
+            uiCoverNumberInput.ValueChanged += uiCoverNumberInput_ValueChanged;
             uiToolTip.SetToolTip(uiCoverNumberInput, "Номер для подстановки в {number}. По названию резолвится автоматически.");
             //
             // uiGenerateCoverButton
@@ -442,8 +428,7 @@
         private PictureBox uiCoverPreviewPictureBox;
         private GroupBox uiCoverTemplateGroup;
         private Label uiCoverProfileLabel;
-        private ComboBox uiCoverProfileCombo;
-        private Button uiSetupTemplateButton;
+        private CoverProfilePicker uiCoverProfilePicker;
         private Label uiCoverNumberLabel;
         private NumericUpDown uiCoverNumberInput;
         private Button uiGenerateCoverButton;

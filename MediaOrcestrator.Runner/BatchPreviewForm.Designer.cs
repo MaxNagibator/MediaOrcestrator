@@ -33,8 +33,7 @@ partial class BatchPreviewForm
         uiBrowseButton = new Button();
         uiTemplateLayout = new FlowLayoutPanel();
         uiFromTemplateRadio = new RadioButton();
-        uiTemplateButton = new Button();
-        uiProfileCombo = new ComboBox();
+        uiCoverProfilePicker = new CoverProfilePicker();
         uiCoverThumbnail = new PictureBox();
 
         uiTargetsGroup = new GroupBox();
@@ -234,8 +233,7 @@ partial class BatchPreviewForm
         //
         uiTemplateLayout.AutoSize = true;
         uiTemplateLayout.Controls.Add(uiFromTemplateRadio);
-        uiTemplateLayout.Controls.Add(uiTemplateButton);
-        uiTemplateLayout.Controls.Add(uiProfileCombo);
+        uiTemplateLayout.Controls.Add(uiCoverProfilePicker);
         uiTemplateLayout.Controls.Add(uiCoverThumbnail);
         uiTemplateLayout.Dock = DockStyle.Fill;
         uiTemplateLayout.FlowDirection = FlowDirection.LeftToRight;
@@ -255,25 +253,13 @@ partial class BatchPreviewForm
         uiFromTemplateRadio.CheckedChanged += OnFromTemplateCheckedChanged;
 
         //
-        // uiTemplateButton
+        // uiCoverProfilePicker
         //
-        uiTemplateButton.AutoSize = true;
-        uiTemplateButton.Margin = new Padding(6, 24, 3, 3);
-        uiTemplateButton.Name = "uiTemplateButton";
-        uiTemplateButton.TabIndex = 1;
-        uiTemplateButton.Text = "Настроить...";
-        uiTemplateButton.UseVisualStyleBackColor = true;
-        uiTemplateButton.Click += OnTemplateButtonClick;
-
-        //
-        // uiProfileCombo
-        //
-        uiProfileCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-        uiProfileCombo.Margin = new Padding(6, 24, 3, 3);
-        uiProfileCombo.Name = "uiProfileCombo";
-        uiProfileCombo.Size = new Size(140, 23);
-        uiProfileCombo.TabIndex = 2;
-        uiProfileCombo.SelectedIndexChanged += OnProfileComboSelectedIndexChanged;
+        uiCoverProfilePicker.Margin = new Padding(6, 22, 3, 3);
+        uiCoverProfilePicker.Name = "uiCoverProfilePicker";
+        uiCoverProfilePicker.Size = new Size(280, 27);
+        uiCoverProfilePicker.TabIndex = 1;
+        uiCoverProfilePicker.TemplateChanged += OnCoverProfilePickerTemplateChanged;
 
         //
         // uiCoverThumbnail
@@ -577,8 +563,7 @@ partial class BatchPreviewForm
     private Button uiBrowseButton;
     private FlowLayoutPanel uiTemplateLayout;
     private RadioButton uiFromTemplateRadio;
-    private Button uiTemplateButton;
-    private ComboBox uiProfileCombo;
+    private CoverProfilePicker uiCoverProfilePicker;
     private PictureBox uiCoverThumbnail;
 
     private GroupBox uiTargetsGroup;
