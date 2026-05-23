@@ -262,13 +262,16 @@ public partial class BatchRenameForm : Form
 
             var progress = new Progress<BatchRenameProgress>(OnProgress);
 
+            var execOptions = new BatchRenameExecutionOptions(uiStopOnErrorCheck.Checked);
+
             IReadOnlyList<BatchRenameResult> results;
             try
             {
                 results = await Task.Run(() => _service.ApplyAsync(requests,
                         progress,
                         result => _uiContext.Post(_ => OnMediaProcessed(result), null),
-                        token),
+                        token,
+                        execOptions),
                     token);
             }
             catch (OperationCanceledException)
@@ -1076,6 +1079,7 @@ public partial class BatchRenameForm : Form
         uiIgnoreCaseCheck.Enabled = !applying;
         uiSourcesPanel.Enabled = !applying;
         uiRowSelectPanel.Enabled = !applying;
+        uiStopOnErrorCheck.Enabled = !applying;
         uiPreviewGrid.ReadOnly = applying;
         uiApplyButton.Enabled = !applying;
 

@@ -783,6 +783,8 @@ public partial class BatchPreviewForm : Form
             var progress = new Progress<BatchPreviewProgress>(p => OnMediaProgress(p, totalUnits));
             var uiContext = SynchronizationContext.Current ?? new();
 
+            var execOptions = new BatchPreviewExecutionOptions(uiStopOnErrorCheck.Checked);
+
             try
             {
                 results = await Task.Run(() => _service.ApplyAsync(requests,
@@ -796,7 +798,8 @@ public partial class BatchPreviewForm : Form
                             var snapshot = processedUnits;
                             uiContext.Post(_ => OnResultReported(result, snapshot, totalUnits), null);
                         },
-                        token),
+                        token,
+                        execOptions),
                     token);
             }
             catch (OperationCanceledException)
@@ -1037,6 +1040,7 @@ public partial class BatchPreviewForm : Form
         uiProfileCombo.Enabled = !applying && uiFromTemplateRadio.Checked;
         uiTargetsPanel.Enabled = !applying;
         uiRowSelectPanel.Enabled = !applying;
+        uiStopOnErrorCheck.Enabled = !applying;
         uiResultGrid.ReadOnly = applying;
         uiApplyButton.Enabled = !applying;
 

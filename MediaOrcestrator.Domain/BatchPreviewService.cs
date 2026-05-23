@@ -11,6 +11,8 @@ public sealed record BatchPreviewProgress(int Processed, int Total, string? Curr
 
 public sealed record BatchPreviewSourceInfo(string SourceId, string Title);
 
+public sealed record BatchPreviewExecutionOptions(bool StopOnError = false, int MaxAttempts = 3);
+
 public sealed class BatchPreviewService(
     Orcestrator orcestrator,
     TempManager tempManager,
@@ -123,12 +125,14 @@ public sealed class BatchPreviewService(
         CoverTemplate? coverTemplate,
         IProgress<BatchPreviewProgress>? progress,
         Action<BatchPreviewResult>? onResult,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        BatchPreviewExecutionOptions? options = null)
     {
+        var effective = options ?? new();
         var results = new List<BatchPreviewResult>();
         var tempFiles = new List<string>();
 
-        var context = new BatchContext(donor, localFilePath, coverTemplate, tempFiles, results, onResult);
+        var context = new BatchContext(donor, localFilePath, coverTemplate, tempFiles, results, onResult, effective);
 
         progress?.Report(new(0, requests.Count, null));
 
@@ -165,6 +169,12 @@ public sealed class BatchPreviewService(
                 {
                     subtask.Fail(ex.Message, ex);
                     throw;
+                }
+
+                if (context.Aborted)
+                {
+                    logger.LogInformation("Пакетное обновление превью остановлено по флагу StopOnError после '{Title}'", request.Media.Title);
+                    break;
                 }
             }
         }
@@ -249,7 +259,7 @@ public sealed class BatchPreviewService(
         else if (context.Donor != null)
         {
             subtask.Status = $"Скачивание из {context.Donor.TitleFull}";
-            previewPath = await DownloadPreviewFromDonorAsync(media, context.Donor, context.TempFiles, cancellationToken);
+            previewPath = await DownloadPreviewFromDonorAsync(media, context.Donor, context.TempFiles, context.Options.MaxAttempts, cancellationToken);
 
             if (previewPath == null)
             {
@@ -260,6 +270,11 @@ public sealed class BatchPreviewService(
                     context.OnResult?.Invoke(failure);
                     subtask.ProgressPlus();
                     stats.Failed++;
+                }
+
+                if (context.Options.StopOnError)
+                {
+                    context.Aborted = true;
                 }
 
                 return stats;
@@ -274,7 +289,7 @@ public sealed class BatchPreviewService(
         {
             cancellationToken.ThrowIfCancellationRequested();
             subtask.Status = target.TitleFull;
-            var result = await UploadPreviewToTargetAsync(media, target, previewPath, cancellationToken);
+            var result = await UploadPreviewToTargetAsync(media, target, previewPath, context.Options.MaxAttempts, cancellationToken);
             context.Results.Add(result);
             context.OnResult?.Invoke(result);
             subtask.ProgressPlus();
@@ -286,6 +301,12 @@ public sealed class BatchPreviewService(
             else
             {
                 stats.Failed++;
+
+                if (context.Options.StopOnError)
+                {
+                    context.Aborted = true;
+                    break;
+                }
             }
         }
 
@@ -328,6 +349,7 @@ public sealed class BatchPreviewService(
         Media media,
         Source donor,
         List<string> tempFiles,
+        int maxAttempts,
         CancellationToken cancellationToken)
     {
         var link = media.Sources.FirstOrDefault(s => s.SourceId == donor.Id);
@@ -338,7 +360,12 @@ public sealed class BatchPreviewService(
 
         try
         {
-            var dto = await donor.Type.GetMediaByIdAsync(link.ExternalId, donor.Settings, cancellationToken);
+            var dto = await RetryPolicy.ExecuteAsync(ct => donor.Type.GetMediaByIdAsync(link.ExternalId, donor.Settings, ct),
+                maxAttempts,
+                logger,
+                $"Получение метаданных донора '{media.Title}' из {donor.TitleFull}",
+                cancellationToken);
+
             if (!string.IsNullOrEmpty(dto?.TempPreviewPath) && File.Exists(dto.TempPreviewPath))
             {
                 return dto.TempPreviewPath;
@@ -373,14 +400,21 @@ public sealed class BatchPreviewService(
 
             var tempPath = Path.Combine(tempDir, $"preview{extension}");
 
-            var httpClient = httpClientFactory.CreateClient("Preview");
-            await using var stream = await httpClient.GetStreamAsync(previewUrl, cancellationToken);
-            await using var fileStream = File.Create(tempPath);
-            await stream.CopyToAsync(fileStream, cancellationToken);
+            await RetryPolicy.ExecuteAsync(async ct =>
+                {
+                    var httpClient = httpClientFactory.CreateClient("Preview");
+                    await using var stream = await httpClient.GetStreamAsync(previewUrl, ct);
+                    await using var fileStream = File.Create(tempPath);
+                    await stream.CopyToAsync(fileStream, ct);
+                }, maxAttempts, logger, $"Скачивание превью для '{media.Title}'", cancellationToken);
 
             tempFiles.Add(tempPath);
             tempFiles.Add(tempDir);
             return tempPath;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -393,6 +427,7 @@ public sealed class BatchPreviewService(
         Media media,
         Source target,
         string previewPath,
+        int maxAttempts,
         CancellationToken cancellationToken)
     {
         var link = media.Sources.FirstOrDefault(s => s.SourceId == target.Id);
@@ -410,7 +445,11 @@ public sealed class BatchPreviewService(
                 TempPreviewPath = previewPath,
             };
 
-            var uploadResult = await target.Type.UpdateAsync(link.ExternalId, tempMedia, target.Settings, cancellationToken);
+            var uploadResult = await RetryPolicy.ExecuteAsync(ct => target.Type.UpdateAsync(link.ExternalId, tempMedia, target.Settings, ct),
+                maxAttempts,
+                logger,
+                $"Превью '{media.Title}' → {target.TitleFull}",
+                cancellationToken);
 
             if (uploadResult.Status.Id == MediaStatus.Ok)
             {
@@ -435,11 +474,22 @@ public sealed class BatchPreviewService(
         public int Failed;
     }
 
-    private sealed record BatchContext(
-        Source? Donor,
-        string? LocalFilePath,
-        CoverTemplate? CoverTemplate,
-        List<string> TempFiles,
-        List<BatchPreviewResult> Results,
-        Action<BatchPreviewResult>? OnResult);
+    private sealed class BatchContext(
+        Source? donor,
+        string? localFilePath,
+        CoverTemplate? coverTemplate,
+        List<string> tempFiles,
+        List<BatchPreviewResult> results,
+        Action<BatchPreviewResult>? onResult,
+        BatchPreviewExecutionOptions options)
+    {
+        public Source? Donor { get; } = donor;
+        public string? LocalFilePath { get; } = localFilePath;
+        public CoverTemplate? CoverTemplate { get; } = coverTemplate;
+        public List<string> TempFiles { get; } = tempFiles;
+        public List<BatchPreviewResult> Results { get; } = results;
+        public Action<BatchPreviewResult>? OnResult { get; } = onResult;
+        public BatchPreviewExecutionOptions Options { get; } = options;
+        public bool Aborted { get; set; }
+    }
 }

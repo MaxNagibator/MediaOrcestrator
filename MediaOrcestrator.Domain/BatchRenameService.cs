@@ -70,6 +70,8 @@ public sealed record BatchRenameProgress(int Processed, int Total, string? Curre
 
 public sealed record BatchRenameSourceInfo(string SourceId, string Title);
 
+public sealed record BatchRenameExecutionOptions(bool StopOnError = false, int MaxAttempts = 3);
+
 public sealed class BatchRenameService(Orcestrator orcestrator, ActionHolder actionHolder, ILogger<BatchRenameService> logger)
 {
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
@@ -191,8 +193,10 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ActionHolder act
         IReadOnlyList<BatchRenameRequest> requests,
         IProgress<BatchRenameProgress>? progress,
         Action<BatchRenameResult>? onMediaProcessed,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        BatchRenameExecutionOptions? options = null)
     {
+        var effective = options ?? new();
         var sources = orcestrator.GetSources().ToDictionary(s => s.Id);
         var results = new List<BatchRenameResult>(requests.Count);
 
@@ -221,7 +225,7 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ActionHolder act
 
             try
             {
-                result = await ApplySingleAsync(media, request, oldTitle, oldDescription, sources, perMediaCts.Token, subtask);
+                result = await ApplySingleAsync(media, request, oldTitle, oldDescription, sources, effective.MaxAttempts, perMediaCts.Token, subtask);
 
                 if (result.Success)
                 {
@@ -246,6 +250,12 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ActionHolder act
 
             results.Add(result);
             onMediaProcessed?.Invoke(result);
+
+            if (effective.StopOnError && !result.Success)
+            {
+                logger.LogInformation("Пакетное переименование остановлено по флагу StopOnError после '{Title}'", oldTitle);
+                break;
+            }
         }
 
         progress?.Report(new(requests.Count, requests.Count, null));
@@ -401,6 +411,7 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ActionHolder act
         string oldTitle,
         string oldDescription,
         IReadOnlyDictionary<string, Source> sources,
+        int maxAttempts,
         CancellationToken cancellationToken,
         ActionHolder.RunningAction? subtask = null)
     {
@@ -461,7 +472,12 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ActionHolder act
 
             try
             {
-                var uploadResult = await source.Type.UpdateAsync(link.ExternalId, dto, source.Settings, cancellationToken);
+                var uploadResult = await RetryPolicy.ExecuteAsync(ct => source.Type.UpdateAsync(link.ExternalId, dto, source.Settings, ct),
+                    maxAttempts,
+                    logger,
+                    $"Переименование '{oldTitle}' → '{request.NewTitle}' в {source.TitleFull}",
+                    cancellationToken);
+
                 var statusId = uploadResult?.Status?.Id;
 
                 if (statusId == MediaStatus.Ok)

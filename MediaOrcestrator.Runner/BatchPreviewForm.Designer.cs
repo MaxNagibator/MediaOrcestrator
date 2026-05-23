@@ -46,6 +46,7 @@ partial class BatchPreviewForm
         uiRowSelectLabel = new Label();
         uiRowAllLink = new LinkLabel();
         uiRowNoneLink = new LinkLabel();
+        uiStopOnErrorCheck = new CheckBox();
 
         uiGridLogSplit = new SplitContainer();
         uiResultGrid = new DataGridView();
@@ -342,6 +343,16 @@ partial class BatchPreviewForm
         uiRowSelectPanel.Controls.Add(uiRowSelectLabel);
         uiRowSelectPanel.Controls.Add(uiRowAllLink);
         uiRowSelectPanel.Controls.Add(uiRowNoneLink);
+        uiRowSelectPanel.Controls.Add(uiStopOnErrorCheck);
+
+        //
+        // uiStopOnErrorCheck
+        //
+        uiStopOnErrorCheck.AutoSize = true;
+        uiStopOnErrorCheck.Name = "uiStopOnErrorCheck";
+        uiStopOnErrorCheck.Text = "Останавливать при ошибке";
+        uiStopOnErrorCheck.Margin = new Padding(20, 3, 4, 3);
+        uiStopOnErrorCheck.UseVisualStyleBackColor = true;
 
         //
         // uiRowSelectLabel
@@ -579,6 +590,7 @@ partial class BatchPreviewForm
     private Label uiRowSelectLabel;
     private LinkLabel uiRowAllLink;
     private LinkLabel uiRowNoneLink;
+    private CheckBox uiStopOnErrorCheck;
 
     private SplitContainer uiGridLogSplit;
     private DataGridView uiResultGrid;
