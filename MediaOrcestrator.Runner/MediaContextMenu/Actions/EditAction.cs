@@ -52,17 +52,15 @@ internal sealed class EditAction : IMediaMenuAction
     private static Task RunPreview(MediaSelection selection, MediaActionContext ctx)
     {
         var medias = selection.Items.ToList();
-        using var form = new BatchPreviewForm(medias, ctx.BatchPreviewService, ctx.CoverGenerator, ctx.CoverTemplateStore);
+        var form = new BatchPreviewForm(medias,
+            ctx.BatchPreviewService,
+            ctx.CoverGenerator,
+            ctx.CoverTemplateStore,
+            ctx.Logger,
+            ctx.ActionHolder);
 
-        if (!selection.IsBatch)
-        {
-            form.Text = $"Обновление превью «{medias[0].Title}»";
-        }
-
-        if (form.ShowDialog(ctx.Ui.Owner) == DialogResult.OK)
-        {
-            ctx.Ui.NotifyDataChanged();
-        }
+        form.DataChanged += (_, _) => ctx.Ui.NotifyDataChanged();
+        form.Show(ctx.Ui.Owner);
 
         return Task.CompletedTask;
     }

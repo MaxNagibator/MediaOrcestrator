@@ -5,13 +5,72 @@ namespace MediaOrcestrator.Domain;
 
 public sealed record BatchPreviewResult(Media Media, Source Target, bool Success, string? ErrorMessage = null);
 
+public sealed record BatchPreviewRequest(Media Media, IReadOnlyList<Source> Targets);
+
+public sealed record BatchPreviewProgress(int Processed, int Total, string? CurrentTitle);
+
+public sealed record BatchPreviewSourceInfo(string SourceId, string Title);
+
 public sealed class BatchPreviewService(
     Orcestrator orcestrator,
     TempManager tempManager,
+    ActionHolder actionHolder,
     ILogger<BatchPreviewService> logger,
     IHttpClientFactory httpClientFactory,
     CoverGenerator coverGenerator)
 {
+    public IReadOnlyList<BatchPreviewSourceInfo> GetUnauthenticatedSources(IReadOnlyCollection<string> sourceIds)
+    {
+        var result = new List<BatchPreviewSourceInfo>();
+
+        foreach (var source in orcestrator.GetSources())
+        {
+            if (!sourceIds.Contains(source.Id)
+                || source.Type is not IAuthenticatable auth
+                || auth.IsAuthenticated(source.Settings))
+            {
+                continue;
+            }
+
+            result.Add(new(source.Id, source.TitleFull));
+        }
+
+        return result;
+    }
+
+    public async Task AuthenticateSourcesAsync(
+        IReadOnlyCollection<string> sourceIds,
+        IAuthUI ui,
+        CancellationToken cancellationToken)
+    {
+        foreach (var source in orcestrator.GetSources())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!sourceIds.Contains(source.Id)
+                || source.Type is not IAuthenticatable auth
+                || auth.IsAuthenticated(source.Settings))
+            {
+                continue;
+            }
+
+            logger.LogInformation("Источник {Source} не авторизован — открываю вход перед обновлением превью", source.TitleFull);
+
+            try
+            {
+                await auth.AuthenticateAsync(source.Settings, ui, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Авторизация источника {Source} не удалась", source.TitleFull);
+            }
+        }
+    }
+
     public List<Source> GetAvailableDonors(List<Media> medias)
     {
         var sources = orcestrator.GetSources();
@@ -58,25 +117,55 @@ public sealed class BatchPreviewService(
     }
 
     public async Task<List<BatchPreviewResult>> ApplyAsync(
-        List<Media> medias,
+        IReadOnlyList<BatchPreviewRequest> requests,
         Source? donor,
-        List<Source> targets,
         string? localFilePath,
         CoverTemplate? coverTemplate,
-        IProgress<BatchPreviewResult>? progress,
+        IProgress<BatchPreviewProgress>? progress,
+        Action<BatchPreviewResult>? onResult,
         CancellationToken cancellationToken)
     {
         var results = new List<BatchPreviewResult>();
         var tempFiles = new List<string>();
 
-        var context = new BatchContext(donor, targets, localFilePath, coverTemplate, tempFiles, results, progress);
+        var context = new BatchContext(donor, localFilePath, coverTemplate, tempFiles, results, onResult);
+
+        progress?.Report(new(0, requests.Count, null));
 
         try
         {
-            for (var i = 0; i < medias.Count; i++)
+            for (var i = 0; i < requests.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await ProcessMediaAsync(medias[i], i, context, cancellationToken);
+                var request = requests[i];
+                progress?.Report(new(i, requests.Count, request.Media.Title));
+
+                using var perMediaCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var subtask = actionHolder.Register(ShortTitleForAction(request.Media.Title),
+                    "В работе",
+                    Math.Max(request.Targets.Count, 1),
+                    perMediaCts,
+                    kind: ActionKind.Metadata);
+
+                try
+                {
+                    var stats = await ProcessMediaAsync(request.Media, request.Targets, i, context, subtask, perMediaCts.Token);
+                    FinishSubtask(subtask, stats);
+                }
+                catch (OperationCanceledException)
+                {
+                    subtask.MarkCancelled();
+
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    subtask.Fail(ex.Message, ex);
+                    throw;
+                }
             }
         }
         finally
@@ -84,7 +173,45 @@ public sealed class BatchPreviewService(
             CleanupTempFiles(tempFiles);
         }
 
+        progress?.Report(new(requests.Count, requests.Count, null));
         return results;
+    }
+
+    private static string ShortTitleForAction(string? title)
+    {
+        const int max = 60;
+
+        if (string.IsNullOrEmpty(title))
+        {
+            return "«без названия»";
+        }
+
+        return title.Length <= max
+            ? $"«{title}»"
+            : $"«{title.AsSpan(0, max - 1)}…»";
+    }
+
+    private static void FinishSubtask(ActionHolder.RunningAction subtask, MediaStats stats)
+    {
+        if (stats is { Success: 0, Failed: 0 })
+        {
+            subtask.Finish("Без изменений");
+            return;
+        }
+
+        if (stats.Failed == 0)
+        {
+            subtask.Finish($"Готово: {stats.Success}");
+            return;
+        }
+
+        if (stats.Success == 0)
+        {
+            subtask.Fail($"Ошибок: {stats.Failed}");
+            return;
+        }
+
+        subtask.Fail($"Готово {stats.Success}, ошибок {stats.Failed}");
     }
 
     private static bool IsHttpUrl(string value)
@@ -93,16 +220,26 @@ public sealed class BatchPreviewService(
                && uri.Scheme is "http" or "https";
     }
 
-    private async Task ProcessMediaAsync(
+    private async Task<MediaStats> ProcessMediaAsync(
         Media media,
+        IReadOnlyList<Source> targets,
         int index,
         BatchContext context,
+        ActionHolder.RunningAction subtask,
         CancellationToken cancellationToken)
     {
+        var stats = new MediaStats();
+
+        if (targets.Count == 0)
+        {
+            return stats;
+        }
+
         string? previewPath;
 
         if (context.CoverTemplate != null)
         {
+            subtask.Status = "Генерация обложки";
             previewPath = GenerateCoverPath(context.CoverTemplate, media, index, context.TempFiles);
         }
         else if (context.LocalFilePath != null)
@@ -111,31 +248,48 @@ public sealed class BatchPreviewService(
         }
         else if (context.Donor != null)
         {
+            subtask.Status = $"Скачивание из {context.Donor.TitleFull}";
             previewPath = await DownloadPreviewFromDonorAsync(media, context.Donor, context.TempFiles, cancellationToken);
 
             if (previewPath == null)
             {
-                foreach (var target in context.Targets)
+                foreach (var target in targets)
                 {
                     var failure = new BatchPreviewResult(media, target, false, "Превью не найдено в источнике-доноре");
                     context.Results.Add(failure);
-                    context.Progress?.Report(failure);
+                    context.OnResult?.Invoke(failure);
+                    subtask.ProgressPlus();
+                    stats.Failed++;
                 }
 
-                return;
+                return stats;
             }
         }
         else
         {
-            return;
+            return stats;
         }
 
-        foreach (var target in context.Targets)
+        foreach (var target in targets)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            subtask.Status = target.TitleFull;
             var result = await UploadPreviewToTargetAsync(media, target, previewPath, cancellationToken);
             context.Results.Add(result);
-            context.Progress?.Report(result);
+            context.OnResult?.Invoke(result);
+            subtask.ProgressPlus();
+
+            if (result.Success)
+            {
+                stats.Success++;
+            }
+            else
+            {
+                stats.Failed++;
+            }
         }
+
+        return stats;
     }
 
     private string GenerateCoverPath(CoverTemplate template, Media media, int index, List<string> tempFiles)
@@ -275,12 +429,17 @@ public sealed class BatchPreviewService(
         }
     }
 
+    private sealed class MediaStats
+    {
+        public int Success;
+        public int Failed;
+    }
+
     private sealed record BatchContext(
         Source? Donor,
-        List<Source> Targets,
         string? LocalFilePath,
         CoverTemplate? CoverTemplate,
         List<string> TempFiles,
         List<BatchPreviewResult> Results,
-        IProgress<BatchPreviewResult>? Progress);
+        Action<BatchPreviewResult>? OnResult);
 }
