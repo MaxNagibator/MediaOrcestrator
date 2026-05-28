@@ -24,13 +24,16 @@ public enum BatchRenameSourceOutcome
     NotSupported = 2,
     Failed = 3,
     VerificationFailed = 4,
+    AlreadyUpToDate = 5,
 }
 
 public sealed record BatchRenameSourcePreview(
     string SourceId,
     string SourceTitle,
     bool CanUpdate,
-    string? SkipReason);
+    string? SkipReason,
+    string CurrentTitle,
+    bool InSync);
 
 public sealed record BatchRenamePreview(
     Media Media,
@@ -40,7 +43,7 @@ public sealed record BatchRenamePreview(
     string? Error)
 {
     public bool TitleChanged => !string.Equals(OldTitle, NewTitle, StringComparison.Ordinal);
-    public bool HasChanges => TitleChanged;
+    public bool HasChanges => Error == null && Sources.Any(s => s is { CanUpdate: true, InSync: false });
 }
 
 public sealed record BatchRenameRequest(
@@ -67,7 +70,9 @@ public sealed record BatchRenameProgress(int Processed, int Total, string? Curre
 
 public sealed record BatchRenameSourceInfo(string SourceId, string Title);
 
-public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRenameService> logger)
+public sealed record BatchRenameExecutionOptions(bool StopOnError = false, int MaxAttempts = 3);
+
+public sealed class BatchRenameService(Orcestrator orcestrator, ActionHolder actionHolder, ILogger<BatchRenameService> logger)
 {
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
 
@@ -95,6 +100,58 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
         }
 
         return result;
+    }
+
+    public IReadOnlyList<BatchRenameSourceInfo> GetUnauthenticatedSources(IReadOnlyCollection<string> sourceIds)
+    {
+        var result = new List<BatchRenameSourceInfo>();
+
+        foreach (var source in orcestrator.GetSources())
+        {
+            if (!sourceIds.Contains(source.Id)
+                || source.Type is not IAuthenticatable auth
+                || auth.IsAuthenticated(source.Settings))
+            {
+                continue;
+            }
+
+            result.Add(new(source.Id, source.TitleFull));
+        }
+
+        return result;
+    }
+
+    public async Task AuthenticateSourcesAsync(
+        IReadOnlyCollection<string> sourceIds,
+        IAuthUI ui,
+        CancellationToken cancellationToken)
+    {
+        foreach (var source in orcestrator.GetSources())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!sourceIds.Contains(source.Id)
+                || source.Type is not IAuthenticatable auth
+                || auth.IsAuthenticated(source.Settings))
+            {
+                continue;
+            }
+
+            logger.LogInformation("Источник {Source} не авторизован — открываю вход перед переименованием", source.TitleFull);
+
+            try
+            {
+                await auth.AuthenticateAsync(source.Settings, ui, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Авторизация источника {Source} не удалась", source.TitleFull);
+            }
+        }
     }
 
     public IReadOnlyList<BatchRenamePreview> Preview(IReadOnlyList<Media> medias, BatchRenameOptions options)
@@ -125,7 +182,7 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
             previews.Add(new(media,
                 oldTitle,
                 newTitle,
-                BuildSourcePreviews(media, sources, options.AllowedSourceIds),
+                BuildSourcePreviews(media, sources, options.AllowedSourceIds, newTitle),
                 error));
         }
 
@@ -136,8 +193,10 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
         IReadOnlyList<BatchRenameRequest> requests,
         IProgress<BatchRenameProgress>? progress,
         Action<BatchRenameResult>? onMediaProcessed,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        BatchRenameExecutionOptions? options = null)
     {
+        var effective = options ?? new();
         var sources = orcestrator.GetSources().ToDictionary(s => s.Id);
         var results = new List<BatchRenameResult>(requests.Count);
 
@@ -154,21 +213,49 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
 
             progress?.Report(new(i, requests.Count, oldTitle));
 
-            var titleChanged = !string.Equals(oldTitle, request.NewTitle, StringComparison.Ordinal);
-            var descriptionChanged = request.NewDescription != null
-                                     && !string.Equals(oldDescription, request.NewDescription, StringComparison.Ordinal);
+            using var perMediaCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-            if (!titleChanged && !descriptionChanged)
+            var subtask = actionHolder.Register(ShortTitleForAction(oldTitle),
+                "В работе",
+                Math.Max(media.Sources.Count, 1),
+                perMediaCts,
+                kind: ActionKind.Metadata);
+
+            BatchRenameResult result;
+
+            try
             {
-                var noChange = new BatchRenameResult(media, oldTitle, oldTitle, true, null, []);
-                results.Add(noChange);
-                onMediaProcessed?.Invoke(noChange);
-                continue;
+                result = await ApplySingleAsync(media, request, oldTitle, oldDescription, sources, effective.MaxAttempts, perMediaCts.Token, subtask);
+
+                if (result.Success)
+                {
+                    subtask.Finish(BuildSubtaskFinishStatus(result));
+                }
+                else
+                {
+                    subtask.Fail(result.ErrorMessage ?? "ошибка");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                subtask.MarkCancelled();
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+
+                result = new(media, oldTitle, oldTitle, false, "Отменено пользователем", []);
             }
 
-            var result = await ApplySingleAsync(media, request, oldTitle, oldDescription, sources, cancellationToken);
             results.Add(result);
             onMediaProcessed?.Invoke(result);
+
+            if (effective.StopOnError && !result.Success)
+            {
+                logger.LogInformation("Пакетное переименование остановлено по флагу StopOnError после '{Title}'", oldTitle);
+                break;
+            }
         }
 
         progress?.Report(new(requests.Count, requests.Count, null));
@@ -198,37 +285,41 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
     private static List<BatchRenameSourcePreview> BuildSourcePreviews(
         Media media,
         IReadOnlyDictionary<string, Source> sources,
-        IReadOnlyCollection<string>? allowed)
+        IReadOnlyCollection<string>? allowed,
+        string newTitle)
     {
         var sourcePreviews = new List<BatchRenameSourcePreview>(media.Sources.Count);
 
         foreach (var link in media.Sources)
         {
+            var currentTitle = link.Title ?? string.Empty;
+            var inSync = string.Equals(currentTitle, newTitle, StringComparison.Ordinal);
+
             if (!sources.TryGetValue(link.SourceId, out var source))
             {
-                sourcePreviews.Add(new(link.SourceId, link.SourceId, false, "Источник не найден"));
+                sourcePreviews.Add(new(link.SourceId, link.SourceId, false, "Источник не найден", currentTitle, inSync));
                 continue;
             }
 
             if (allowed != null && !allowed.Contains(link.SourceId))
             {
-                sourcePreviews.Add(new(link.SourceId, source.TitleFull, false, "Снят пользователем"));
+                sourcePreviews.Add(new(link.SourceId, source.TitleFull, false, "Снят пользователем", currentTitle, inSync));
                 continue;
             }
 
             if (source.Type == null)
             {
-                sourcePreviews.Add(new(link.SourceId, source.TitleFull, false, "Плагин не загружен"));
+                sourcePreviews.Add(new(link.SourceId, source.TitleFull, false, "Плагин не загружен", currentTitle, inSync));
                 continue;
             }
 
             if (link.Status != MediaStatus.Ok)
             {
-                sourcePreviews.Add(new(link.SourceId, source.TitleFull, false, $"Статус {link.Status}"));
+                sourcePreviews.Add(new(link.SourceId, source.TitleFull, false, $"Статус {link.Status}", currentTitle, inSync));
                 continue;
             }
 
-            sourcePreviews.Add(new(link.SourceId, source.TitleFull, true, null));
+            sourcePreviews.Add(new(link.SourceId, source.TitleFull, true, null, currentTitle, inSync));
         }
 
         return sourcePreviews;
@@ -263,13 +354,66 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
         return input.Replace(options.Find, options.Replace, comparison);
     }
 
+    private static string ShortTitleForAction(string title)
+    {
+        const int max = 60;
+
+        if (string.IsNullOrEmpty(title))
+        {
+            return "«без названия»";
+        }
+
+        return title.Length <= max
+            ? $"«{title}»"
+            : $"«{title.AsSpan(0, max - 1)}…»";
+    }
+
+    private static string BuildSubtaskFinishStatus(BatchRenameResult result)
+    {
+        var updated = 0;
+        var synced = 0;
+
+        foreach (var s in result.Sources)
+        {
+            switch (s.Outcome)
+            {
+                case BatchRenameSourceOutcome.Updated:
+                    updated++;
+                    break;
+
+                case BatchRenameSourceOutcome.AlreadyUpToDate:
+                    synced++;
+                    break;
+            }
+        }
+
+        if (updated == 0 && synced > 0)
+        {
+            return "Уже синхронно";
+        }
+
+        return synced == 0
+            ? $"Обновлено: {updated}"
+            : $"Обновлено: {updated}, уже синхронно: {synced}";
+    }
+
+    private static void UpdateSubtaskStatus(ActionHolder.RunningAction? subtask, string status)
+    {
+        if (subtask is { State: ActionState.Running })
+        {
+            subtask.Status = status;
+        }
+    }
+
     private async Task<BatchRenameResult> ApplySingleAsync(
         Media media,
         BatchRenameRequest request,
         string oldTitle,
         string oldDescription,
         IReadOnlyDictionary<string, Source> sources,
-        CancellationToken cancellationToken)
+        int maxAttempts,
+        CancellationToken cancellationToken,
+        ActionHolder.RunningAction? subtask = null)
     {
         var allowed = request.AllowedSourceIds;
         var perSource = new List<BatchRenameSourceResult>(media.Sources.Count);
@@ -280,6 +424,8 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            subtask?.ProgressPlus();
+
             if (!sources.TryGetValue(link.SourceId, out var source))
             {
                 logger.LogWarning("Источник {SourceId} не найден в БД при переименовании медиа {MediaId}",
@@ -288,6 +434,8 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
                 perSource.Add(new(link.SourceId, link.SourceId, BatchRenameSourceOutcome.Skipped, "Источник не найден"));
                 continue;
             }
+
+            UpdateSubtaskStatus(subtask, source.TitleFull);
 
             if (allowed != null && !allowed.Contains(link.SourceId))
             {
@@ -308,6 +456,14 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
                 continue;
             }
 
+            if (string.Equals(link.Title ?? string.Empty, request.NewTitle, StringComparison.Ordinal)
+                && (request.NewDescription == null
+                    || string.Equals(link.Description ?? string.Empty, request.NewDescription, StringComparison.Ordinal)))
+            {
+                perSource.Add(new(link.SourceId, source.TitleFull, BatchRenameSourceOutcome.AlreadyUpToDate, null));
+                continue;
+            }
+
             var dto = new MediaDto
             {
                 Title = request.NewTitle,
@@ -316,7 +472,12 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
 
             try
             {
-                var uploadResult = await source.Type.UpdateAsync(link.ExternalId, dto, source.Settings, cancellationToken);
+                var uploadResult = await RetryPolicy.ExecuteAsync(ct => source.Type.UpdateAsync(link.ExternalId, dto, source.Settings, ct),
+                    maxAttempts,
+                    logger,
+                    $"Переименование '{oldTitle}' → '{request.NewTitle}' в {source.TitleFull}",
+                    cancellationToken);
+
                 var statusId = uploadResult?.Status?.Id;
 
                 if (statusId == MediaStatus.Ok)
@@ -391,6 +552,11 @@ public sealed class BatchRenameService(Orcestrator orcestrator, ILogger<BatchRen
                 false,
                 "Ни один источник не поддержал обновление",
                 perSource);
+        }
+
+        if (!anyUpdated)
+        {
+            return new(media, oldTitle, request.NewTitle, true, null, perSource);
         }
 
         media.Title = request.NewTitle;

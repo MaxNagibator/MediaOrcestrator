@@ -1,4 +1,4 @@
-using DrawingColor = System.Drawing.Color;
+﻿using DrawingColor = System.Drawing.Color;
 
 namespace MediaOrcestrator.Runner;
 
@@ -37,12 +37,8 @@ partial class CoverTemplateForm
         uiPreview = new PictureBox();
         uiPositionLabel = new Label();
         uiSettingsPanel = new TableLayoutPanel();
-        uiProfilesGroup = new GroupBox();
-        uiProfilesLayout = new FlowLayoutPanel();
-        uiProfilesCombo = new ComboBox();
-        uiLoadProfileButton = new Button();
+        uiSaveProfileButton = new Button();
         uiSaveAsProfileButton = new Button();
-        uiDeleteProfileButton = new Button();
         uiTemplateGroup = new GroupBox();
         uiTemplateLayout = new TableLayoutPanel();
         uiFileLabel = new Label();
@@ -60,6 +56,7 @@ partial class CoverTemplateForm
         uiSampleLabel = new Label();
         uiSampleNumber = new NumericUpDown();
         uiHintLabel = new Label();
+        uiWarningLabel = new Label();
         uiLayersGroup = new GroupBox();
         uiLayersLayout = new TableLayoutPanel();
         uiLayersList = new ListBox();
@@ -74,17 +71,22 @@ partial class CoverTemplateForm
         uiLayerTextBox = new TextBox();
         uiLayerFontLabel = new Label();
         uiFontFamily = new ComboBox();
+        uiLayerFontStyleLabel = new Label();
+        uiFontStyle = new ComboBox();
         uiLayerSizeLabel = new Label();
         uiFontSize = new NumericUpDown();
         uiLayerStrokeLabel = new Label();
         uiStrokeWidth = new NumericUpDown();
         uiLayerFillLabel = new Label();
         uiFillColorButton = new Button();
+        uiLayerFillAlphaLabel = new Label();
+        uiFillAlpha = new NumericUpDown();
         uiLayerStrokeColorLabel = new Label();
         uiStrokeColorButton = new Button();
+        uiLayerStrokeAlphaLabel = new Label();
+        uiStrokeAlpha = new NumericUpDown();
         uiButtonPanel = new FlowLayoutPanel();
         uiCancelButton = new Button();
-        uiOkButton = new Button();
         uiHelpButton = new Button();
         uiToolTip = new ToolTip(components);
         uiRootLayout.SuspendLayout();
@@ -92,8 +94,6 @@ partial class CoverTemplateForm
         uiPreviewLayout.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)uiPreview).BeginInit();
         uiSettingsPanel.SuspendLayout();
-        uiProfilesGroup.SuspendLayout();
-        uiProfilesLayout.SuspendLayout();
         uiTemplateGroup.SuspendLayout();
         uiTemplateLayout.SuspendLayout();
         uiPathPanel.SuspendLayout();
@@ -107,6 +107,8 @@ partial class CoverTemplateForm
         uiLayerLayout.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)uiFontSize).BeginInit();
         ((System.ComponentModel.ISupportInitialize)uiStrokeWidth).BeginInit();
+        ((System.ComponentModel.ISupportInitialize)uiFillAlpha).BeginInit();
+        ((System.ComponentModel.ISupportInitialize)uiStrokeAlpha).BeginInit();
         uiButtonPanel.SuspendLayout();
         SuspendLayout();
         //
@@ -175,76 +177,35 @@ partial class CoverTemplateForm
         uiSettingsPanel.AutoScroll = true;
         uiSettingsPanel.ColumnCount = 1;
         uiSettingsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        uiSettingsPanel.Controls.Add(uiProfilesGroup, 0, 0);
-        uiSettingsPanel.Controls.Add(uiTemplateGroup, 0, 1);
-        uiSettingsPanel.Controls.Add(uiLayersGroup, 0, 2);
-        uiSettingsPanel.Controls.Add(uiLayerGroup, 0, 3);
+        uiSettingsPanel.Controls.Add(uiTemplateGroup, 0, 0);
+        uiSettingsPanel.Controls.Add(uiLayersGroup, 0, 1);
+        uiSettingsPanel.Controls.Add(uiLayerGroup, 0, 2);
         uiSettingsPanel.Dock = DockStyle.Fill;
         uiSettingsPanel.Name = "uiSettingsPanel";
-        uiSettingsPanel.RowCount = 4;
-        uiSettingsPanel.RowStyles.Add(new RowStyle());
+        uiSettingsPanel.RowCount = 3;
         uiSettingsPanel.RowStyles.Add(new RowStyle());
         uiSettingsPanel.RowStyles.Add(new RowStyle());
         uiSettingsPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         uiSettingsPanel.TabIndex = 1;
         //
-        // uiProfilesGroup
+        // uiSaveProfileButton
         //
-        uiProfilesGroup.AutoSize = true;
-        uiProfilesGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        uiProfilesGroup.Controls.Add(uiProfilesLayout);
-        uiProfilesGroup.Dock = DockStyle.Fill;
-        uiProfilesGroup.Name = "uiProfilesGroup";
-        uiProfilesGroup.TabIndex = 0;
-        uiProfilesGroup.TabStop = false;
-        uiProfilesGroup.Text = "Профиль";
-        //
-        // uiProfilesLayout
-        //
-        uiProfilesLayout.AutoSize = true;
-        uiProfilesLayout.Controls.Add(uiProfilesCombo);
-        uiProfilesLayout.Controls.Add(uiLoadProfileButton);
-        uiProfilesLayout.Controls.Add(uiSaveAsProfileButton);
-        uiProfilesLayout.Controls.Add(uiDeleteProfileButton);
-        uiProfilesLayout.Dock = DockStyle.Fill;
-        uiProfilesLayout.FlowDirection = FlowDirection.LeftToRight;
-        uiProfilesLayout.Name = "uiProfilesLayout";
-        uiProfilesLayout.Padding = new Padding(8);
-        uiProfilesLayout.TabIndex = 0;
-        //
-        // uiProfilesCombo
-        //
-        uiProfilesCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-        uiProfilesCombo.Name = "uiProfilesCombo";
-        uiProfilesCombo.Size = new Size(180, 23);
-        uiProfilesCombo.TabIndex = 0;
-        //
-        // uiLoadProfileButton
-        //
-        uiLoadProfileButton.AutoSize = true;
-        uiLoadProfileButton.Name = "uiLoadProfileButton";
-        uiLoadProfileButton.TabIndex = 1;
-        uiLoadProfileButton.Text = "Загрузить";
-        uiLoadProfileButton.UseVisualStyleBackColor = true;
-        uiLoadProfileButton.Click += uiLoadProfileButton_Click;
+        uiSaveProfileButton.AutoSize = true;
+        uiSaveProfileButton.Enabled = false;
+        uiSaveProfileButton.Name = "uiSaveProfileButton";
+        uiSaveProfileButton.TabIndex = 3;
+        uiSaveProfileButton.Text = "Сохранить";
+        uiSaveProfileButton.UseVisualStyleBackColor = true;
+        uiSaveProfileButton.Click += uiSaveProfileButton_Click;
         //
         // uiSaveAsProfileButton
         //
         uiSaveAsProfileButton.AutoSize = true;
         uiSaveAsProfileButton.Name = "uiSaveAsProfileButton";
-        uiSaveAsProfileButton.TabIndex = 2;
+        uiSaveAsProfileButton.TabIndex = 4;
         uiSaveAsProfileButton.Text = "Сохранить как...";
         uiSaveAsProfileButton.UseVisualStyleBackColor = true;
         uiSaveAsProfileButton.Click += uiSaveAsProfileButton_Click;
-        //
-        // uiDeleteProfileButton
-        //
-        uiDeleteProfileButton.AutoSize = true;
-        uiDeleteProfileButton.Name = "uiDeleteProfileButton";
-        uiDeleteProfileButton.TabIndex = 3;
-        uiDeleteProfileButton.Text = "Удалить";
-        uiDeleteProfileButton.UseVisualStyleBackColor = true;
-        uiDeleteProfileButton.Click += uiDeleteProfileButton_Click;
         //
         // uiTemplateGroup
         //
@@ -275,6 +236,8 @@ partial class CoverTemplateForm
         uiTemplateLayout.Controls.Add(uiSampleNumber, 1, 4);
         uiTemplateLayout.Controls.Add(uiHintLabel, 0, 5);
         uiTemplateLayout.SetColumnSpan(uiHintLabel, 2);
+        uiTemplateLayout.Controls.Add(uiWarningLabel, 0, 6);
+        uiTemplateLayout.SetColumnSpan(uiWarningLabel, 2);
         uiTemplateLayout.Dock = DockStyle.Fill;
         uiTemplateLayout.Name = "uiTemplateLayout";
         uiTemplateLayout.Padding = new Padding(8);
@@ -419,6 +382,15 @@ partial class CoverTemplateForm
         uiHintLabel.Name = "uiHintLabel";
         uiHintLabel.Text = "В тексте слоя пишите {number} — будет подставлен расчётный номер.";
         //
+        // uiWarningLabel
+        //
+        uiWarningLabel.AutoSize = true;
+        uiWarningLabel.ForeColor = DrawingColor.DarkOrange;
+        uiWarningLabel.MaximumSize = new Size(360, 0);
+        uiWarningLabel.Name = "uiWarningLabel";
+        uiWarningLabel.Text = string.Empty;
+        uiWarningLabel.Visible = false;
+        //
         // uiLayersGroup
         //
         uiLayersGroup.Controls.Add(uiLayersLayout);
@@ -530,18 +502,27 @@ partial class CoverTemplateForm
         uiLayerLayout.Controls.Add(uiLayerTextBox, 1, 0);
         uiLayerLayout.Controls.Add(uiLayerFontLabel, 0, 1);
         uiLayerLayout.Controls.Add(uiFontFamily, 1, 1);
-        uiLayerLayout.Controls.Add(uiLayerSizeLabel, 0, 2);
-        uiLayerLayout.Controls.Add(uiFontSize, 1, 2);
-        uiLayerLayout.Controls.Add(uiLayerStrokeLabel, 0, 3);
-        uiLayerLayout.Controls.Add(uiStrokeWidth, 1, 3);
-        uiLayerLayout.Controls.Add(uiLayerFillLabel, 0, 4);
-        uiLayerLayout.Controls.Add(uiFillColorButton, 1, 4);
-        uiLayerLayout.Controls.Add(uiLayerStrokeColorLabel, 0, 5);
-        uiLayerLayout.Controls.Add(uiStrokeColorButton, 1, 5);
-        uiLayerLayout.Dock = DockStyle.Fill;
+        uiLayerLayout.Controls.Add(uiLayerFontStyleLabel, 0, 2);
+        uiLayerLayout.Controls.Add(uiFontStyle, 1, 2);
+        uiLayerLayout.Controls.Add(uiLayerSizeLabel, 0, 3);
+        uiLayerLayout.Controls.Add(uiFontSize, 1, 3);
+        uiLayerLayout.Controls.Add(uiLayerStrokeLabel, 0, 4);
+        uiLayerLayout.Controls.Add(uiStrokeWidth, 1, 4);
+        uiLayerLayout.Controls.Add(uiLayerFillLabel, 0, 5);
+        uiLayerLayout.Controls.Add(uiFillColorButton, 1, 5);
+        uiLayerLayout.Controls.Add(uiLayerFillAlphaLabel, 0, 6);
+        uiLayerLayout.Controls.Add(uiFillAlpha, 1, 6);
+        uiLayerLayout.Controls.Add(uiLayerStrokeColorLabel, 0, 7);
+        uiLayerLayout.Controls.Add(uiStrokeColorButton, 1, 7);
+        uiLayerLayout.Controls.Add(uiLayerStrokeAlphaLabel, 0, 8);
+        uiLayerLayout.Controls.Add(uiStrokeAlpha, 1, 8);
+        uiLayerLayout.Dock = DockStyle.Top;
         uiLayerLayout.Name = "uiLayerLayout";
         uiLayerLayout.Padding = new Padding(8);
-        uiLayerLayout.RowCount = 6;
+        uiLayerLayout.RowCount = 9;
+        uiLayerLayout.RowStyles.Add(new RowStyle());
+        uiLayerLayout.RowStyles.Add(new RowStyle());
+        uiLayerLayout.RowStyles.Add(new RowStyle());
         uiLayerLayout.RowStyles.Add(new RowStyle());
         uiLayerLayout.RowStyles.Add(new RowStyle());
         uiLayerLayout.RowStyles.Add(new RowStyle());
@@ -576,10 +557,28 @@ partial class CoverTemplateForm
         // uiFontFamily
         //
         uiFontFamily.Dock = DockStyle.Fill;
-        uiFontFamily.DropDownStyle = ComboBoxStyle.DropDownList;
+        uiFontFamily.DropDownStyle = ComboBoxStyle.DropDown;
+        uiFontFamily.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        uiFontFamily.AutoCompleteSource = AutoCompleteSource.ListItems;
         uiFontFamily.Name = "uiFontFamily";
         uiFontFamily.TabIndex = 0;
         uiFontFamily.SelectedIndexChanged += uiFontFamily_SelectedIndexChanged;
+        uiFontFamily.Leave += uiFontFamily_Leave;
+        //
+        // uiLayerFontStyleLabel
+        //
+        uiLayerFontStyleLabel.Anchor = AnchorStyles.Left;
+        uiLayerFontStyleLabel.AutoSize = true;
+        uiLayerFontStyleLabel.Name = "uiLayerFontStyleLabel";
+        uiLayerFontStyleLabel.Text = "Начертание:";
+        //
+        // uiFontStyle
+        //
+        uiFontStyle.Dock = DockStyle.Fill;
+        uiFontStyle.DropDownStyle = ComboBoxStyle.DropDownList;
+        uiFontStyle.Name = "uiFontStyle";
+        uiFontStyle.TabIndex = 0;
+        uiFontStyle.SelectedIndexChanged += uiFontStyle_SelectedIndexChanged;
         //
         // uiLayerSizeLabel
         //
@@ -635,6 +634,24 @@ partial class CoverTemplateForm
         uiFillColorButton.TabIndex = 0;
         uiFillColorButton.Text = "";
         uiFillColorButton.Click += uiFillColorButton_Click;
+        uiFillColorButton.Paint += uiFillColorButton_Paint;
+        //
+        // uiLayerFillAlphaLabel
+        //
+        uiLayerFillAlphaLabel.Anchor = AnchorStyles.Left;
+        uiLayerFillAlphaLabel.AutoSize = true;
+        uiLayerFillAlphaLabel.Name = "uiLayerFillAlphaLabel";
+        uiLayerFillAlphaLabel.Text = "Прозрачность зал.:";
+        //
+        // uiFillAlpha
+        //
+        uiFillAlpha.Dock = DockStyle.Fill;
+        uiFillAlpha.Maximum = new decimal(new int[] { 255, 0, 0, 0 });
+        uiFillAlpha.Minimum = new decimal(new int[] { 0, 0, 0, 0 });
+        uiFillAlpha.Name = "uiFillAlpha";
+        uiFillAlpha.TabIndex = 0;
+        uiFillAlpha.Value = new decimal(new int[] { 255, 0, 0, 0 });
+        uiFillAlpha.ValueChanged += uiFillAlpha_ValueChanged;
         //
         // uiLayerStrokeColorLabel
         //
@@ -653,12 +670,31 @@ partial class CoverTemplateForm
         uiStrokeColorButton.TabIndex = 0;
         uiStrokeColorButton.Text = "";
         uiStrokeColorButton.Click += uiStrokeColorButton_Click;
+        uiStrokeColorButton.Paint += uiStrokeColorButton_Paint;
+        //
+        // uiLayerStrokeAlphaLabel
+        //
+        uiLayerStrokeAlphaLabel.Anchor = AnchorStyles.Left;
+        uiLayerStrokeAlphaLabel.AutoSize = true;
+        uiLayerStrokeAlphaLabel.Name = "uiLayerStrokeAlphaLabel";
+        uiLayerStrokeAlphaLabel.Text = "Прозрачность обв.:";
+        //
+        // uiStrokeAlpha
+        //
+        uiStrokeAlpha.Dock = DockStyle.Fill;
+        uiStrokeAlpha.Maximum = new decimal(new int[] { 255, 0, 0, 0 });
+        uiStrokeAlpha.Minimum = new decimal(new int[] { 0, 0, 0, 0 });
+        uiStrokeAlpha.Name = "uiStrokeAlpha";
+        uiStrokeAlpha.TabIndex = 0;
+        uiStrokeAlpha.Value = new decimal(new int[] { 255, 0, 0, 0 });
+        uiStrokeAlpha.ValueChanged += uiStrokeAlpha_ValueChanged;
         //
         // uiButtonPanel
         //
         uiButtonPanel.AutoSize = true;
         uiButtonPanel.Controls.Add(uiCancelButton);
-        uiButtonPanel.Controls.Add(uiOkButton);
+        uiButtonPanel.Controls.Add(uiSaveProfileButton);
+        uiButtonPanel.Controls.Add(uiSaveAsProfileButton);
         uiButtonPanel.Controls.Add(uiHelpButton);
         uiButtonPanel.Dock = DockStyle.Fill;
         uiButtonPanel.FlowDirection = FlowDirection.RightToLeft;
@@ -672,17 +708,8 @@ partial class CoverTemplateForm
         uiCancelButton.Name = "uiCancelButton";
         uiCancelButton.Size = new Size(90, 27);
         uiCancelButton.TabIndex = 0;
-        uiCancelButton.Text = "Отмена";
+        uiCancelButton.Text = "Закрыть";
         uiCancelButton.UseVisualStyleBackColor = true;
-        //
-        // uiOkButton
-        //
-        uiOkButton.Name = "uiOkButton";
-        uiOkButton.Size = new Size(90, 27);
-        uiOkButton.TabIndex = 1;
-        uiOkButton.Text = "OK";
-        uiOkButton.UseVisualStyleBackColor = true;
-        uiOkButton.Click += uiOkButton_Click;
         //
         // uiHelpButton
         //
@@ -695,7 +722,6 @@ partial class CoverTemplateForm
         //
         // CoverTemplateForm
         //
-        AcceptButton = uiOkButton;
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
         CancelButton = uiCancelButton;
@@ -713,10 +739,6 @@ partial class CoverTemplateForm
         ((System.ComponentModel.ISupportInitialize)uiPreview).EndInit();
         uiSettingsPanel.ResumeLayout(false);
         uiSettingsPanel.PerformLayout();
-        uiProfilesGroup.ResumeLayout(false);
-        uiProfilesGroup.PerformLayout();
-        uiProfilesLayout.ResumeLayout(false);
-        uiProfilesLayout.PerformLayout();
         uiTemplateGroup.ResumeLayout(false);
         uiTemplateGroup.PerformLayout();
         uiTemplateLayout.ResumeLayout(false);
@@ -738,6 +760,8 @@ partial class CoverTemplateForm
         uiLayerLayout.PerformLayout();
         ((System.ComponentModel.ISupportInitialize)uiFontSize).EndInit();
         ((System.ComponentModel.ISupportInitialize)uiStrokeWidth).EndInit();
+        ((System.ComponentModel.ISupportInitialize)uiFillAlpha).EndInit();
+        ((System.ComponentModel.ISupportInitialize)uiStrokeAlpha).EndInit();
         uiButtonPanel.ResumeLayout(false);
         uiButtonPanel.PerformLayout();
         ResumeLayout(false);
@@ -751,12 +775,8 @@ partial class CoverTemplateForm
     private PictureBox uiPreview;
     private Label uiPositionLabel;
     private TableLayoutPanel uiSettingsPanel;
-    private GroupBox uiProfilesGroup;
-    private FlowLayoutPanel uiProfilesLayout;
-    private ComboBox uiProfilesCombo;
-    private Button uiLoadProfileButton;
+    private Button uiSaveProfileButton;
     private Button uiSaveAsProfileButton;
-    private Button uiDeleteProfileButton;
     private GroupBox uiTemplateGroup;
     private TableLayoutPanel uiTemplateLayout;
     private Label uiFileLabel;
@@ -774,6 +794,7 @@ partial class CoverTemplateForm
     private Label uiSampleLabel;
     private NumericUpDown uiSampleNumber;
     private Label uiHintLabel;
+    private Label uiWarningLabel;
     private GroupBox uiLayersGroup;
     private TableLayoutPanel uiLayersLayout;
     private ListBox uiLayersList;
@@ -788,17 +809,22 @@ partial class CoverTemplateForm
     private TextBox uiLayerTextBox;
     private Label uiLayerFontLabel;
     private ComboBox uiFontFamily;
+    private Label uiLayerFontStyleLabel;
+    private ComboBox uiFontStyle;
     private Label uiLayerSizeLabel;
     private NumericUpDown uiFontSize;
     private Label uiLayerStrokeLabel;
     private NumericUpDown uiStrokeWidth;
     private Label uiLayerFillLabel;
     private Button uiFillColorButton;
+    private Label uiLayerFillAlphaLabel;
+    private NumericUpDown uiFillAlpha;
     private Label uiLayerStrokeColorLabel;
     private Button uiStrokeColorButton;
+    private Label uiLayerStrokeAlphaLabel;
+    private NumericUpDown uiStrokeAlpha;
     private FlowLayoutPanel uiButtonPanel;
     private Button uiCancelButton;
-    private Button uiOkButton;
     private Button uiHelpButton;
     private ToolTip uiToolTip;
 }

@@ -5,7 +5,6 @@ using System.Text.Json;
 
 namespace MediaOrcestrator.Runner;
 
-// TODO: Переиспользовать CoverGenerator / CoverTemplateStore для генерации обложки из шаблона по названию (как в BatchPreviewForm) - чтобы пользователь не искал файл руками.
 // TODO: Подсказывать имя серии (следующий номер эпизода) по шаблону из BatchRenameService, когда выбран источник с уже существующей нумерацией.
 public partial class PublishControl : UserControl
 {
@@ -17,6 +16,9 @@ public partial class PublishControl : UserControl
     private readonly SyncRetryRunner? _retryRunner;
     private readonly SyncPlanner? _syncPlanner;
     private readonly ActionHolder? _actionHolder;
+    private readonly CoverGenerator? _coverGenerator;
+    private readonly CoverTemplateStore? _coverTemplateStore;
+    private readonly TempManager? _tempManager;
     private readonly ILogger<PublishControl>? _logger;
     private readonly List<string> _titleSuggestions = [];
     private readonly Dictionary<string, string> _titleToDescription = new(StringComparer.Ordinal);
@@ -33,17 +35,25 @@ public partial class PublishControl : UserControl
     private bool _suspendSourceChange;
     private bool _isMediasCacheValid;
 
+    private bool _suppressCoverNumberAutoFill;
+    private bool _coverNumberManuallyEdited;
+
+    private (string Dir, string File)? _pendingGeneratedCover;
+
     public PublishControl()
     {
         InitializeComponent();
     }
 
-    public PublishControl(Orcestrator orcestrator, SyncRetryRunner retryRunner, SyncPlanner syncPlanner, ActionHolder actionHolder, ILogger<PublishControl> logger) : this()
+    public PublishControl(Orcestrator orcestrator, SyncRetryRunner retryRunner, SyncPlanner syncPlanner, ActionHolder actionHolder, CoverGenerator coverGenerator, CoverTemplateStore coverTemplateStore, TempManager tempManager, ILogger<PublishControl> logger) : this()
     {
         _orcestrator = orcestrator;
         _retryRunner = retryRunner;
         _syncPlanner = syncPlanner;
         _actionHolder = actionHolder;
+        _coverGenerator = coverGenerator;
+        _coverTemplateStore = coverTemplateStore;
+        _tempManager = tempManager;
         _logger = logger;
     }
 
@@ -114,6 +124,18 @@ public partial class PublishControl : UserControl
         UpdateVideoLabel();
         UpdateCoverLabel();
         UpdateDescriptionCounter();
+
+        if (_coverTemplateStore != null && _coverGenerator != null)
+        {
+            uiCoverProfilePicker.Initialize(_coverTemplateStore, _coverGenerator);
+        }
+        else
+        {
+            uiCoverProfilePicker.Enabled = false;
+        }
+
+        UpdateGenerateCoverButtonState();
+
         SetStatus("Готов к публикации.", false);
     }
 
@@ -122,6 +144,8 @@ public partial class PublishControl : UserControl
         var image = uiCoverPreviewPictureBox.Image;
         uiCoverPreviewPictureBox.Image = null;
         image?.Dispose();
+
+        CleanupPendingGeneratedCover();
 
         _publishCts?.Cancel();
         _publishCts = null;
@@ -250,6 +274,29 @@ public partial class PublishControl : UserControl
 
         FilterTitleSuggestions();
         TryAutoFillDescriptionFromTitle(uiTitleComboBox.Text);
+        TryAutoResolveCoverNumber();
+    }
+
+    private void uiCoverProfilePicker_TemplateChanged(object? sender, EventArgs e)
+    {
+        _coverNumberManuallyEdited = false;
+        TryAutoResolveCoverNumber();
+        UpdateGenerateCoverButtonState();
+    }
+
+    private async void uiGenerateCoverButton_Click(object? sender, EventArgs e)
+    {
+        await GenerateCoverFromTemplateAsync();
+    }
+
+    private void uiCoverNumberInput_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_suppressCoverNumberAutoFill)
+        {
+            return;
+        }
+
+        _coverNumberManuallyEdited = true;
     }
 
     private void uiTitleComboBox_DropDown(object? sender, EventArgs e)
@@ -399,6 +446,8 @@ public partial class PublishControl : UserControl
         }
         finally
         {
+            CleanupPendingGeneratedCover();
+
             _isPublishing = false;
             SetControlsBusy(false);
             UpdatePublishButtonState();
@@ -568,8 +617,6 @@ public partial class PublishControl : UserControl
         try
         {
             uiTitleComboBox.BeginUpdate();
-            // Сброс SelectedIndex обязателен ДО Items.Clear(): пока выпадашка открыта, нативный listbox
-            // шлёт reflected-команду, ComboBox.get_Text → Items[SelectedIndex] → ArgumentOutOfRangeException на пустом списке.
             uiTitleComboBox.SelectedIndex = -1;
             uiTitleComboBox.Items.Clear();
             if (matches.Length > 0)
@@ -716,6 +763,12 @@ public partial class PublishControl : UserControl
 
     private void SetCover(string? path)
     {
+        if (_pendingGeneratedCover is { } pending
+            && !string.Equals(path, pending.File, StringComparison.OrdinalIgnoreCase))
+        {
+            CleanupPendingGeneratedCover();
+        }
+
         _coverPath = path;
 
         var previousImage = uiCoverPreviewPictureBox.Image;
@@ -737,6 +790,128 @@ public partial class PublishControl : UserControl
         }
 
         UpdateCoverLabel();
+    }
+
+    private async Task GenerateCoverFromTemplateAsync()
+    {
+        if (_coverGenerator == null || _tempManager == null)
+        {
+            return;
+        }
+
+        var template = uiCoverProfilePicker.Template;
+
+        if (template == null)
+        {
+            SetStatus("Выберите профиль обложки или откройте 'Настроить…'.", true);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(template.TemplatePath) || !File.Exists(template.TemplatePath))
+        {
+            SetStatus("Файл шаблона недоступен. Откройте 'Настроить…' и выберите заново.", true);
+            return;
+        }
+
+        var number = (int)uiCoverNumberInput.Value;
+
+        uiGenerateCoverButton.Enabled = false;
+        SetStatus("Генерация обложки...", false);
+
+        var coverGenerator = _coverGenerator;
+        var tempPath = _tempManager.TempPath;
+
+        try
+        {
+            var (dir, file) = await Task.Run(() =>
+            {
+                var tempDir = Path.Combine(tempPath, "publish-cover-" + Guid.NewGuid().ToString("N"));
+                var generated = coverGenerator.Generate(template, number, tempDir);
+                return (tempDir, generated);
+            });
+
+            CleanupPendingGeneratedCover();
+            _pendingGeneratedCover = (dir, file);
+            SetCover(file);
+            SetStatus($"Обложка сгенерирована: {Path.GetFileName(file)}", false);
+        }
+        catch (Exception exception)
+        {
+            _logger?.LogError(exception, "Не удалось сгенерировать обложку из шаблона");
+            SetStatus($"Не удалось сгенерировать обложку: {exception.Message}", true);
+        }
+        finally
+        {
+            UpdateGenerateCoverButtonState();
+        }
+    }
+
+    private void TryAutoResolveCoverNumber()
+    {
+        var template = uiCoverProfilePicker.Template;
+
+        if (template == null || _suppressCoverNumberAutoFill || _coverNumberManuallyEdited)
+        {
+            return;
+        }
+
+        var resolved = CoverNumberResolver.Resolve(template, uiTitleComboBox.Text?.Trim(), 0, _logger);
+        var clamped = Math.Clamp(resolved, (int)uiCoverNumberInput.Minimum, (int)uiCoverNumberInput.Maximum);
+
+        _suppressCoverNumberAutoFill = true;
+
+        try
+        {
+            uiCoverNumberInput.Value = clamped;
+        }
+        finally
+        {
+            _suppressCoverNumberAutoFill = false;
+        }
+    }
+
+    private void UpdateGenerateCoverButtonState()
+    {
+        var canGenerate = !_isPublishing
+                          && uiCoverProfilePicker.Template != null
+                          && _coverGenerator != null
+                          && _tempManager != null;
+
+        uiGenerateCoverButton.Enabled = canGenerate;
+    }
+
+    private void CleanupPendingGeneratedCover()
+    {
+        if (_pendingGeneratedCover is not { } artifact)
+        {
+            return;
+        }
+
+        _pendingGeneratedCover = null;
+
+        try
+        {
+            if (File.Exists(artifact.File))
+            {
+                File.Delete(artifact.File);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Не удалось удалить временный файл обложки: {Path}", artifact.File);
+        }
+
+        try
+        {
+            if (Directory.Exists(artifact.Dir))
+            {
+                Directory.Delete(artifact.Dir, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Не удалось удалить временный каталог обложки: {Path}", artifact.Dir);
+        }
     }
 
     private void UpdateVideoLabel()
@@ -798,6 +973,10 @@ public partial class PublishControl : UserControl
         uiClearVideoButton.Enabled = !busy && !string.IsNullOrEmpty(_videoPath);
         uiClearCoverButton.Enabled = !busy && !string.IsNullOrEmpty(_coverPath);
 
+        uiCoverProfilePicker.Enabled = !busy && _coverTemplateStore != null && _coverGenerator != null;
+        uiCoverNumberInput.Enabled = !busy;
+        UpdateGenerateCoverButtonState();
+
         var pickerCursor = busy ? Cursors.Default : Cursors.Hand;
         uiVideoPathTextBox.Cursor = pickerCursor;
         uiCoverPathTextBox.Cursor = pickerCursor;
@@ -820,6 +999,7 @@ public partial class PublishControl : UserControl
         uiTitleComboBox.Text = string.Empty;
         _autoFilledTitle = null;
         _titleBeforeDropDown = null;
+        _coverNumberManuallyEdited = false;
         uiDescriptionTextBox.Clear();
         SetVideo(null);
         SetCover(null);

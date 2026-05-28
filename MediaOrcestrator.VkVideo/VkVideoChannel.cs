@@ -18,7 +18,8 @@ public sealed class VkVideoChannel(
         ISupportsCommentPermalinks,
         ISupportsCommentMutations,
         ISupportsCommentAuthors,
-        ISupportsCommentLikes
+        ISupportsCommentLikes,
+        IToolConsumer
 {
     private const string AuthorIdSelf = "user";
     private const string AuthorIdGroupPrefix = "group:";
@@ -33,6 +34,11 @@ public sealed class VkVideoChannel(
     public string Name => "VkVideo";
 
     public SyncDirection ChannelType => SyncDirection.Full;
+
+    public IReadOnlyList<ToolDescriptor> RequiredTools { get; } =
+    [
+        WellKnownTools.FFmpegWithProbeDescriptor,
+    ];
 
     public IEnumerable<SourceSettings> SettingsKeys { get; } =
     [
@@ -403,11 +409,8 @@ public sealed class VkVideoChannel(
             throw new FileNotFoundException("Файл видео не найден", filePath);
         }
 
-        var frameSize = await videoTranscoder.GetVideoFrameSizeAsync(filePath, cancellationToken)
-                        ?? throw new NonRetriableException("Не удалось определить размер кадра видео — невозможно выбрать режим загрузки (обычное / shorts)");
-
-        var duration = await videoTranscoder.GetVideoDurationAsync(filePath, cancellationToken)
-                       ?? throw new NonRetriableException("Не удалось определить длительность видео — невозможно выбрать режим загрузки (обычное / shorts)");
+        var frameSize = await videoTranscoder.GetVideoFrameSizeAsync(filePath, cancellationToken);
+        var duration = await videoTranscoder.GetVideoDurationAsync(filePath, cancellationToken);
 
         var isShorts = frameSize.IsSquareOrPortrait && duration <= MaxShortsDuration;
 

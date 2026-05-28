@@ -1,22 +1,33 @@
-using MediaOrcestrator.Domain;
-using SkiaSharp;
-using System.Text.RegularExpressions;
+﻿using MediaOrcestrator.Domain;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Runtime.InteropServices;
 
 namespace MediaOrcestrator.Runner;
 
 public partial class BatchPreviewForm : Form
 {
+    private const int EmGetScrollPos = 0x04DD;
+    private const int EmSetScrollPos = 0x04DE;
+    private const int WmSetRedraw = 0x000B;
+
     private readonly List<Media> _medias;
     private readonly BatchPreviewService _service;
     private readonly CoverGenerator _coverGenerator;
     private readonly CoverTemplateStore _coverTemplateStore;
+    private readonly ILogger _logger;
+    private readonly ActionHolder _actionHolder;
+    private readonly Dictionary<string, DataGridViewRow> _rowsByKey = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CheckBox> _targetChecks = new(StringComparer.Ordinal);
 
-    private bool _hasSuccess;
     private List<Source> _donors = [];
-    private List<Source> _targets = [];
-    private CoverTemplate? _coverTemplate;
-    private string? _currentProfileName;
-    private bool _suppressProfileComboEvents;
+    private List<Source> _allTargets = [];
+    private bool _suppressEvents;
+    private bool _isApplying;
+    private bool _closeAfterCancel;
+    private CancellationTokenSource? _applyCts;
+    private ActionHolder.RunningAction? _currentRunning;
+    private SubtitleEtaTicker? _currentEtaTicker;
 
     public BatchPreviewForm()
     {
@@ -24,30 +35,53 @@ public partial class BatchPreviewForm : Form
         _service = null!;
         _coverGenerator = null!;
         _coverTemplateStore = null!;
+        _logger = NullLogger.Instance;
+        _actionHolder = null!;
         InitializeComponent();
     }
 
-    public BatchPreviewForm(List<Media> medias, BatchPreviewService service, CoverGenerator coverGenerator, CoverTemplateStore coverTemplateStore) : this()
+    public BatchPreviewForm(
+        List<Media> medias,
+        BatchPreviewService service,
+        CoverGenerator coverGenerator,
+        CoverTemplateStore coverTemplateStore,
+        ILogger logger,
+        ActionHolder actionHolder) : this()
     {
         _medias = medias;
         _service = service;
         _coverGenerator = coverGenerator;
         _coverTemplateStore = coverTemplateStore;
-        _coverTemplate = coverTemplateStore.LoadLast();
+        _logger = logger;
+        _actionHolder = actionHolder;
+    }
 
-        Text = $"Обновление превью ({medias.Count} видео)";
+    public event EventHandler? DataChanged;
 
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+
+        Text = _medias.Count == 1
+            ? $"Обновление превью «{Truncate(_medias[0].Title, 60)}»"
+            : $"Обновление превью ({_medias.Count} видео)";
+
+        ApplyInitialSplitterDistance();
         PopulateDonors();
+        uiCoverProfilePicker.Initialize(_coverTemplateStore, _coverGenerator);
         OnModeChanged();
-        RefreshProfilesCombo();
         RefreshCoverThumbnail();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        if (DialogResult is DialogResult.Cancel or DialogResult.None)
+        if (_isApplying)
         {
-            DialogResult = _hasSuccess ? DialogResult.OK : DialogResult.Cancel;
+            _closeAfterCancel = true;
+            CancelApply();
+            uiStatusLabel.Text = "Отмена...";
+            e.Cancel = true;
+            return;
         }
 
         base.OnFormClosing(e);
@@ -55,6 +89,8 @@ public partial class BatchPreviewForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        _applyCts?.Dispose();
+        _applyCts = null;
         uiCoverThumbnail.Image?.Dispose();
         uiCoverThumbnail.Image = null;
         base.OnFormClosed(e);
@@ -62,7 +98,7 @@ public partial class BatchPreviewForm : Form
 
     private void OnFromSourceCheckedChanged(object? sender, EventArgs e)
     {
-        if (!uiFromSourceRadio.Checked)
+        if (!uiFromSourceRadio.Checked || _suppressEvents || _isApplying)
         {
             return;
         }
@@ -74,7 +110,7 @@ public partial class BatchPreviewForm : Form
 
     private void OnFromFileCheckedChanged(object? sender, EventArgs e)
     {
-        if (!uiFromFileRadio.Checked)
+        if (!uiFromFileRadio.Checked || _suppressEvents || _isApplying)
         {
             return;
         }
@@ -86,7 +122,7 @@ public partial class BatchPreviewForm : Form
 
     private void OnFromTemplateCheckedChanged(object? sender, EventArgs e)
     {
-        if (!uiFromTemplateRadio.Checked)
+        if (!uiFromTemplateRadio.Checked || _suppressEvents || _isApplying)
         {
             return;
         }
@@ -98,6 +134,11 @@ public partial class BatchPreviewForm : Form
 
     private void OnDonorComboSelectedIndexChanged(object? sender, EventArgs e)
     {
+        if (_suppressEvents || _isApplying)
+        {
+            return;
+        }
+
         OnDonorChanged();
     }
 
@@ -106,27 +147,83 @@ public partial class BatchPreviewForm : Form
         BrowseFile();
     }
 
-    private void OnTemplateButtonClick(object? sender, EventArgs e)
+    private void OnCoverProfilePickerTemplateChanged(object? sender, EventArgs e)
     {
-        OpenTemplateEditor();
+        RefreshCoverThumbnail();
+        UpdateApplyButtonState();
+        UpdateStatusLine();
     }
 
-    private void OnProfileComboSelectedIndexChanged(object? sender, EventArgs e)
+    private void uiResultGrid_CurrentCellDirtyStateChanged(object? sender, EventArgs e)
     {
-        OnProfileComboChanged();
-    }
-
-    private void OnTargetsItemCheck(object? sender, ItemCheckEventArgs e)
-    {
-        if (IsHandleCreated)
+        if (uiResultGrid.CurrentCell is DataGridViewCheckBoxCell)
         {
-            BeginInvoke(UpdatePreview);
+            uiResultGrid.CommitEdit(DataGridViewDataErrorContexts.Commit);
         }
     }
 
-    private async void OnApplyButtonClick(object? sender, EventArgs e)
+    private void uiResultGrid_CellValueChanged(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (_suppressEvents || e.RowIndex < 0 || e.ColumnIndex != uiApplyColumn.Index)
+        {
+            return;
+        }
+
+        UpdateApplyButtonState();
+        UpdateStatusLine();
+    }
+
+    private async void uiApplyButton_Click(object? sender, EventArgs e)
     {
         await ApplyAsync();
+    }
+
+    private void uiCancelButton_Click(object? sender, EventArgs e)
+    {
+        if (_isApplying)
+        {
+            CancelApply();
+            uiStatusLabel.Text = "Отмена...";
+            return;
+        }
+
+        Close();
+    }
+
+    private void OnTargetCheckChanged(object? sender, EventArgs e)
+    {
+        if (_suppressEvents || _isApplying)
+        {
+            return;
+        }
+
+        RebuildGrid();
+    }
+
+    [DllImport("user32.dll")]
+    private static extern void SendMessage(IntPtr hWnd, int msg, int wParam, ref Point lParam);
+
+    [DllImport("user32.dll")]
+    private static extern void SendMessage(IntPtr hWnd, int msg, bool wParam, int lParam);
+
+    private static bool IsRowChecked(DataGridViewRow row)
+    {
+        return row.Cells[0].Value is bool b && b;
+    }
+
+    private static string Stamp(string message)
+    {
+        return $"[{DateTime.Now:HH:mm:ss}]  {message}";
+    }
+
+    private static string Truncate(string? value, int max)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= max)
+        {
+            return value ?? string.Empty;
+        }
+
+        return value.AsSpan(0, max - 1).ToString() + "…";
     }
 
     private static string RowKey(string mediaId, string sourceId)
@@ -134,236 +231,215 @@ public partial class BatchPreviewForm : Form
         return $"{mediaId}|{sourceId}";
     }
 
+    private void ApplyInitialSplitterDistance()
+    {
+        const double GridShare = 0.62;
+        var available = uiGridLogSplit.Height - uiGridLogSplit.SplitterWidth;
+        if (available <= uiGridLogSplit.Panel1MinSize + uiGridLogSplit.Panel2MinSize)
+        {
+            return;
+        }
+
+        var target = (int)(available * GridShare);
+        var min = uiGridLogSplit.Panel1MinSize;
+        var max = available - uiGridLogSplit.Panel2MinSize;
+        uiGridLogSplit.SplitterDistance = Math.Clamp(target, min, max);
+    }
+
     private void RefreshCoverThumbnail()
     {
         uiCoverThumbnail.Image?.Dispose();
         uiCoverThumbnail.Image = null;
 
-        if (_coverTemplate == null || string.IsNullOrEmpty(_coverTemplate.TemplatePath) || !File.Exists(_coverTemplate.TemplatePath))
+        var template = uiCoverProfilePicker.Template;
+
+        if (template == null || string.IsNullOrEmpty(template.TemplatePath) || !File.Exists(template.TemplatePath))
         {
             return;
         }
 
         try
         {
-            var sampleNumber = ResolveSampleNumber(_coverTemplate);
-            using var skBitmap = _coverGenerator.Render(_coverTemplate, sampleNumber);
-            using var skImage = SKImage.FromBitmap(skBitmap);
-            using var data = skImage.Encode(SKEncodedImageFormat.Png, 90);
-            using var ms = new MemoryStream(data.ToArray());
-            using var sourceBitmap = new Bitmap(ms);
-            uiCoverThumbnail.Image = new Bitmap(sourceBitmap);
+            var sampleTitle = _medias.Count > 0 ? _medias[0].Title : null;
+            var sampleNumber = CoverNumberResolver.Resolve(template, sampleTitle, 0, _logger);
+            using var skBitmap = _coverGenerator.Render(template, sampleNumber);
+            uiCoverThumbnail.Image = SkiaInterop.ToBitmap(skBitmap);
         }
         catch
         {
         }
     }
 
-    private int ResolveSampleNumber(CoverTemplate template)
-    {
-        if (template.NumberMode != CoverNumberMode.TitleRegex || _medias.Count == 0)
-        {
-            return template.StartNumber;
-        }
-
-        var title = _medias[0].Title;
-
-        if (string.IsNullOrEmpty(title))
-        {
-            return template.StartNumber;
-        }
-
-        var pattern = string.IsNullOrWhiteSpace(template.TitleRegexPattern)
-            ? CoverTemplate.DefaultTitleRegex
-            : template.TitleRegexPattern;
-
-        try
-        {
-            var match = Regex.Match(title, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(100));
-
-            if (match.Success)
-            {
-                var captured = match.Groups.Count > 1 && match.Groups[1].Success ? match.Groups[1].Value : match.Value;
-
-                if (int.TryParse(captured, out var parsed))
-                {
-                    return parsed;
-                }
-            }
-        }
-        catch (ArgumentException)
-        {
-        }
-        catch (RegexMatchTimeoutException)
-        {
-        }
-
-        return template.StartNumber;
-    }
-
-    private void RefreshProfilesCombo()
-    {
-        _suppressProfileComboEvents = true;
-        uiProfileCombo.Items.Clear();
-        uiProfileCombo.Items.Add("— выбрать профиль —");
-
-        foreach (var name in _coverTemplateStore.List())
-        {
-            uiProfileCombo.Items.Add(name);
-        }
-
-        uiProfileCombo.SelectedIndex = 0;
-        _suppressProfileComboEvents = false;
-    }
-
-    private void OnProfileComboChanged()
-    {
-        if (_suppressProfileComboEvents)
-        {
-            return;
-        }
-
-        var idx = uiProfileCombo.SelectedIndex;
-
-        if (idx <= 0)
-        {
-            return;
-        }
-
-        var name = uiProfileCombo.SelectedItem?.ToString();
-
-        if (string.IsNullOrEmpty(name))
-        {
-            return;
-        }
-
-        var loaded = _coverTemplateStore.Load(name);
-
-        if (loaded == null)
-        {
-            MessageBox.Show($"Не удалось загрузить профиль '{name}'", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        _coverTemplate = loaded;
-        _currentProfileName = name;
-        _coverTemplateStore.SaveLast(loaded);
-        RefreshCoverThumbnail();
-        UpdatePreview();
-    }
-
     private void PopulateDonors()
     {
         _donors = _service.GetAvailableDonors(_medias);
-        uiDonorComboBox.Items.Clear();
 
-        foreach (var donor in _donors)
+        _suppressEvents = true;
+        try
         {
-            uiDonorComboBox.Items.Add(donor.TitleFull);
-        }
+            uiDonorComboBox.Items.Clear();
 
-        if (uiDonorComboBox.Items.Count > 0)
-        {
-            uiDonorComboBox.SelectedIndex = 0;
-        }
-    }
-
-    private void PopulateTargets(Source? excludeDonor)
-    {
-        _targets = _service.GetAvailableTargets(_medias, excludeDonor);
-        uiTargetsListBox.Items.Clear();
-
-        for (var i = 0; i < _targets.Count; i++)
-        {
-            uiTargetsListBox.Items.Add(_targets[i].TitleFull);
-            uiTargetsListBox.SetItemChecked(i, true);
-        }
-
-        UpdatePreview();
-    }
-
-    private void UpdatePreview()
-    {
-        uiResultGrid.Rows.Clear();
-        var targets = GetSelectedTargets();
-
-        foreach (var media in _medias)
-        {
-            foreach (var target in targets)
+            foreach (var donor in _donors)
             {
-                var hasLink = media.Sources.Any(s => s.SourceId == target.Id);
-                if (!hasLink)
+                uiDonorComboBox.Items.Add(donor.TitleFull);
+            }
+
+            if (uiDonorComboBox.Items.Count > 0)
+            {
+                uiDonorComboBox.SelectedIndex = 0;
+            }
+        }
+        finally
+        {
+            _suppressEvents = false;
+        }
+    }
+
+    private void RebuildTargets(Source? excludeDonor)
+    {
+        _allTargets = _service.GetAvailableTargets(_medias, excludeDonor);
+
+        _suppressEvents = true;
+        try
+        {
+            uiTargetsPanel.Controls.Clear();
+            _targetChecks.Clear();
+
+            foreach (var target in _allTargets)
+            {
+                var checkbox = new CheckBox
                 {
-                    continue;
-                }
+                    Text = target.TitleFull,
+                    Checked = true,
+                    AutoSize = true,
+                    Tag = target.Id,
+                    Margin = new(0, 4, 12, 4),
+                };
 
-                var row = uiResultGrid.Rows.Add(media.Title, target.TitleFull, "Ожидание");
-                uiResultGrid.Rows[row].Tag = RowKey(media.Id, target.Id);
-                uiResultGrid.Rows[row].DefaultCellStyle.ForeColor = Color.Gray;
+                checkbox.CheckedChanged += OnTargetCheckChanged;
+                uiTargetsPanel.Controls.Add(checkbox);
+                _targetChecks[target.Id] = checkbox;
             }
-        }
 
-        var hasSource = HasSelectedSource();
-
-        uiApplyButton.Enabled = hasSource && uiResultGrid.Rows.Count > 0;
-        uiStatusLabel.Text = uiResultGrid.Rows.Count > 0
-            ? $"Запланировано: {uiResultGrid.Rows.Count}"
-            : "";
-    }
-
-    private bool HasSelectedSource()
-    {
-        if (uiFromSourceRadio.Checked)
-        {
-            return uiDonorComboBox.SelectedIndex >= 0;
-        }
-
-        if (uiFromFileRadio.Checked)
-        {
-            return !string.IsNullOrEmpty(uiFilePathTextBox.Text);
-        }
-
-        return uiFromTemplateRadio.Checked && _coverTemplate != null;
-    }
-
-    private void OnProgressReport(BatchPreviewResult result)
-    {
-        var key = RowKey(result.Media.Id, result.Target.Id);
-        var statusText = result.Success ? "Готово" : $"Ошибка: {result.ErrorMessage}";
-        var color = result.Success ? Color.DarkGreen : Color.DarkRed;
-
-        DataGridViewRow? matchingRow = null;
-
-        foreach (DataGridViewRow gridRow in uiResultGrid.Rows)
-        {
-            if (gridRow.Tag is string rowKey && rowKey == key)
+            if (_allTargets.Count >= 2)
             {
-                matchingRow = gridRow;
-                break;
+                uiTargetsPanel.Controls.Add(uiTargetsAllLink);
+                uiTargetsPanel.Controls.Add(uiTargetsNoneLink);
+            }
+
+            uiTargetsGroup.Visible = _allTargets.Count > 0;
+        }
+        finally
+        {
+            _suppressEvents = false;
+        }
+
+        RebuildGrid();
+    }
+
+    private void SetAllTargets(bool value)
+    {
+        if (_isApplying)
+        {
+            return;
+        }
+
+        _suppressEvents = true;
+        try
+        {
+            foreach (var checkbox in _targetChecks.Values)
+            {
+                checkbox.Checked = value;
+            }
+        }
+        finally
+        {
+            _suppressEvents = false;
+        }
+
+        RebuildGrid();
+    }
+
+    private void SetAllRows(bool value)
+    {
+        if (_isApplying)
+        {
+            return;
+        }
+
+        _suppressEvents = true;
+        try
+        {
+            foreach (DataGridViewRow row in uiResultGrid.Rows)
+            {
+                row.Cells[uiApplyColumn.Index].Value = value;
+            }
+        }
+        finally
+        {
+            _suppressEvents = false;
+        }
+
+        UpdateApplyButtonState();
+        UpdateStatusLine();
+    }
+
+    private List<Source> GetCheckedTargets()
+    {
+        var selected = new List<Source>(_allTargets.Count);
+        foreach (var target in _allTargets)
+        {
+            if (_targetChecks.TryGetValue(target.Id, out var checkbox) && checkbox.Checked)
+            {
+                selected.Add(target);
             }
         }
 
-        if (matchingRow != null)
+        return selected;
+    }
+
+    private void RebuildGrid()
+    {
+        _suppressEvents = true;
+        try
         {
-            matchingRow.Cells[uiStatusColumn.Name].Value = statusText;
-            matchingRow.DefaultCellStyle.ForeColor = color;
+            uiResultGrid.Rows.Clear();
+            _rowsByKey.Clear();
+            var targets = GetCheckedTargets();
+
+            foreach (var media in _medias)
+            {
+                foreach (var target in targets)
+                {
+                    if (media.Sources.All(s => s.SourceId != target.Id))
+                    {
+                        continue;
+                    }
+
+                    var idx = uiResultGrid.Rows.Add(true, media.Title, target.TitleFull, "Ожидание");
+                    var row = uiResultGrid.Rows[idx];
+                    var key = RowKey(media.Id, target.Id);
+                    row.Tag = new RowState(media, target);
+                    row.DefaultCellStyle.ForeColor = Color.Gray;
+                    _rowsByKey[key] = row;
+                }
+            }
         }
-        else
+        finally
         {
-            var row = uiResultGrid.Rows.Add(result.Media.Title, result.Target.TitleFull, statusText);
-            uiResultGrid.Rows[row].Tag = key;
-            uiResultGrid.Rows[row].DefaultCellStyle.ForeColor = color;
+            _suppressEvents = false;
         }
+
+        UpdateApplyButtonState();
+        UpdateStatusLine();
     }
 
     private void OnModeChanged()
     {
-        uiDonorComboBox.Enabled = uiFromSourceRadio.Checked;
-
-        uiFilePathTextBox.Enabled = uiFromFileRadio.Checked;
-        uiBrowseButton.Enabled = uiFromFileRadio.Checked;
-
-        uiTemplateButton.Enabled = uiFromTemplateRadio.Checked;
+        uiDonorComboBox.Enabled = uiFromSourceRadio.Checked && !_isApplying;
+        uiFilePathTextBox.Enabled = uiFromFileRadio.Checked && !_isApplying;
+        uiBrowseButton.Enabled = uiFromFileRadio.Checked && !_isApplying;
+        uiCoverProfilePicker.Enabled = uiFromTemplateRadio.Checked && !_isApplying;
 
         if (uiFromSourceRadio.Checked)
         {
@@ -371,51 +447,20 @@ public partial class BatchPreviewForm : Form
         }
         else
         {
-            PopulateTargets(null);
+            RebuildTargets(null);
         }
-    }
-
-    private void OpenTemplateEditor()
-    {
-        using var form = new CoverTemplateForm(_coverGenerator, _coverTemplateStore, _coverTemplate, _currentProfileName);
-
-        if (form.ShowDialog(this) != DialogResult.OK || form.Result == null)
-        {
-            return;
-        }
-
-        _coverTemplate = form.Result;
-        _coverTemplateStore.SaveLast(_coverTemplate);
-        RefreshProfilesCombo();
-        RefreshCoverThumbnail();
-        UpdatePreview();
     }
 
     private void OnDonorChanged()
     {
-        var selectedDonor = GetSelectedDonor();
-        PopulateTargets(selectedDonor);
+        var donor = GetSelectedDonor();
+        RebuildTargets(donor);
     }
 
     private Source? GetSelectedDonor()
     {
         var index = uiDonorComboBox.SelectedIndex;
         return index >= 0 && index < _donors.Count ? _donors[index] : null;
-    }
-
-    private List<Source> GetSelectedTargets()
-    {
-        var selected = new List<Source>();
-
-        for (var i = 0; i < uiTargetsListBox.Items.Count; i++)
-        {
-            if (uiTargetsListBox.GetItemChecked(i))
-            {
-                selected.Add(_targets[i]);
-            }
-        }
-
-        return selected;
     }
 
     private void BrowseFile()
@@ -430,55 +475,573 @@ public partial class BatchPreviewForm : Form
         }
 
         uiFilePathTextBox.Text = dialog.FileName;
-        UpdatePreview();
+        UpdateApplyButtonState();
+        UpdateStatusLine();
+    }
+
+    private bool HasSelectedSource()
+    {
+        if (uiFromSourceRadio.Checked)
+        {
+            return uiDonorComboBox.SelectedIndex >= 0;
+        }
+
+        if (uiFromFileRadio.Checked)
+        {
+            return !string.IsNullOrEmpty(uiFilePathTextBox.Text) && File.Exists(uiFilePathTextBox.Text);
+        }
+
+        return uiFromTemplateRadio.Checked && uiCoverProfilePicker.Template != null;
+    }
+
+    private int CountActionableRows()
+    {
+        var count = 0;
+        foreach (DataGridViewRow row in uiResultGrid.Rows)
+        {
+            if (row.Tag is RowState state && IsRowChecked(row) && !state.IsApplied)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private void UpdateApplyButtonState(int? cachedCount = null)
+    {
+        if (_isApplying)
+        {
+            return;
+        }
+
+        var count = cachedCount ?? CountActionableRows();
+
+        uiApplyButton.Text = count > 0
+            ? $"Применить ({count})"
+            : "Применить";
+
+        uiApplyButton.Enabled = count > 0 && HasSelectedSource();
+    }
+
+    private void UpdateStatusLine()
+    {
+        if (_isApplying)
+        {
+            return;
+        }
+
+        var actionable = CountActionableRows();
+        var total = uiResultGrid.Rows.Count;
+        var targetsCount = _targetChecks.Count;
+        var checkedTargets = _targetChecks.Values.Count(c => c.Checked);
+
+        var targetsPart = targetsCount > 0
+            ? $" · площадки: {checkedTargets}/{targetsCount}"
+            : string.Empty;
+
+        if (!HasSelectedSource())
+        {
+            if (uiFromSourceRadio.Checked)
+            {
+                uiStatusLabel.Text = "Выберите площадку-донор";
+            }
+            else
+            {
+                uiStatusLabel.Text = uiFromFileRadio.Checked
+                    ? "Выберите файл превью"
+                    : "Настройте шаблон обложки";
+            }
+
+            return;
+        }
+
+        uiStatusLabel.Text = actionable == 0
+            ? $"Применять нечего (строк: {total}){targetsPart}"
+            : $"К применению: {actionable} из {total}{targetsPart}";
+    }
+
+    private List<BatchPreviewRequest> BuildRequests()
+    {
+        var byMedia = new Dictionary<string, (Media Media, List<Source> Targets)>(StringComparer.Ordinal);
+
+        foreach (DataGridViewRow row in uiResultGrid.Rows)
+        {
+            if (row.Tag is not RowState state || !IsRowChecked(row) || state.IsApplied)
+            {
+                continue;
+            }
+
+            if (!byMedia.TryGetValue(state.Media.Id, out var bucket))
+            {
+                bucket = (state.Media, []);
+                byMedia[state.Media.Id] = bucket;
+            }
+
+            bucket.Targets.Add(state.Target);
+        }
+
+        var requests = new List<BatchPreviewRequest>(byMedia.Count);
+        foreach (var media in _medias)
+        {
+            if (byMedia.TryGetValue(media.Id, out var bucket))
+            {
+                requests.Add(new(bucket.Media, bucket.Targets));
+            }
+        }
+
+        return requests;
     }
 
     private async Task ApplyAsync()
     {
+        var requests = BuildRequests();
+        if (requests.Count == 0)
+        {
+            return;
+        }
+
         var donor = uiFromSourceRadio.Checked ? GetSelectedDonor() : null;
         var localFilePath = uiFromFileRadio.Checked ? uiFilePathTextBox.Text : null;
-        var coverTemplate = uiFromTemplateRadio.Checked ? _coverTemplate : null;
-        var targets = GetSelectedTargets();
+        var coverTemplate = uiFromTemplateRadio.Checked ? uiCoverProfilePicker.Template : null;
 
-        uiApplyButton.Enabled = false;
-        uiFromSourceRadio.Enabled = false;
-        uiFromFileRadio.Enabled = false;
-        uiFromTemplateRadio.Enabled = false;
-        uiDonorComboBox.Enabled = false;
-        uiFilePathTextBox.Enabled = false;
-        uiBrowseButton.Enabled = false;
-        uiTemplateButton.Enabled = false;
-        uiTargetsListBox.Enabled = false;
-        uiStatusLabel.Text = "Обновление превью...";
+        var totalUnits = requests.Sum(r => r.Targets.Count);
 
+        _applyCts?.Dispose();
+        _applyCts = new();
+        var token = _applyCts.Token;
+
+        SetApplyingState(true, totalUnits);
+
+        var actionName = _medias.Count == 1
+            ? $"Обновление превью: «{Truncate(_medias[0].Title, 50)}»"
+            : $"Обновление превью ({requests.Count} видео)";
+
+        var running = _actionHolder.Register(actionName, "Подготовка", totalUnits, _applyCts, kind: ActionKind.Metadata);
+        _currentRunning = running;
+        _currentEtaTicker = new(running, new());
+
+        using var actionScope = _actionHolder.BeginScope(running);
+
+        var processedUnits = 0;
+        var terminated = false;
+
+        IReadOnlyList<BatchPreviewResult> results;
         try
         {
-            var progress = new Progress<BatchPreviewResult>(OnProgressReport);
+            try
+            {
+                running.Status = "Авторизация площадок";
+                if (!await EnsureSourcesAuthenticatedAsync(donor, requests, token))
+                {
+                    SetApplyingState(false);
+                    uiStatusLabel.Text = "Применение отменено — нет авторизации площадок";
+                    running.MarkCancelled("Нет авторизации площадок");
+                    terminated = true;
+                    return;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
 
-            var results = await Task.Run(() =>
-                _service.ApplyAsync(_medias, donor, targets, localFilePath, coverTemplate, progress, CancellationToken.None));
+                SetApplyingState(false);
+                uiStatusLabel.Text = "Отменено пользователем";
+                LogLine(Stamp("Отменено пользователем"), Color.Firebrick);
+                running.MarkCancelled();
+                terminated = true;
+
+                if (_closeAfterCancel)
+                {
+                    Close();
+                }
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                SetApplyingState(false);
+                uiStatusLabel.Text = $"Ошибка авторизации: {ex.Message}";
+                LogLine(Stamp($"Ошибка авторизации: {ex.Message}"), Color.Firebrick);
+                running.Fail($"Авторизация: {ex.Message}", ex);
+                terminated = true;
+                return;
+            }
+
+            if (token.IsCancellationRequested || IsDisposed)
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                SetApplyingState(false);
+                running.MarkCancelled();
+                terminated = true;
+
+                if (_closeAfterCancel)
+                {
+                    Close();
+                }
+
+                return;
+            }
+
+            running.Status = $"0/{totalUnits}";
+            LogLine(Stamp($"── Запуск: видео {requests.Count}, заливок {totalUnits} ──"), Color.MidnightBlue);
+
+            var progress = new Progress<BatchPreviewProgress>(p => OnMediaProgress(p, totalUnits));
+            var uiContext = SynchronizationContext.Current ?? new();
+
+            var execOptions = new BatchPreviewExecutionOptions(uiStopOnErrorCheck.Checked);
+
+            try
+            {
+                results = await Task.Run(() => _service.ApplyAsync(requests,
+                        donor,
+                        localFilePath,
+                        coverTemplate,
+                        progress,
+                        result =>
+                        {
+                            Interlocked.Increment(ref processedUnits);
+                            var snapshot = processedUnits;
+                            uiContext.Post(_ => OnResultReported(result, snapshot, totalUnits), null);
+                        },
+                        token,
+                        execOptions),
+                    token);
+            }
+            catch (OperationCanceledException)
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                SetApplyingState(false);
+                uiStatusLabel.Text = "Отменено пользователем";
+                LogLine(Stamp("── Прервано пользователем ──"), Color.Firebrick);
+                running.MarkCancelled();
+                terminated = true;
+
+                if (_closeAfterCancel)
+                {
+                    Close();
+                }
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                SetApplyingState(false);
+                uiStatusLabel.Text = $"Ошибка: {ex.Message}";
+                LogLine(Stamp($"Ошибка: {ex.Message}"), Color.Firebrick);
+                running.Fail(ex.Message, ex);
+                terminated = true;
+                return;
+            }
+
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            SetApplyingState(false);
 
             var successCount = results.Count(r => r.Success);
             var failCount = results.Count - successCount;
-            uiStatusLabel.Text = $"Готово: {successCount} успешно, {failCount} с ошибками";
 
-            _hasSuccess = successCount > 0;
-        }
-        catch (Exception ex)
-        {
-            uiStatusLabel.Text = $"Ошибка: {ex.Message}";
+            uiStatusLabel.Text = failCount == 0
+                ? $"Готово: применено {successCount} из {results.Count}"
+                : $"Готово: {successCount} успешно, {failCount} с ошибками";
+
+            LogLine(Stamp($"── Готово: успешно {successCount}, с ошибками {failCount} ──"),
+                failCount == 0 ? Color.DarkGreen : Color.Firebrick);
+
+            if (failCount == 0)
+            {
+                running.Finish($"Применено {successCount} из {results.Count}");
+            }
+            else
+            {
+                running.Fail($"Применено {successCount}, ошибок {failCount}");
+            }
+
+            terminated = true;
+
+            if (successCount > 0)
+            {
+                DataChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
         finally
         {
-            uiFromSourceRadio.Enabled = true;
-            uiFromFileRadio.Enabled = true;
-            uiFromTemplateRadio.Enabled = true;
-            uiTargetsListBox.Enabled = true;
-            uiDonorComboBox.Enabled = uiFromSourceRadio.Checked;
-            uiFilePathTextBox.Enabled = uiFromFileRadio.Checked;
-            uiBrowseButton.Enabled = uiFromFileRadio.Checked;
-            uiTemplateButton.Enabled = uiFromTemplateRadio.Checked;
-            uiApplyButton.Enabled = true;
+            if (!terminated)
+            {
+                running.MarkCancelled("Прервано без явного исхода");
+            }
+
+            _currentRunning = null;
+            _currentEtaTicker = null;
         }
+    }
+
+    private async Task<bool> EnsureSourcesAuthenticatedAsync(Source? donor, IReadOnlyList<BatchPreviewRequest> requests, CancellationToken token)
+    {
+        var needed = new HashSet<string>(StringComparer.Ordinal);
+        if (donor != null)
+        {
+            needed.Add(donor.Id);
+        }
+
+        foreach (var target in requests.SelectMany(request => request.Targets))
+        {
+            needed.Add(target.Id);
+        }
+
+        if (needed.Count == 0)
+        {
+            return true;
+        }
+
+        var pending = _service.GetUnauthenticatedSources(needed);
+        if (pending.Count == 0)
+        {
+            return true;
+        }
+
+        var list = string.Join(Environment.NewLine, pending.Select(p => "• " + p.Title));
+        var answer = MessageBox.Show(this,
+            "Перед обновлением превью нужно войти на площадки:"
+            + Environment.NewLine
+            + list
+            + Environment.NewLine
+            + Environment.NewLine
+            + "Открыть окно входа?",
+            "Требуется авторизация",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Question);
+
+        if (answer != DialogResult.OK)
+        {
+            LogLine(Stamp("Применение отменено: площадки не авторизованы"), Color.Firebrick);
+            return false;
+        }
+
+        uiStatusLabel.Text = "Авторизация площадок...";
+        uiProgressBar.Style = ProgressBarStyle.Marquee;
+        LogLine(Stamp("Авторизация площадок: " + string.Join(", ", pending.Select(p => p.Title))), Color.MidnightBlue);
+
+        var ui = new WinFormsAuthUI(this, _logger);
+        try
+        {
+            await Task.Run(() => _service.AuthenticateSourcesAsync(needed, ui, token), token);
+        }
+        finally
+        {
+            if (!IsDisposed)
+            {
+                uiProgressBar.Style = ProgressBarStyle.Continuous;
+            }
+        }
+
+        return true;
+    }
+
+    private void OnMediaProgress(BatchPreviewProgress p, int totalUnits)
+    {
+        if (IsDisposed || _currentRunning is not { State: ActionState.Running } running)
+        {
+            return;
+        }
+
+        var current = string.IsNullOrEmpty(p.CurrentTitle) ? "..." : Truncate(p.CurrentTitle, 50);
+
+        if (p.Processed >= p.Total)
+        {
+            return;
+        }
+
+        uiStatusLabel.Text = $"Обработка {p.Processed + 1}/{p.Total}: {current}";
+        running.Subtitle = current;
+    }
+
+    private void OnResultReported(BatchPreviewResult result, int processedUnits, int totalUnits)
+    {
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        var key = RowKey(result.Media.Id, result.Target.Id);
+        var statusText = result.Success ? "Готово" : $"Ошибка: {result.ErrorMessage}";
+        var color = result.Success ? Color.DarkGreen : Color.DarkRed;
+
+        if (_rowsByKey.TryGetValue(key, out var matchingRow))
+        {
+            matchingRow.Cells[uiStatusColumn.Name].Value = statusText;
+            matchingRow.DefaultCellStyle.ForeColor = color;
+
+            if (matchingRow.Tag is RowState state)
+            {
+                state.IsApplied = true;
+            }
+        }
+        else
+        {
+            var idx = uiResultGrid.Rows.Add(true, result.Media.Title, result.Target.TitleFull, statusText);
+            var row = uiResultGrid.Rows[idx];
+            row.Tag = new RowState(result.Media, result.Target) { IsApplied = true };
+            row.DefaultCellStyle.ForeColor = color;
+            _rowsByKey[key] = row;
+        }
+
+        if (result.Success)
+        {
+            LogLine(Stamp($"✓ «{Truncate(result.Media.Title, 50)}» → {result.Target.TitleFull}"), Color.DarkGreen);
+        }
+        else
+        {
+            LogLine(Stamp($"✗ «{Truncate(result.Media.Title, 50)}» → {result.Target.TitleFull} — {result.ErrorMessage ?? "ошибка"}"), Color.Firebrick);
+        }
+
+        uiProgressBar.Maximum = Math.Max(totalUnits, 1);
+        uiProgressBar.Value = Math.Min(processedUnits, uiProgressBar.Maximum);
+
+        if (_currentRunning is not { State: ActionState.Running } running)
+        {
+            return;
+        }
+
+        running.ProgressMax = totalUnits;
+        running.SetProgress(Math.Min(processedUnits, totalUnits));
+        running.Status = $"{Math.Min(processedUnits, totalUnits)}/{totalUnits}";
+        _currentEtaTicker?.Report(processedUnits * 100.0 / Math.Max(totalUnits, 1));
+    }
+
+    private void CancelApply()
+    {
+        try
+        {
+            _applyCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private void SetApplyingState(bool applying, int totalForProgress = 0)
+    {
+        _isApplying = applying;
+
+        uiFromSourceRadio.Enabled = !applying;
+        uiFromFileRadio.Enabled = !applying;
+        uiFromTemplateRadio.Enabled = !applying;
+        uiDonorComboBox.Enabled = !applying && uiFromSourceRadio.Checked;
+        uiFilePathTextBox.Enabled = !applying && uiFromFileRadio.Checked;
+        uiBrowseButton.Enabled = !applying && uiFromFileRadio.Checked;
+        uiCoverProfilePicker.Enabled = !applying && uiFromTemplateRadio.Checked;
+        uiTargetsPanel.Enabled = !applying;
+        uiRowSelectPanel.Enabled = !applying;
+        uiStopOnErrorCheck.Enabled = !applying;
+        uiResultGrid.ReadOnly = applying;
+        uiApplyButton.Enabled = !applying;
+
+        if (applying)
+        {
+            uiProgressBar.Visible = true;
+            uiProgressBar.Style = ProgressBarStyle.Continuous;
+            uiProgressBar.Maximum = Math.Max(totalForProgress, 1);
+            uiProgressBar.Value = 0;
+            uiCancelButton.Text = "Прервать";
+            uiApplyButton.Text = "Применение...";
+        }
+        else
+        {
+            uiProgressBar.Visible = false;
+            uiProgressBar.Style = ProgressBarStyle.Continuous;
+            uiCancelButton.Text = "Закрыть";
+            UpdateApplyButtonState();
+        }
+    }
+
+    private void LogLine(string text, Color color, int indent = 0)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        var prefix = indent > 0 ? new(' ', indent * 4) : string.Empty;
+        AppendLog(prefix + text + Environment.NewLine, color);
+    }
+
+    private void AppendLog(string text, Color color)
+    {
+        var atBottom = IsLogAtBottom();
+        var savedSelStart = uiLogBox.SelectionStart;
+        var savedSelLength = uiLogBox.SelectionLength;
+        var scroll = default(Point);
+        SendMessage(uiLogBox.Handle, EmGetScrollPos, 0, ref scroll);
+
+        SendMessage(uiLogBox.Handle, WmSetRedraw, false, 0);
+        try
+        {
+            uiLogBox.SelectionStart = uiLogBox.TextLength;
+            uiLogBox.SelectionLength = 0;
+            uiLogBox.SelectionColor = color;
+            uiLogBox.AppendText(text);
+            uiLogBox.SelectionColor = uiLogBox.ForeColor;
+
+            if (atBottom)
+            {
+                uiLogBox.SelectionStart = uiLogBox.TextLength;
+                uiLogBox.SelectionLength = 0;
+                uiLogBox.ScrollToCaret();
+            }
+            else
+            {
+                uiLogBox.SelectionStart = savedSelStart;
+                uiLogBox.SelectionLength = savedSelLength;
+                SendMessage(uiLogBox.Handle, EmSetScrollPos, 0, ref scroll);
+            }
+        }
+        finally
+        {
+            SendMessage(uiLogBox.Handle, WmSetRedraw, true, 0);
+            uiLogBox.Invalidate();
+        }
+    }
+
+    private bool IsLogAtBottom()
+    {
+        if (uiLogBox.TextLength == 0)
+        {
+            return true;
+        }
+
+        var bottomChar = uiLogBox.GetCharIndexFromPosition(new(2, uiLogBox.ClientSize.Height - 2));
+        return bottomChar >= uiLogBox.TextLength - Environment.NewLine.Length - 1;
+    }
+
+    private sealed class RowState(Media media, Source target)
+    {
+        public Media Media { get; } = media;
+        public Source Target { get; } = target;
+        public bool IsApplied { get; set; }
     }
 }

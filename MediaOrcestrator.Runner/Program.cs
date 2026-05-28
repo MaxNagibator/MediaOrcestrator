@@ -18,11 +18,23 @@ namespace MediaOrcestrator.Runner;
 file static class Program
 {
     private static IServiceProvider? _runningServiceProvider;
+    private static SingleInstanceGuard? _singleInstanceGuard;
 
     [STAThread]
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
+
+        _singleInstanceGuard = SingleInstanceGuard.Acquire();
+        if (!_singleInstanceGuard.IsPrimaryInstance)
+        {
+            MessageBox.Show("Медиа оркестратор уже запущен.",
+                "Медиа оркестратор",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+
+            return;
+        }
 
         RegisterGlobalExceptionHandlers();
 
@@ -208,6 +220,7 @@ file static class Program
         finally
         {
             splash?.Dispose();
+            _singleInstanceGuard?.Dispose();
 
             try
             {
