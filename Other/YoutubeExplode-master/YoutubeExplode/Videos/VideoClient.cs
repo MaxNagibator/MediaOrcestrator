@@ -95,7 +95,8 @@ public class VideoClient(HttpClient http)
                 playerResponse.ViewCount ?? 0,
                 watchPage.LikeCount ?? 0,
                 watchPage.DislikeCount ?? 0
-            )
+            ),
+            playerResponse.IsLive
         );
     }
 }

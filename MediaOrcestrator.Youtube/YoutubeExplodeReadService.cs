@@ -48,9 +48,14 @@ internal sealed class YoutubeExplodeReadService(
         {
             logger.ProcessingVideo(video.Title, video.Id.Value);
 
+            var fullVideo = await _client.Videos.GetAsync(video.Id, cancellationToken);
+            if (fullVideo.IsLive)
+            {
+                continue;
+            }
+
             if (isFull)
             {
-                var fullVideo = await _client.Videos.GetAsync(video.Id, cancellationToken);
                 yield return CreateFullMediaDto(fullVideo);
             }
             else
