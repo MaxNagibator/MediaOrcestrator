@@ -60,7 +60,15 @@ internal partial class PlayerResponse(JsonElement content)
             ?.Pipe(TimeSpan.FromSeconds);
 
     [Lazy]
-    public bool IsLive => Details?.GetPropertyOrNull("isLiveContent")?.GetBooleanOrNull() == true;
+    public bool IsLive =>
+        Details?.GetPropertyOrNull("isLiveContent")?.GetBooleanOrNull() == true
+        || content
+            .GetPropertyOrNull("microformat")
+            ?.GetPropertyOrNull("playerMicroformatRenderer")
+            ?.GetPropertyOrNull("liveBroadcastDetails")
+            is not null
+        || Playability?.GetPropertyOrNull("liveStreamability") is not null
+        || !string.IsNullOrWhiteSpace(HlsManifestUrl);
 
     [Lazy]
     public IReadOnlyList<ThumbnailData> Thumbnails =>
