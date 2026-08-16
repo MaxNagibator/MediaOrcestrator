@@ -60,6 +60,9 @@ internal partial class PlayerResponse(JsonElement content)
             ?.Pipe(TimeSpan.FromSeconds);
 
     [Lazy]
+    public bool IsLive => Details?.GetPropertyOrNull("isLiveContent")?.GetBooleanOrNull() == true;
+
+    [Lazy]
     public IReadOnlyList<ThumbnailData> Thumbnails =>
         Details
             ?.GetPropertyOrNull("thumbnail")
