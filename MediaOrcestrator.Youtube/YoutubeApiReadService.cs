@@ -10,7 +10,7 @@ namespace MediaOrcestrator.Youtube;
 internal sealed class YoutubeApiReadService(ILogger<YoutubeApiReadService> logger)
 {
     private const string ChannelParts = "snippet,contentDetails";
-    private const string VideoParts = "snippet,contentDetails,statistics,liveStreamingDetails";
+    private const string VideoParts = "snippet,contentDetails,statistics";
 
     public async Task<ApiChannelInfo?> GetChannelAsync(
         YouTubeService service,
@@ -57,27 +57,23 @@ internal sealed class YoutubeApiReadService(ILogger<YoutubeApiReadService> logge
                 yield break;
             }
 
-            var videoIds = string.Join(",", response.Items.Select(i => i.ContentDetails.VideoId));
-
-            var videosRequest = service.Videos.List(VideoParts);
-            videosRequest.Id = videoIds;
-
-            var videosResponse = await videosRequest.ExecuteAsync(cancellationToken);
-            var regularVideos = (videosResponse.Items ?? [])
-                .Where(video => video.LiveStreamingDetails is null)
-                .ToArray();
-
             if (isFull)
             {
-                foreach (var video in regularVideos)
+                var videoIds = string.Join(",", response.Items.Select(i => i.ContentDetails.VideoId));
+
+                var videosRequest = service.Videos.List(VideoParts);
+                videosRequest.Id = videoIds;
+
+                var videosResponse = await videosRequest.ExecuteAsync(cancellationToken);
+
+                foreach (var video in videosResponse.Items ?? [])
                 {
                     yield return CreateFullMediaDto(video);
                 }
             }
             else
             {
-                var regularVideoIds = regularVideos.Select(video => video.Id).ToHashSet();
-                foreach (var item in response.Items.Where(item => regularVideoIds.Contains(item.ContentDetails.VideoId)))
+                foreach (var item in response.Items)
                 {
                     yield return CreateBasicMediaDto(item);
                 }

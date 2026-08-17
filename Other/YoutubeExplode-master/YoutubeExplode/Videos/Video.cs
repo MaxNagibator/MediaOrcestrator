@@ -17,8 +17,7 @@ public class Video(
     TimeSpan? duration,
     IReadOnlyList<Thumbnail> thumbnails,
     IReadOnlyList<string> keywords,
-    Engagement engagement,
-    bool isLive = false
+    Engagement engagement
 ) : IVideo
 {
     /// <inheritdoc />
@@ -58,11 +57,6 @@ public class Video(
     /// Engagement statistics for the video.
     /// </summary>
     public Engagement Engagement { get; } = engagement;
-
-    /// <summary>
-    /// Whether this video is or was a live broadcast.
-    /// </summary>
-    public bool IsLive { get; } = isLive;
 
     /// <inheritdoc />
     [ExcludeFromCodeCoverage]
