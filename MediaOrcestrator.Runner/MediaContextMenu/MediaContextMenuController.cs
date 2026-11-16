@@ -24,6 +24,7 @@ public sealed class MediaContextMenuController : IDisposable
             new CopyDetailsAction(),
             new OpenExternalAction(),
             new DeleteAction(),
+            new RemoveFromDatabaseAction(),
             new ConvertAction(),
         ];
 
