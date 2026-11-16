@@ -93,9 +93,10 @@ internal static partial class RutubeChannelLog
         this ILogger logger,
         string filePath);
 
-    [LoggerMessage(EventId = 2117, Level = LogLevel.Information, Message = "Обнаружен VP9, запускаем транскодирование в H.264: {FilePath}")]
-    public static partial void TranscodingVp9(
+    [LoggerMessage(EventId = 2117, Level = LogLevel.Information, Message = "Обнаружен кодек {Codec}, запускаем транскодирование в H.264: {FilePath}")]
+    public static partial void TranscodingToH264(
         this ILogger logger,
+        string codec,
         string filePath);
 
     [LoggerMessage(EventId = 2118, Level = LogLevel.Information, Message = "Транскодирование завершено. Размер: {Size} байт. Новый путь: {Path}")]
