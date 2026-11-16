@@ -1,5 +1,6 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace MediaOrcestrator.Domain;
 
@@ -9,10 +10,10 @@ public sealed class SyncRetryRunner(
 {
     private const int DefaultMaxAttempts = 50;
 
-    private readonly Dictionary<(string MediaId, string ToSourceId), Task> _inflight = new();
+    private readonly Dictionary<(string MediaId, string ToSourceId), Task<SyncRunOutcome>> _inflight = new();
     private readonly object _lock = new();
 
-    public async Task RunAsync(
+    public async Task<SyncRunOutcome> RunAsync(
         Media media,
         SourceSyncRelation relation,
         IProgress<SyncAttemptStatus>? progress = null,
@@ -29,7 +30,7 @@ public sealed class SyncRetryRunner(
 
         var key = (media.Id, relation.To.Id);
 
-        Task runTask;
+        Task<SyncRunOutcome> runTask;
         bool isLeader;
         int inflightCount;
 
@@ -61,7 +62,7 @@ public sealed class SyncRetryRunner(
 
             try
             {
-                await runTask;
+                return await runTask;
             }
             finally
             {
@@ -77,8 +78,6 @@ public sealed class SyncRetryRunner(
                     relation.To.TitleFull,
                     remaining);
             }
-
-            return;
         }
 
         logger.LogInformation("Синхронизация {Media} → {To} уже выполняется, вызов присоединён к существующей операции (всего активных: {Count})",
@@ -90,11 +89,13 @@ public sealed class SyncRetryRunner(
         // runTask упадёт с OCE и follower получит её же, хотя его собственный CT не трогали.
         // Для честной развязки нужен ref-counted linked CTS или полностью отвязанный inner task.
         progress?.Report(new(SyncAttemptKind.Joined, 0, maxAttempts));
-        await runTask.WaitAsync(cancellationToken);
+        var outcome = await runTask.WaitAsync(cancellationToken);
 
         logger.LogDebug("Follower {Media} → {To}: ожидание лидерской операции снято",
             media.Title,
             relation.To.TitleFull);
+
+        return outcome;
     }
 
     private static TimeSpan GetDelayBeforeAttempt(int nextAttemptNumber)
@@ -109,7 +110,7 @@ public sealed class SyncRetryRunner(
         };
     }
 
-    private async Task ExecuteAsync(
+    private async Task<SyncRunOutcome> ExecuteAsync(
         Media media,
         SourceSyncRelation relation,
         IProgress<SyncAttemptStatus>? progress,
@@ -139,7 +140,19 @@ public sealed class SyncRetryRunner(
                     relation.To.TitleFull);
 
                 progress?.Report(new(SyncAttemptKind.Succeeded, attempt, maxAttempts));
-                return;
+                return SyncRunOutcome.Transferred;
+            }
+            catch (MediaDownloadSkippedException ex)
+            {
+                logger.LogDebug("Попытка {Attempt}/{Max}: {Media} → {To} – пропуск: {Message}",
+                    attempt,
+                    maxAttempts,
+                    media.Title,
+                    relation.To.TitleFull,
+                    ex.Message);
+
+                progress?.Report(new(SyncAttemptKind.Skipped, attempt, maxAttempts, Error: ex));
+                return SyncRunOutcome.Skipped;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -192,5 +205,7 @@ public sealed class SyncRetryRunner(
                 await Task.Delay(delay, cancellationToken);
             }
         }
+
+        throw new UnreachableException();
     }
 }

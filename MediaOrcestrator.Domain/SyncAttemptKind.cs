@@ -9,4 +9,5 @@ public enum SyncAttemptKind
     FailedFinal = 4,
     NonRetriable = 5,
     Joined = 6,
+    Skipped = 7,
 }

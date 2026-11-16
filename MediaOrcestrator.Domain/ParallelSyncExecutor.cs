@@ -1,4 +1,4 @@
-namespace MediaOrcestrator.Domain;
+﻿namespace MediaOrcestrator.Domain;
 
 public sealed class ParallelSyncExecutor
 {
@@ -22,7 +22,7 @@ public sealed class ParallelSyncExecutor
     }
 
     public Task ExecuteAsync(
-        Func<SyncIntent, Task> executeFunc,
+        Func<SyncIntent, Task<SyncRunOutcome>> executeFunc,
         CancellationToken ct,
         Action<SyncIntent, Exception>? onError = null)
     {
@@ -41,8 +41,11 @@ public sealed class ParallelSyncExecutor
                 {
                     try
                     {
-                        await executeFunc(intent);
-                        EnqueueNextIntents(intent);
+                        var outcome = await executeFunc(intent);
+                        if (outcome == SyncRunOutcome.Transferred)
+                        {
+                            EnqueueNextIntents(intent);
+                        }
                     }
                     catch (OperationCanceledException)
                     {
