@@ -35,6 +35,7 @@ internal sealed class YoutubeApiReadService(ILogger<YoutubeApiReadService> logge
         YouTubeService service,
         string channelId,
         bool isFull,
+        bool excludeStreams,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var uploadsPlaylistId = "UU" + channelId[2..];
@@ -61,21 +62,30 @@ internal sealed class YoutubeApiReadService(ILogger<YoutubeApiReadService> logge
             {
                 var videoIds = string.Join(",", response.Items.Select(i => i.ContentDetails.VideoId));
 
-                var videosRequest = service.Videos.List(VideoParts);
+                var videosRequest = service.Videos.List(excludeStreams ? VideoParts + ",liveStreamingDetails" : VideoParts);
                 videosRequest.Id = videoIds;
 
                 var videosResponse = await videosRequest.ExecuteAsync(cancellationToken);
 
                 foreach (var video in videosResponse.Items ?? [])
                 {
-                    yield return CreateFullMediaDto(video);
+                    yield return video.LiveStreamingDetails is not null
+                        ? MediaDtoFactory.CreateExcluded(video.Id, video.Snippet?.Title ?? video.Id)
+                        : CreateFullMediaDto(video);
                 }
             }
             else
             {
+                var streamIds = excludeStreams
+                    ? await GetStreamIdsAsync(service, response.Items, cancellationToken)
+                    : [];
+
                 foreach (var item in response.Items)
                 {
-                    yield return CreateBasicMediaDto(item);
+                    var videoId = item.ContentDetails.VideoId;
+                    yield return streamIds.Contains(videoId)
+                        ? MediaDtoFactory.CreateExcluded(videoId, item.Snippet?.Title ?? videoId)
+                        : CreateBasicMediaDto(item);
                 }
             }
 
@@ -83,6 +93,22 @@ internal sealed class YoutubeApiReadService(ILogger<YoutubeApiReadService> logge
         } while (pageToken is not null);
 
         logger.PlaylistFetchCompleted(channelId);
+    }
+
+    private static async Task<HashSet<string>> GetStreamIdsAsync(
+        YouTubeService service,
+        IList<PlaylistItem> items,
+        CancellationToken cancellationToken)
+    {
+        var request = service.Videos.List("liveStreamingDetails");
+        request.Id = string.Join(",", items.Select(i => i.ContentDetails.VideoId));
+
+        var response = await request.ExecuteAsync(cancellationToken);
+
+        return (response.Items ?? [])
+            .Where(x => x.LiveStreamingDetails is not null)
+            .Select(x => x.Id)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     public async Task<MediaDto?> GetVideoByIdAsync(

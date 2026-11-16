@@ -18,9 +18,10 @@ internal sealed record YtDlpVideoInfo(
     long? ViewCount,
     DateTimeOffset? UploadDate,
     string? Thumbnail,
-    IReadOnlyList<string> Tags);
+    IReadOnlyList<string> Tags,
+    YoutubeVideoKind Kind);
 
-internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRuntime = "none", string? jsRuntimeDir = null, string cookiePath = "")
+internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRuntime = "none", string? jsRuntimeDir = null, string cookiePath = "") : IYoutubeVideoInfoReader, IYoutubeChannelStreamsReader
 {
     public async Task<YtDlpVideoInfo?> DownloadAsync(
         string url,
@@ -108,6 +109,7 @@ internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRun
         {
             "--dump-single-json",
             "--skip-download",
+            "--ignore-no-formats-error",
             "--no-warnings",
             "--no-colors",
         };
@@ -137,6 +139,75 @@ internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRun
         stdOut.Position = 0;
         var info = await JsonSerializer.DeserializeAsync(stdOut, YoutubeJsonContext.Default.YtDlpInfoJson, cancellationToken);
         return info is null ? null : MapVideoInfo(info);
+    }
+
+    public async Task<IReadOnlySet<string>> GetChannelStreamIdsAsync(
+        string channelId,
+        CancellationToken cancellationToken = default)
+    {
+        var arguments = new List<string>
+        {
+            "--flat-playlist",
+            "--dump-single-json",
+            "--no-warnings",
+            "--no-colors",
+        };
+
+        if (!string.IsNullOrEmpty(cookiePath))
+        {
+            arguments.Add("--cookies");
+            arguments.Add(cookiePath);
+        }
+
+        if (!string.Equals(jsRuntime, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            arguments.Add("--js-runtimes");
+            arguments.Add(jsRuntime);
+        }
+
+        arguments.Add($"https://www.youtube.com/channel/{channelId}/streams");
+
+        using var stdOut = new MemoryStream();
+        var stdErr = new StringBuilder();
+
+        try
+        {
+            await ExecuteAsync(arguments, stdOutStream: stdOut, stdErrBuilder: stdErr, cancellationToken: cancellationToken);
+        }
+        catch (Exception) when (IsMissingStreamsTab(stdErr.ToString()))
+        {
+            return new HashSet<string>();
+        }
+
+        if (stdOut.Length == 0)
+        {
+            throw new InvalidOperationException($"yt-dlp вернул пустой ответ для вкладки трансляций канала {channelId}");
+        }
+
+        stdOut.Position = 0;
+        var playlist = await JsonSerializer.DeserializeAsync(stdOut, YoutubeJsonContext.Default.YtDlpPlaylistJson, cancellationToken)
+                       ?? throw new InvalidOperationException($"yt-dlp вернул пустой список трансляций канала {channelId}");
+
+        return ParseStreamIds(playlist);
+    }
+
+    internal static bool IsMissingStreamsTab(string stdErr)
+    {
+        return stdErr.Contains("does not have a streams tab", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static IReadOnlySet<string> ParseStreamIds(YtDlpPlaylistJson playlist)
+    {
+        if (playlist.Entries is null)
+        {
+            throw new InvalidOperationException("yt-dlp вернул вкладку трансляций без списка записей");
+        }
+
+        return playlist.Entries
+            .Select(x => x.Id)
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Select(x => x!)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     public async Task<IReadOnlyList<YtDlpCommentJson>> GetCommentsAsync(
@@ -182,7 +253,7 @@ internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRun
         return info?.Comments ?? [];
     }
 
-    private static YtDlpVideoInfo MapVideoInfo(YtDlpInfoJson info)
+    internal static YtDlpVideoInfo MapVideoInfo(YtDlpInfoJson info)
     {
         var duration = info.Duration.HasValue
             ? TimeSpan.FromSeconds(info.Duration.Value)
@@ -209,7 +280,26 @@ internal sealed partial class YtDlp(string path, string ffmpegPath, string jsRun
             info.ViewCount,
             uploadDate,
             info.Thumbnail,
-            tags);
+            tags,
+            GetVideoKind(info));
+    }
+
+    private static YoutubeVideoKind GetVideoKind(YtDlpInfoJson info)
+    {
+        if (info.IsLive == true
+            || info.WasLive == true
+            || info.LiveStatus is "is_live" or "is_upcoming" or "was_live" or "post_live")
+        {
+            return YoutubeVideoKind.Livestream;
+        }
+
+        if (info.LiveStatus == "not_live"
+            || (string.IsNullOrEmpty(info.LiveStatus) && info.IsLive == false && info.WasLive == false))
+        {
+            return YoutubeVideoKind.Video;
+        }
+
+        return YoutubeVideoKind.None;
     }
 
     private static PipeTarget CreateProgressRouter(IProgress<double> progress)

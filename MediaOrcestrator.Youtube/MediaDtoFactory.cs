@@ -1,4 +1,4 @@
-using MediaOrcestrator.Modules;
+﻿using MediaOrcestrator.Modules;
 
 namespace MediaOrcestrator.Youtube;
 
@@ -103,6 +103,16 @@ internal static class MediaDtoFactory
             DataPath = url,
             PreviewPath = previewUrl,
             Metadata = metadata,
+        };
+    }
+
+    public static MediaDto CreateExcluded(string id, string title)
+    {
+        return new()
+        {
+            Id = id,
+            Title = title,
+            IsExcluded = true,
         };
     }
 }

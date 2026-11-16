@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MediaOrcestrator.Domain\MediaOrcestrator.Domain.csproj" />
+    <ProjectReference Include="..\MediaOrcestrator.Youtube\MediaOrcestrator.Youtube.csproj" />
   </ItemGroup>
 
   <ItemGroup>
