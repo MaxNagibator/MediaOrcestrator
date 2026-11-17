@@ -12,4 +12,6 @@ public class MediaDto
 
     public string TempDataPath { get; set; } // todo это отсюда уберём
     public string TempPreviewPath { get; set; }
+
+    public bool IsExcluded { get; set; }
 }

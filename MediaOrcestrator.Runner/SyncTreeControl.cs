@@ -215,9 +215,9 @@ public partial class SyncTreeControl : UserControl
 
                     var progress = new Progress<SyncAttemptStatus>(status => ApplyAttemptStatusToNode(intent, node, status));
 
-                    await _retryRunner!.RunAsync(intent.Media, intent.Relation, progress, cancellationToken: _cts!.Token);
+                    var outcome = await _retryRunner!.RunAsync(intent.Media, intent.Relation, progress, cancellationToken: _cts!.Token);
 
-                    if (uploadInterval is { } interval)
+                    if (outcome == SyncRunOutcome.Transferred && uploadInterval is { } interval)
                     {
                         UpdateStatusLabel($"Ожидание {interval.TotalMinutes:F0} мин после успешной загрузки");
                         LogToUi($"«{intent.Media.Title}» успешно загружено. Ожидание {interval.TotalMinutes:F0} мин...", Color.Orange);
@@ -226,6 +226,7 @@ public partial class SyncTreeControl : UserControl
 
                     processed++;
                     action.ProgressPlus();
+                    return outcome;
                 }, _cts.Token, (intent, ex) =>
                 {
                     var node = _intentNodeMap.GetValueOrDefault(intent);
@@ -451,6 +452,17 @@ public partial class SyncTreeControl : UserControl
                 }
 
                 LogToUi($"[Успех] {intent.Media.Title} передан в {intent.To.Title}", Color.LightGreen);
+                break;
+
+            case SyncAttemptKind.Skipped:
+                UpdateNodeState(node, IconPending, Color.Gray, $"[Пропущено] {route}");
+
+                if (node != null)
+                {
+                    node.Checked = false;
+                }
+
+                LogToUi($"[Пропущено] {intent.Media.Title}: {status.Error?.Message}", Color.Gray);
                 break;
 
             case SyncAttemptKind.FailedRetrying:

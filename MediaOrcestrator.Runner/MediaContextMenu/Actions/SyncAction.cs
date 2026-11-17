@@ -118,8 +118,8 @@ internal sealed class SyncAction : IMediaMenuAction
             m => m.Title ?? string.Empty,
             async (m, ct) =>
             {
-                await ctx.RetryRunner.RunAsync(m, rel, maxAttempts: BatchSyncMaxAttempts, cancellationToken: ct);
-                ctx.Logger.LogInformation("Синхронизировано: '{Title}'", m.Title);
+                var outcome = await ctx.RetryRunner.RunAsync(m, rel, maxAttempts: BatchSyncMaxAttempts, cancellationToken: ct);
+                ctx.Logger.LogInformation("{Outcome}: '{Title}'", outcome == SyncRunOutcome.Skipped ? "Пропущено" : "Синхронизировано", m.Title);
             },
             "Синхронизировано",
             "Пакетная синхронизация завершена с ошибками",

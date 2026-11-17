@@ -141,6 +141,15 @@ public sealed class SyncEnvironment : IDisposable
         return this;
     }
 
+    public SyncEnvironment SourcePublishesExcluded(Source source, string[] externalIds, string[] excludedIds)
+    {
+        source.Type
+            .GetMedia(Arg.Any<Dictionary<string, string>>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Stream(externalIds, excludedIds));
+
+        return this;
+    }
+
     public Task Sync(bool isFull = false, bool onlyNew = false)
     {
         return _orcestrator.GetStorageFullInfo(isFull, onlyNew: onlyNew);
@@ -162,6 +171,12 @@ public sealed class SyncEnvironment : IDisposable
         return new(FromType, ToType, error);
     }
 
+    public Task<SyncRunOutcome> TransferWithRetries(Media media, IProgress<SyncAttemptStatus> progress, int maxAttempts)
+    {
+        var runner = new SyncRetryRunner(_orcestrator, NullLogger<SyncRetryRunner>.Instance);
+        return runner.RunAsync(media, _relation, progress, maxAttempts);
+    }
+
     public void Dispose()
     {
         Database.Dispose();
@@ -169,6 +184,20 @@ public sealed class SyncEnvironment : IDisposable
 
     private static async IAsyncEnumerable<MediaDto> Stream(params string[] externalIds)
     {
+        await foreach (var media in Stream(externalIds, []))
+        {
+            yield return media;
+        }
+    }
+
+    private static async IAsyncEnumerable<MediaDto> Stream(string[] externalIds, string[] excludedIds)
+    {
+        foreach (var id in excludedIds)
+        {
+            yield return new()
+                { Id = id, Title = id, Description = string.Empty, IsExcluded = true };
+        }
+
         foreach (var id in externalIds)
         {
             yield return new()

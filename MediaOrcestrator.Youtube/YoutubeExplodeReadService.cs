@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using YoutubeExplode;
 using YoutubeExplode.Channels;
 using YoutubeExplode.Common;
+using YoutubeExplode.Exceptions;
 using YoutubeExplode.Playlists;
 using YoutubeExplode.Videos;
 
@@ -40,15 +41,24 @@ internal sealed class YoutubeExplodeReadService(
     public async IAsyncEnumerable<MediaDto> GetMediaAsync(
         string channelId,
         bool isFull,
+        IYoutubeChannelStreamsReader? streamsFallback,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var streamIds = streamsFallback is not null
+            ? await GetStreamIdsAsync(channelId, streamsFallback, cancellationToken)
+            : new HashSet<string>();
+
         var uploads = _client.Channels.GetUploadsAsync(new(channelId), cancellationToken);
 
         await foreach (var video in uploads)
         {
             logger.ProcessingVideo(video.Title, video.Id.Value);
 
-            if (isFull)
+            if (streamIds.Contains(video.Id.Value))
+            {
+                yield return MediaDtoFactory.CreateExcluded(video.Id.Value, video.Title);
+            }
+            else if (isFull)
             {
                 var fullVideo = await _client.Videos.GetAsync(video.Id, cancellationToken);
                 yield return CreateFullMediaDto(fullVideo);
@@ -58,6 +68,30 @@ internal sealed class YoutubeExplodeReadService(
                 yield return CreateBasicMediaDto(video);
             }
         }
+    }
+
+    internal async Task<IReadOnlySet<string>> GetStreamIdsAsync(
+        string channelId,
+        IYoutubeChannelStreamsReader streamsFallback,
+        CancellationToken cancellationToken)
+    {
+        var streamsPlaylistId = new PlaylistId("UULV" + channelId[2..]);
+        var streamIds = new HashSet<string>(StringComparer.Ordinal);
+
+        try
+        {
+            await foreach (var video in _client.Playlists.GetVideosAsync(streamsPlaylistId, cancellationToken))
+            {
+                streamIds.Add(video.Id.Value);
+            }
+        }
+        catch (PlaylistUnavailableException) when (streamIds.Count == 0)
+        {
+            logger.StreamsPlaylistUnavailable(channelId);
+            return await streamsFallback.GetChannelStreamIdsAsync(channelId, cancellationToken);
+        }
+
+        return streamIds;
     }
 
     public async Task<MediaDto?> GetVideoByIdAsync(
