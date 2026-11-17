@@ -294,7 +294,7 @@ public sealed class RutubeChannel(
 
             if (!transcodeOk || !File.Exists(transcodedPath) || new FileInfo(transcodedPath).Length == 0)
             {
-                throw new NonRetriableException($"Не удалось транскодировать VP9 в H.264 для файла: {filePath}");
+                throw new NonRetriableException($"Не удалось транскодировать {codec.ToUpperInvariant()} в H.264 для файла: {filePath}");
             }
 
             logger.TranscodingCompleted(new FileInfo(transcodedPath).Length, transcodedPath);
