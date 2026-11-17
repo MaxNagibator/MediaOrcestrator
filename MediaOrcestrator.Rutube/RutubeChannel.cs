@@ -251,22 +251,22 @@ public sealed class RutubeChannel(
 
         logger.FileFound(new FileInfo(filePath).Length);
 
-        var codec = media.Metadata?.FirstOrDefault(x => x.Key == "VideoCodec")?.Value;
-
-        if (string.IsNullOrEmpty(codec))
-        {
-            logger.DetectingCodec(filePath);
-            codec = await videoTranscoder.GetVideoCodecAsync(filePath, cancellationToken);
-        }
+        // Проверяем именно подготовленный к загрузке файл. Метаданные MediaDto могут
+        // описывать исходник и не совпадать с результатом скачивания/конвертации.
+        logger.DetectingCodec(filePath);
+        var codec = await videoTranscoder.GetVideoCodecAsync(filePath, cancellationToken);
 
         if (string.IsNullOrEmpty(codec))
         {
             throw new NonRetriableException("В файле не найдена видеодорожка — определить кодек видео невозможно");
         }
 
-        if (string.Equals(codec, "vp9", StringComparison.OrdinalIgnoreCase))
+        var requiresH264Transcode = string.Equals(codec, "vp9", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(codec, "av1", StringComparison.OrdinalIgnoreCase);
+
+        if (requiresH264Transcode)
         {
-            logger.TranscodingVp9(filePath);
+            logger.TranscodingToH264(codec, filePath);
 
             var sourceDir = Path.GetDirectoryName(filePath)
                             ?? throw new InvalidOperationException($"Не удалось получить папку файла: {filePath}");
@@ -280,11 +280,17 @@ public sealed class RutubeChannel(
                 totalDuration = parsed;
             }
 
-            var transcodeOk = await videoTranscoder.TranscodeVp9ToH264Async(filePath,
-                transcodedPath,
-                totalDuration,
-                null,
-                cancellationToken);
+            var transcodeOk = string.Equals(codec, "av1", StringComparison.OrdinalIgnoreCase)
+                ? await videoTranscoder.TranscodeAv1ToH264Async(filePath,
+                    transcodedPath,
+                    totalDuration,
+                    null,
+                    cancellationToken)
+                : await videoTranscoder.TranscodeVp9ToH264Async(filePath,
+                    transcodedPath,
+                    totalDuration,
+                    null,
+                    cancellationToken);
 
             if (!transcodeOk || !File.Exists(transcodedPath) || new FileInfo(transcodedPath).Length == 0)
             {
