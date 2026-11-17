@@ -415,6 +415,10 @@ file static class Program
                 await orcestrator.TransferByRelation(media, processRelation);
                 success = true;
             }
+            catch (MediaDownloadSkippedException ex)
+            {
+                logger.Information("Медиа {Media} по связи {Relation} пропущено: {Reason}", media, processRelation, ex.Message);
+            }
             catch (Exception ex)
             {
                 logger.Error(ex, "Не удалось синхронизировать медиа {Media} по связи {Relation}", media, processRelation);

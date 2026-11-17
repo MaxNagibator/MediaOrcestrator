@@ -134,6 +134,11 @@ public class Orcestrator(
                                 action.SetProgress(foundIds.Count);
                             }
 
+                            if (s.IsExcluded)
+                            {
+                                continue;
+                            }
+
                             var foundMediaSource = cache.GetMedia(mediaSource.Id).FirstOrDefault(x => x.ExternalId == s.Id);
                             if (foundMediaSource == null)
                             {
@@ -1006,6 +1011,13 @@ public class Orcestrator(
 
             transferAction.Finish("Передано");
         }
+        catch (MediaDownloadSkippedException exception)
+        {
+            transferAction.Finish("Пропущено: " + exception.Message);
+            logger.LogInformation("Передача медиа {Media} из {FromSource} в {ToSource} пропущена: {Reason}",
+                media, rel.From, rel.To, exception.Message);
+            throw;
+        }
         catch (OperationCanceledException)
         {
             transferAction.MarkCancelled();
@@ -1083,6 +1095,12 @@ public class Orcestrator(
             downloadAction.Subtitle = string.Empty;
             downloadAction.Finish("Загружено");
             return result;
+        }
+        catch (MediaDownloadSkippedException exception)
+        {
+            downloadAction.Subtitle = string.Empty;
+            downloadAction.Finish("Пропущено: " + exception.Message);
+            throw;
         }
         catch (OperationCanceledException)
         {

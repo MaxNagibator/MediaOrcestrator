@@ -20,6 +20,11 @@ internal static partial class YoutubeServiceLog
         string title,
         string videoId);
 
+    [LoggerMessage(EventId = 5058, Level = LogLevel.Information, Message = "Плейлист трансляций канала {ChannelId} недоступен, проверяю вкладку трансляций через yt-dlp")]
+    public static partial void StreamsPlaylistUnavailable(
+        this ILogger logger,
+        string channelId);
+
     [LoggerMessage(EventId = 5003, Level = LogLevel.Information, Message = "Начало загрузки видео с YouTube. ID: {VideoId}")]
     public static partial void DownloadStart(
         this ILogger logger,

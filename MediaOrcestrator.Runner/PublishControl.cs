@@ -550,8 +550,18 @@ public partial class PublishControl : UserControl
                 _actionHolder.SetStatus(running.Id, $"{step}: {stepLabel}");
 
                 failedIntent = intent;
-                await _retryRunner.RunAsync(intent.Media, intent.Relation, cancellationToken: chainToken);
+                var outcome = await _retryRunner.RunAsync(intent.Media, intent.Relation, cancellationToken: chainToken);
                 failedIntent = null;
+
+                if (outcome == SyncRunOutcome.Skipped)
+                {
+                    _logger.LogInformation("Цепочка: «{Title}» пропущена на {From} → {To}, следующие шаги не запускаются",
+                        intent.Media.Title, intent.From.TitleFull, intent.To.TitleFull);
+
+                    SetStatus($"Цепочка остановлена: {stepLabel} пропущено.", false);
+                    running.Finish("Пропущено");
+                    return;
+                }
 
                 _logger.LogInformation("Цепочка: «{Title}» прошла {From} → {To}",
                     intent.Media.Title, intent.From.TitleFull, intent.To.TitleFull);

@@ -19,7 +19,8 @@ internal sealed class YoutubeChannel(
     YoutubeApiReadService apiReadService,
     YoutubeCommentsReadService commentsReadService,
     YoutubeYtDlpCommentsReadService ytDlpCommentsReadService,
-    YoutubeUploadService uploadService)
+    YoutubeUploadService uploadService,
+    YoutubeDownloadPolicy downloadPolicy)
     : ISourceType, IAuthenticatable, IToolConsumer, ISupportsComments
 {
     internal const string VideoUrlTemplate = "https://www.youtube.com/watch?v={0}";
@@ -69,6 +70,20 @@ internal sealed class YoutubeChannel(
                 new() { Value = "quickjs", Label = "quickjs" },
             ],
             Description = "JavaScript runtime для YouTube extraction (требуется для yt-dlp). Deno устанавливается и обновляется автоматически через панель инструментов",
+        },
+        new()
+        {
+            Key = YoutubeDownloadSettings.DownloadStreamsKey,
+            IsRequired = false,
+            Title = "скачивать трансляции",
+            DefaultValue = "true",
+            Type = SettingType.Dropdown,
+            Options =
+            [
+                new() { Value = "true", Label = "Да" },
+                new() { Value = "false", Label = "Нет" },
+            ],
+            Description = "Если выбрать «Нет», эфиры и записи трансляций будут пропускаться. Обычные видео скачиваются как раньше",
         },
         new()
         {
@@ -207,6 +222,8 @@ internal sealed class YoutubeChannel(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var channelUrl = settings["channel_id"];
+        var excludeStreams = !YoutubeDownloadSettings.FromSettings(settings).DownloadStreams;
+        var streamsFallback = excludeStreams ? new DeferredChannelStreamsReader(() => BuildYtDlp(settings)) : null;
         logger.StartingChannelFetch(channelUrl);
 
         string? channelId = null;
@@ -226,7 +243,7 @@ internal sealed class YoutubeChannel(
 
         if (channelId is not null)
         {
-            await foreach (var media in explodeService.GetMediaAsync(channelId, isFull, cancellationToken))
+            await foreach (var media in explodeService.GetMediaAsync(channelId, isFull, streamsFallback, cancellationToken))
             {
                 yield return media;
             }
@@ -250,7 +267,7 @@ internal sealed class YoutubeChannel(
             yield break;
         }
 
-        await foreach (var media in apiReadService.GetMediaAsync(lease.Service, apiChannel.Id, isFull, cancellationToken))
+        await foreach (var media in apiReadService.GetMediaAsync(lease.Service, apiChannel.Id, isFull, excludeStreams, cancellationToken))
         {
             yield return media;
         }
@@ -357,14 +374,18 @@ internal sealed class YoutubeChannel(
     {
         logger.DownloadStart(videoId);
 
+        var ytDlp = BuildYtDlp(settings, requireFfmpeg: true);
+        await downloadPolicy.EnsureAllowedAsync(YoutubeDownloadSettings.FromSettings(settings),
+            ytDlp,
+            videoId,
+            cancellationToken);
+
         var tempPath = settings["_system_temp_path"];
         var guid = Guid.NewGuid().ToString();
         var finalPath = Path.Combine(tempPath, guid, "media.mp4");
 
         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
         logger.TempDirCreated(Path.GetDirectoryName(finalPath));
-
-        var ytDlp = BuildYtDlp(settings);
 
         object progressLock = new();
         double oldPercent = -1;
@@ -775,13 +796,16 @@ internal sealed class YoutubeChannel(
         return credential;
     }
 
-    private YtDlp BuildYtDlp(Dictionary<string, string> settings)
+    private YtDlp BuildYtDlp(Dictionary<string, string> settings, bool requireFfmpeg = false)
     {
         var ytDlpPath = toolPathProvider.GetToolPath(WellKnownTools.YtDlp)
                         ?? throw new InvalidOperationException("yt-dlp не установлен. Установите через панель управления инструментами.");
 
-        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg)
-                         ?? throw new InvalidOperationException("ffmpeg не установлен. Установите через панель управления инструментами.");
+        var ffmpegPath = toolPathProvider.GetToolPath(WellKnownTools.FFmpeg);
+        if (requireFfmpeg && ffmpegPath is null)
+        {
+            throw new InvalidOperationException("ffmpeg не установлен. Установите через панель управления инструментами.");
+        }
 
         var jsRuntime = settings.GetValueOrDefault("js_runtime", "none");
         var denoPath = toolPathProvider.GetToolPath(WellKnownTools.Deno);
@@ -795,7 +819,7 @@ internal sealed class YoutubeChannel(
             cookiePath = "";
         }
 
-        return new(ytDlpPath, ffmpegPath, jsRuntime, jsRuntimeDir, cookiePath);
+        return new(ytDlpPath, ffmpegPath ?? "", jsRuntime, jsRuntimeDir, cookiePath);
     }
 
     private readonly struct ServiceLease(CachedEntry entry) : IDisposable
