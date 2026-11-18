@@ -246,10 +246,28 @@ public sealed partial class VideoTranscoder(IToolPathProvider toolPathProvider, 
         CancellationToken cancellationToken)
     {
         var h264Encoder = await GetH264EncoderAsync();
-        var preset = h264Encoder == "h264_nvenc" ? "slow" : "medium";
-        var arguments = $"-y -i \"{inputPath}\" -c:v {h264Encoder} -preset {preset} -c:a copy \"{outputPath}\"";
+        if (await TranscodeWithEncoderAsync(h264Encoder))
+        {
+            return true;
+        }
 
-        return await RunFfmpegAsync(arguments, inputPath, outputPath, totalDuration, progress, cancellationToken);
+        if (!string.Equals(h264Encoder, "h264_nvenc", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        logger.LogWarning("Аппаратный кодировщик h264_nvenc недоступен, повторяем конвертацию через libx264");
+        _h264Encoder = "libx264";
+
+        return await TranscodeWithEncoderAsync(_h264Encoder);
+
+        Task<bool> TranscodeWithEncoderAsync(string encoder)
+        {
+            var preset = encoder == "h264_nvenc" ? "slow" : "medium";
+            var arguments = $"-y -i \"{inputPath}\" -c:v {encoder} -preset {preset} -c:a copy \"{outputPath}\"";
+
+            return RunFfmpegAsync(arguments, inputPath, outputPath, totalDuration, progress, cancellationToken);
+        }
     }
 
     private async Task<bool> RunFfmpegAsync(
