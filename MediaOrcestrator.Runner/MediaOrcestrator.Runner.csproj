@@ -66,6 +66,7 @@
     <MSBuild Projects="..\MediaOrcestrator.HardDiskDrive\MediaOrcestrator.HardDiskDrive.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
     <MSBuild Projects="..\MediaOrcestrator.VkVideo\MediaOrcestrator.VkVideo.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
     <MSBuild Projects="..\MediaOrcestrator.Telegram\MediaOrcestrator.Telegram.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
+    <MSBuild Projects="..\MediaOrcestrator.Instagram\MediaOrcestrator.Instagram.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
     <MSBuild Projects="..\MediaOrcestrator.Updater\MediaOrcestrator.Updater.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="RuntimeIdentifier" />
     <Copy SourceFiles="..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.exe;..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.dll;..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.runtimeconfig.json;..\MediaOrcestrator.Updater\bin\$(Configuration)\net8.0-windows\Updater.deps.json"
           DestinationFolder="$(OutputPath)"

@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MediaOrcestrator.Domain\MediaOrcestrator.Domain.csproj" />
     <ProjectReference Include="..\MediaOrcestrator.Youtube\MediaOrcestrator.Youtube.csproj" />
+    <ProjectReference Include="..\MediaOrcestrator.Instagram\MediaOrcestrator.Instagram.csproj" />
   </ItemGroup>
 
   <ItemGroup>

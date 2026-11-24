@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MediaOrcestrator.Modules\MediaOrcestrator.Modules.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+  </ItemGroup>
+
+  <Target Name="CopyBuildResults" AfterTargets="Build">
+    <PropertyGroup>
+      <TargetFolder>..\ModuleBuilds\instagram\</TargetFolder>
+    </PropertyGroup>
+    <ItemGroup>
+      <AllBuildFiles Include="$(OutputPath)**\*.dll;$(OutputPath)**\*.pdb" />
+    </ItemGroup>
+    <MakeDir Directories="$(TargetFolder)" Condition="!Exists('$(TargetFolder)')" />
+    <Copy SourceFiles="@(AllBuildFiles)" DestinationFolder="$(TargetFolder)%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
