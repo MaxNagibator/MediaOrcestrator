@@ -10,7 +10,7 @@ public sealed class InstagramServiceTests
     [Test]
     public async Task PublishReelAsync_UsesResumableUploadAndPublishesContainer()
     {
-        var requests = new List<(HttpMethod Method, Uri Uri, string? Authorization)>();
+        var requests = new List<(HttpMethod Method, Uri Uri, string? Authorization, long? ContentLength, string? EntityLength)>();
         var responses = new Queue<HttpResponseMessage>(
         [
             Json("{\"id\":\"container-1\"}"),
@@ -20,7 +20,12 @@ public sealed class InstagramServiceTests
         ]);
         using var client = new HttpClient(new StubHandler(request =>
         {
-            requests.Add((request.Method, request.RequestUri!, request.Headers.Authorization?.ToString()));
+            requests.Add((
+                request.Method,
+                request.RequestUri!,
+                request.Headers.Authorization?.ToString(),
+                request.Content?.Headers.ContentLength,
+                request.Headers.TryGetValues("X-Entity-Length", out var values) ? values.Single() : null));
             return responses.Dequeue();
         }));
         var service = new InstagramService(client, Options.Create(new InstagramOptions
@@ -41,6 +46,8 @@ public sealed class InstagramServiceTests
             Assert.That(requests[0].Uri.AbsoluteUri, Does.EndWith("/v27.0/ig-1/media"));
             Assert.That(requests[1].Uri.Host, Is.EqualTo("rupload.facebook.com"));
             Assert.That(requests[1].Authorization, Is.EqualTo("OAuth secret-token"));
+            Assert.That(requests[1].ContentLength, Is.EqualTo(3));
+            Assert.That(requests[1].EntityLength, Is.EqualTo("3"));
             Assert.That(requests[2].Uri.Query, Does.Contain("status_code"));
             Assert.That(requests[3].Uri.AbsoluteUri, Does.EndWith("/v27.0/ig-1/media_publish"));
         }

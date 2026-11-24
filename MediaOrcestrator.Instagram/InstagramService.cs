@@ -76,6 +76,7 @@ public sealed class InstagramService(HttpClient httpClient, IOptions<InstagramOp
         await using var progressStream = new ProgressReadStream(stream, file.Length, progress);
         using var content = new StreamContent(progressStream);
         content.Headers.ContentType = new MediaTypeHeaderValue("video/mp4");
+        content.Headers.ContentLength = file.Length;
 
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -86,6 +87,7 @@ public sealed class InstagramService(HttpClient httpClient, IOptions<InstagramOp
         request.Headers.TryAddWithoutValidation("Authorization", $"OAuth {accessToken}");
         request.Headers.TryAddWithoutValidation("offset", "0");
         request.Headers.TryAddWithoutValidation("file_size", file.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        request.Headers.TryAddWithoutValidation("X-Entity-Length", file.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         using var _ = await ReadJsonAsync(response, cancellationToken);
