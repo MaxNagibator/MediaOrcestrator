@@ -109,6 +109,7 @@ LiteDB файл бэкапится при каждом запуске и пот�
 | RuTube   |    ✓     |   ✓    | Через yt-dlp. Кодек проверит перед заливкой, не волнуйся          |
 | VK Video |    ✓     |   ✓    | Сессия + cookie. Есть challenge solver, если вк решит, что ты бот |
 | Telegram |    ✓     |   ✓    | Телефон + 2FA через WTelegramClient                               |
+| Instagram |    —     |   ✓    | Meta Graph API, Business/Creator аккаунт                         |
 | HDD      |    ✓     |   ✓    | Ну это диск. Какая авторизация                                    |
 
 ---
@@ -153,6 +154,7 @@ MediaOrcestrator.sln
 ├── Rutube            yt-dlp + кодек-валидация перед загрузкой
 ├── VkVideo           сессии, cookie, обходчик "я не робот, брат"
 ├── Telegram          WTelegramClient, телефон + 2FA
+├── Instagram         Meta Graph API, публикация Reels
 ├── HardDiskDrive     просто файлы на диске. зато надёжно
 │
 ├── Updater           автообновлятор, отдельный exe

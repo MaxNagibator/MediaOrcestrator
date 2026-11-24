@@ -29,13 +29,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediaOrcestrator.Updater", 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 	ProjectSection(SolutionItems) = preProject
-		Directory.Build.props = Directory.Build.props
 		.editorconfig = .editorconfig
 		.gitignore = .gitignore
+		Directory.Build.props = Directory.Build.props
 		.github\workflows\release.yml = .github\workflows\release.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediaOrcestrator.Domain.Tests", "MediaOrcestrator.Domain.Tests\MediaOrcestrator.Domain.Tests.csproj", "{0CFC1888-8A69-4732-B4A6-6EA685AFADA6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediaOrcestrator.Instagram", "MediaOrcestrator.Instagram\MediaOrcestrator.Instagram.csproj", "{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -179,6 +181,18 @@ Global
 		{0CFC1888-8A69-4732-B4A6-6EA685AFADA6}.Release|x64.Build.0 = Release|Any CPU
 		{0CFC1888-8A69-4732-B4A6-6EA685AFADA6}.Release|x86.ActiveCfg = Release|Any CPU
 		{0CFC1888-8A69-4732-B4A6-6EA685AFADA6}.Release|x86.Build.0 = Release|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Debug|x64.Build.0 = Debug|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Debug|x86.Build.0 = Debug|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Release|x64.ActiveCfg = Release|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Release|x64.Build.0 = Release|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Release|x86.ActiveCfg = Release|Any CPU
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -190,5 +204,6 @@ Global
 		{AE03626B-2579-4558-B5C2-D8FF1B5E8681} = {D0C87031-8A91-4DB6-B2FE-F53372E6553E}
 		{871A1C3F-2FEE-4CB0-8005-8B6C64A6805D} = {D0C87031-8A91-4DB6-B2FE-F53372E6553E}
 		{EAFD83BC-EF56-477C-9D51-7662FAE6BA0D} = {D0C87031-8A91-4DB6-B2FE-F53372E6553E}
+		{44EA87D2-CA44-4931-9E2D-BBC529EB0D54} = {D0C87031-8A91-4DB6-B2FE-F53372E6553E}
 	EndGlobalSection
 EndGlobal
