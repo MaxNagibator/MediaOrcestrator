@@ -15,6 +15,7 @@ public sealed record MediaActionContext(
     MediaMergeService MergeService,
     ActionHolder ActionHolder,
     CommentsService CommentsService,
+    SettingsManager SettingsManager,
     ILoggerFactory LoggerFactory,
     ILogger Logger,
     IMediaActionUi Ui);

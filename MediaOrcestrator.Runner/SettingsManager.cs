@@ -4,6 +4,8 @@ namespace MediaOrcestrator.Runner;
 
 public sealed class SettingsManager
 {
+    public const string UploadIntervalMinutesKey = "upload_interval_minutes";
+
     private readonly string _settingsPath;
     private readonly Dictionary<string, string> _settings;
 
@@ -26,6 +28,14 @@ public sealed class SettingsManager
     {
         _settings[key] = value;
         SaveSettings();
+    }
+
+    public int GetUploadIntervalMinutes()
+    {
+        var value = GetStringValue(UploadIntervalMinutesKey);
+        return int.TryParse(value, out var minutes) && minutes >= 0
+            ? Math.Min(minutes, 1440)
+            : 0;
     }
 
     private void LoadSettings()

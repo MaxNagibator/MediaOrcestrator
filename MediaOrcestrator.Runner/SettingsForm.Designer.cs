@@ -28,10 +28,16 @@ sealed partial class SettingsForm
         uiStatePathTextBox = new TextBox();
         uiStatePathBrowseButton = new Button();
         uiRestartHintLabel = new Label();
+        uiUploadsGroupBox = new GroupBox();
+        uiGridUploadIntervalLabel = new Label();
+        uiGridUploadIntervalNumeric = new NumericUpDown();
+        uiGridUploadIntervalHintLabel = new Label();
         uiSaveAndRestartButton = new Button();
         uiSaveButton = new Button();
         uiCancelButton = new Button();
         uiPathsGroupBox.SuspendLayout();
+        uiUploadsGroupBox.SuspendLayout();
+        ((System.ComponentModel.ISupportInitialize)uiGridUploadIntervalNumeric).BeginInit();
         SuspendLayout();
         // 
         // uiPathsGroupBox
@@ -168,10 +174,50 @@ sealed partial class SettingsForm
         uiRestartHintLabel.TabIndex = 1;
         uiRestartHintLabel.Text = "Изменения путей применятся только после перезапуска приложения.";
         uiRestartHintLabel.TextAlign = ContentAlignment.MiddleLeft;
+        //
+        // uiUploadsGroupBox
+        //
+        uiUploadsGroupBox.Controls.Add(uiGridUploadIntervalLabel);
+        uiUploadsGroupBox.Controls.Add(uiGridUploadIntervalNumeric);
+        uiUploadsGroupBox.Controls.Add(uiGridUploadIntervalHintLabel);
+        uiUploadsGroupBox.Location = new Point(12, 211);
+        uiUploadsGroupBox.Name = "uiUploadsGroupBox";
+        uiUploadsGroupBox.Size = new Size(596, 75);
+        uiUploadsGroupBox.TabIndex = 2;
+        uiUploadsGroupBox.TabStop = false;
+        uiUploadsGroupBox.Text = "Пакетные загрузки";
+        //
+        // uiGridUploadIntervalLabel
+        //
+        uiGridUploadIntervalLabel.AutoSize = true;
+        uiGridUploadIntervalLabel.Location = new Point(10, 24);
+        uiGridUploadIntervalLabel.Name = "uiGridUploadIntervalLabel";
+        uiGridUploadIntervalLabel.Size = new Size(196, 15);
+        uiGridUploadIntervalLabel.TabIndex = 0;
+        uiGridUploadIntervalLabel.Text = "Задержка между загрузками (мин):";
+        //
+        // uiGridUploadIntervalNumeric
+        //
+        uiGridUploadIntervalNumeric.Location = new Point(212, 21);
+        uiGridUploadIntervalNumeric.Maximum = new decimal(new int[] { 1440, 0, 0, 0 });
+        uiGridUploadIntervalNumeric.Name = "uiGridUploadIntervalNumeric";
+        uiGridUploadIntervalNumeric.Size = new Size(70, 23);
+        uiGridUploadIntervalNumeric.TabIndex = 1;
+        uiGridUploadIntervalNumeric.TextAlign = HorizontalAlignment.Right;
+        //
+        // uiGridUploadIntervalHintLabel
+        //
+        uiGridUploadIntervalHintLabel.AutoSize = true;
+        uiGridUploadIntervalHintLabel.ForeColor = SystemColors.GrayText;
+        uiGridUploadIntervalHintLabel.Location = new Point(10, 49);
+        uiGridUploadIntervalHintLabel.Name = "uiGridUploadIntervalHintLabel";
+        uiGridUploadIntervalHintLabel.Size = new Size(287, 15);
+        uiGridUploadIntervalHintLabel.TabIndex = 2;
+        uiGridUploadIntervalHintLabel.Text = "0 — без задержки. Применяется в главном гриде и дереве синхронизации.";
         // 
         // uiSaveAndRestartButton
         // 
-        uiSaveAndRestartButton.Location = new Point(12, 220);
+        uiSaveAndRestartButton.Location = new Point(12, 301);
         uiSaveAndRestartButton.Name = "uiSaveAndRestartButton";
         uiSaveAndRestartButton.Size = new Size(220, 30);
         uiSaveAndRestartButton.TabIndex = 2;
@@ -181,7 +227,7 @@ sealed partial class SettingsForm
         // 
         // uiSaveButton
         // 
-        uiSaveButton.Location = new Point(238, 220);
+        uiSaveButton.Location = new Point(238, 301);
         uiSaveButton.Name = "uiSaveButton";
         uiSaveButton.Size = new Size(130, 30);
         uiSaveButton.TabIndex = 3;
@@ -191,7 +237,7 @@ sealed partial class SettingsForm
         // 
         // uiCancelButton
         // 
-        uiCancelButton.Location = new Point(500, 220);
+        uiCancelButton.Location = new Point(500, 301);
         uiCancelButton.Name = "uiCancelButton";
         uiCancelButton.Size = new Size(108, 30);
         uiCancelButton.TabIndex = 4;
@@ -204,9 +250,10 @@ sealed partial class SettingsForm
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
         CancelButton = uiCancelButton;
-        ClientSize = new Size(618, 258);
+        ClientSize = new Size(618, 339);
         Controls.Add(uiPathsGroupBox);
         Controls.Add(uiRestartHintLabel);
+        Controls.Add(uiUploadsGroupBox);
         Controls.Add(uiSaveAndRestartButton);
         Controls.Add(uiSaveButton);
         Controls.Add(uiCancelButton);
@@ -218,6 +265,9 @@ sealed partial class SettingsForm
         Text = "Настройки приложения";
         uiPathsGroupBox.ResumeLayout(false);
         uiPathsGroupBox.PerformLayout();
+        uiUploadsGroupBox.ResumeLayout(false);
+        uiUploadsGroupBox.PerformLayout();
+        ((System.ComponentModel.ISupportInitialize)uiGridUploadIntervalNumeric).EndInit();
         ResumeLayout(false);
     }
 
@@ -235,6 +285,10 @@ sealed partial class SettingsForm
     private TextBox uiStatePathTextBox;
     private Button uiStatePathBrowseButton;
     private Label uiRestartHintLabel;
+    private GroupBox uiUploadsGroupBox;
+    private Label uiGridUploadIntervalLabel;
+    private NumericUpDown uiGridUploadIntervalNumeric;
+    private Label uiGridUploadIntervalHintLabel;
     private Button uiSaveAndRestartButton;
     private Button uiSaveButton;
     private Button uiCancelButton;

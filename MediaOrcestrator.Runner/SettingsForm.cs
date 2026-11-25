@@ -25,11 +25,13 @@ public sealed partial class SettingsForm : Form
         _originalValues[DatabasePathKey] = settingsManager.GetStringValue(DatabasePathKey);
         _originalValues[TempPathKey] = settingsManager.GetStringValue(TempPathKey);
         _originalValues[StatePathKey] = settingsManager.GetStringValue(StatePathKey);
+        _originalValues[SettingsManager.UploadIntervalMinutesKey] = settingsManager.GetStringValue(SettingsManager.UploadIntervalMinutesKey);
 
         uiPluginPathTextBox.Text = _originalValues[PluginPathKey] ?? "";
         uiDatabasePathTextBox.Text = _originalValues[DatabasePathKey] ?? "";
         uiTempPathTextBox.Text = _originalValues[TempPathKey] ?? "";
         uiStatePathTextBox.Text = _originalValues[StatePathKey] ?? "";
+        uiGridUploadIntervalNumeric.Value = settingsManager.GetUploadIntervalMinutes();
     }
 
     private void uiPluginPathBrowseButton_Click(object sender, EventArgs e)
@@ -147,6 +149,7 @@ public sealed partial class SettingsForm : Form
         PersistIfChanged(DatabasePathKey, database);
         PersistIfChanged(TempPathKey, temp);
         PersistIfChanged(StatePathKey, state);
+        PersistIfChanged(SettingsManager.UploadIntervalMinutesKey, decimal.ToInt32(uiGridUploadIntervalNumeric.Value).ToString());
         return true;
     }
 
