@@ -40,6 +40,7 @@ public partial class MediaMatrixGridControl : UserControl, IMediaActionUi
             context.MergeService,
             context.ActionHolder,
             context.CommentsService,
+            context.SettingsManager,
             context.LoggerFactory,
             context.Logger,
             this);

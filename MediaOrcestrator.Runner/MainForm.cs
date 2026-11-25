@@ -220,6 +220,7 @@ public partial class MainForm : Form
                 _orcestrator,
                 _serviceProvider.GetRequiredService<SyncRetryRunner>(),
                 _serviceProvider.GetRequiredService<ActionHolder>(),
+                _serviceProvider.GetRequiredService<SettingsManager>(),
                 _serviceProvider.GetRequiredService<ILogger<SyncTreeControl>>());
         }
 
