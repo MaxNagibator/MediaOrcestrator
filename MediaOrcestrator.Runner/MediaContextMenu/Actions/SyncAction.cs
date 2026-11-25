@@ -97,10 +97,15 @@ internal sealed class SyncAction : IMediaMenuAction
 
     private static async Task ExecuteAsync(IReadOnlyList<Media> mediaList, SourceSyncRelation rel, MediaActionContext ctx)
     {
+        var uploadIntervalMinutes = ctx.SettingsManager.GetUploadIntervalMinutes();
+
         if (mediaList.Count > 1)
         {
+            var intervalText = uploadIntervalMinutes > 0
+                ? $"\n\nМежду успешными загрузками будет пауза {uploadIntervalMinutes} мин."
+                : string.Empty;
             var confirm = MessageBox.Show(ctx.Ui.Owner,
-                $"Синхронизировать {mediaList.Count} медиа из {rel.From.TitleFull} в {rel.To.TitleFull}?",
+                $"Синхронизировать {mediaList.Count} медиа из {rel.From.TitleFull} в {rel.To.TitleFull}?{intervalText}",
                 "Подтверждение пакетной синхронизации",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
@@ -114,12 +119,25 @@ internal sealed class SyncAction : IMediaMenuAction
         ctx.Logger.LogInformation("Запуск синхронизации {Count} медиа: {From} → {To}",
             mediaList.Count, rel.From.TitleFull, rel.To.TitleFull);
 
+        var nextItemIndex = 0;
         await BatchOperationRunner.RunAsync(mediaList,
             m => m.Title ?? string.Empty,
             async (m, ct) =>
             {
+                var itemIndex = nextItemIndex++;
                 var outcome = await ctx.RetryRunner.RunAsync(m, rel, maxAttempts: BatchSyncMaxAttempts, cancellationToken: ct);
                 ctx.Logger.LogInformation("{Outcome}: '{Title}'", outcome == SyncRunOutcome.Skipped ? "Пропущено" : "Синхронизировано", m.Title);
+
+                if (outcome == SyncRunOutcome.Transferred
+                    && uploadIntervalMinutes > 0
+                    && itemIndex < mediaList.Count - 1)
+                {
+                    ctx.Logger.LogInformation(
+                        "Ожидание {Minutes} мин перед следующей загрузкой после '{Title}'",
+                        uploadIntervalMinutes,
+                        m.Title);
+                    await Task.Delay(TimeSpan.FromMinutes(uploadIntervalMinutes), ct);
+                }
             },
             "Синхронизировано",
             "Пакетная синхронизация завершена с ошибками",
